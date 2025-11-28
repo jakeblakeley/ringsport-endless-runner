@@ -1,0 +1,87 @@
+using UnityEngine;
+using RingSport.Core;
+
+namespace RingSport.Level
+{
+    public class Collectible : MonoBehaviour
+    {
+        [SerializeField] private int pointValue = 10;
+        [SerializeField] private ParticleSystem collectVFX;
+
+        private bool isCollected = false;
+        private MeshRenderer meshRenderer;
+
+        private void Awake()
+        {
+            meshRenderer = GetComponent<MeshRenderer>();
+        }
+
+        private void OnEnable()
+        {
+            isCollected = false;
+
+            // Make sure visual is enabled
+            if (meshRenderer != null)
+                meshRenderer.enabled = true;
+        }
+
+        private void OnDisable()
+        {
+            // Cancel any pending invoke when disabled
+            CancelInvoke();
+        }
+
+        private void OnTriggerEnter(Collider other)
+        {
+            Debug.Log($"Collectible triggered by: {other.name}, tag: {other.tag}");
+
+            // Check if player collided with collectible
+            if (other.CompareTag("Player"))
+            {
+                Debug.Log("Player collected item!");
+                Collect();
+            }
+        }
+
+        public void Collect()
+        {
+            if (isCollected)
+            {
+                Debug.Log("Already collected, ignoring");
+                return;
+            }
+
+            isCollected = true;
+
+            Debug.Log($"Collecting! Adding {pointValue} points");
+
+            // Hide visual immediately
+            if (meshRenderer != null)
+                meshRenderer.enabled = false;
+
+            // Add points to score
+            LevelManager.Instance?.AddScore(pointValue);
+
+            // Play VFX if assigned
+            if (collectVFX != null)
+            {
+                collectVFX.Play();
+            }
+
+            // Return to pool immediately (or after short delay for VFX)
+            float delay = collectVFX != null ? 0.5f : 0f;
+            Invoke(nameof(ReturnToPool), delay);
+        }
+
+        private void ReturnToPool()
+        {
+            Debug.Log("Returning collectible to pool");
+            ObjectPooler.Instance?.ReturnToPool(gameObject);
+        }
+
+        private void OnValidate()
+        {
+            gameObject.tag = "Collectible";
+        }
+    }
+}
