@@ -79,6 +79,14 @@ namespace RingSport.Level
             ObjectPooler.Instance?.ReturnToPool(gameObject);
         }
 
+        /// <summary>
+        /// Set the point value for this collectible (used for mega collectibles)
+        /// </summary>
+        public void SetPointValue(int value)
+        {
+            pointValue = value;
+        }
+
         private void OnValidate()
         {
             gameObject.tag = "Collectible";

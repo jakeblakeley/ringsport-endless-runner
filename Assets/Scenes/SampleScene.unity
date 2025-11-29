@@ -2170,10 +2170,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 897fabbf3bf474fe9a8500fd12a6291d, type: 2}
   - {fileID: 11400000, guid: a6dbb7ca8d8c44e5bb2b3dde4beaf3e3, type: 2}
   - {fileID: 11400000, guid: 3e017d2e3c38a497a9c801ba4748feb8, type: 2}
-  spawnDistance: 50
+  spawnDistance: 100
   despawnDistance: -10
   player: {fileID: 1473303864}
-  floorTileLength: 20
+  floorTileLength: 1
+  floorTileSpacing: 10
 --- !u!1 &1349813593
 GameObject:
   m_ObjectHideFlags: 0
@@ -3434,6 +3435,9 @@ MonoBehaviour:
   - tag: Collectible
     prefab: {fileID: 7986111755232233134, guid: 5f43de8178fe544c2b739bbfacefb609, type: 3}
     size: 10
+  - tag: MegaCollectible
+    prefab: {fileID: 7986111755232233135, guid: 7a92ef3b45cd2478abc12345678defab, type: 3}
+    size: 5
   - tag: Floor
     prefab: {fileID: 1462051254498222346, guid: e104286d6fe3d4ff7993306ec6595b2e, type: 3}
     size: 20

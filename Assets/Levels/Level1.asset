@@ -19,4 +19,10 @@ MonoBehaviour:
   maxCollectibles: 30
   minCollectibleSpacing: 5
   maxCollectibleSpacing: 15
-  avoidObstacleProbability: 1
+  collectibleToObstacleRatio: 2
+  minCollectibleObstacleDistance: 4
+  collectibleLineBias: 0.65
+  collectibleAboveObstacleChance: 0.3
+  megaCollectibleSpawnRatio: 0.1
+  megaCollectiblePointValue: 50
+  avoidObstacleProbability: 0.5
