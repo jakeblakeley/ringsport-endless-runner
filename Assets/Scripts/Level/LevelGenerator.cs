@@ -62,6 +62,9 @@ namespace RingSport.Level
         private int coinTrainRemaining = 0;
         private int coinTrainLane = 0;
 
+        // Coin arc tracking (to prevent duplicate arcs for same obstacle)
+        private HashSet<float> obstaclesWithArcs = new HashSet<float>();
+
         // Recovery zone tracking (fairness after palisade minigames)
         private bool inRecoveryZone = false;
         private float recoveryZoneEndVirtualZ = 0f;
@@ -140,6 +143,9 @@ namespace RingSport.Level
             isInCoinTrain = false;
             coinTrainRemaining = 0;
             coinTrainLane = 0;
+
+            // Reset coin arc tracking
+            obstaclesWithArcs.Clear();
 
             // Reset recovery zone
             inRecoveryZone = false;
@@ -724,6 +730,27 @@ namespace RingSport.Level
 
             if (virtualDistance + spawnDistance > nextCollectibleSpawnZ)
             {
+                // First, check if there's an upcoming jumpable obstacle that needs a coin arc
+                ObstacleData? upcomingObstacle = GetUpcomingJumpableObstacle(nextCollectibleSpawnZ);
+
+                if (upcomingObstacle.HasValue && !obstaclesWithArcs.Contains(upcomingObstacle.Value.zPosition))
+                {
+                    // Spawn coin arc for this obstacle
+                    SpawnCoinArc(upcomingObstacle.Value);
+
+                    // Mark this obstacle as having an arc
+                    obstaclesWithArcs.Add(upcomingObstacle.Value.zPosition);
+
+                    // Advance spawn position past the arc (obstacle position + 3.5 units after + a small buffer)
+                    nextCollectibleSpawnZ = upcomingObstacle.Value.zPosition + 4.5f;
+
+                    // End any coin train that might be active
+                    isInCoinTrain = false;
+                    coinTrainRemaining = 0;
+
+                    return; // Skip regular collectible spawning this frame
+                }
+
                 // Check if this position is near any obstacle (within 3 units before or after)
                 ObstacleData? nearbyObstacle = GetNearbyObstacle(nextCollectibleSpawnZ, 3f);
 
@@ -920,6 +947,113 @@ namespace RingSport.Level
             } while (newLane == previousLane);
 
             return newLane;
+        }
+
+        /// <summary>
+        /// Spawn a coin arc pattern over a jumpable obstacle
+        /// Creates a parabolic arc of coins to hint to the player to jump
+        /// </summary>
+        private void SpawnCoinArc(ObstacleData obstacle)
+        {
+            // Determine number of coins (5-7)
+            int coinCount = Random.Range(5, 8);
+
+            // Arc parameters
+            float arcStartOffset = -3.5f; // Start 3.5 units before obstacle
+            float arcEndOffset = 3.5f; // End 3.5 units after obstacle
+            float arcLength = arcEndOffset - arcStartOffset;
+
+            // Determine peak height based on obstacle type
+            float peakHeight;
+            if (obstacle.obstacleType == "ObstaclePalisade")
+            {
+                peakHeight = 3.5f; // Higher arc for tall palisades
+            }
+            else if (obstacle.obstacleType == "ObstacleBroadJump")
+            {
+                peakHeight = 2.5f; // Medium arc for broad jumps
+            }
+            else // ObstacleJump
+            {
+                peakHeight = 2.0f; // Standard arc for regular jumps
+            }
+
+            float baseHeight = 1f; // Starting/ending height
+
+            // Spawn coins along the arc
+            for (int i = 0; i < coinCount; i++)
+            {
+                // Calculate position along the arc (0 to 1)
+                float t = i / (float)(coinCount - 1);
+
+                // Z position: interpolate from start to end of arc
+                float zOffset = Mathf.Lerp(arcStartOffset, arcEndOffset, t);
+                float spawnVirtualZ = obstacle.zPosition + zOffset;
+
+                // Y position: parabolic arc (peaks in the middle)
+                // Use inverted parabola: height = -a * (t - 0.5)^2 + peakHeight
+                // where a controls the curve steepness
+                float centerOffset = t - 0.5f; // -0.5 to 0.5
+                float heightMultiplier = 1f - (centerOffset * centerOffset * 4f); // Parabola: 0 at edges, 1 at center
+                float spawnHeight = Mathf.Lerp(baseHeight, peakHeight, heightMultiplier);
+
+                // X position: same lane as obstacle
+                float xPosition = obstacle.lane * 3f;
+
+                // Calculate world position
+                float spawnZ = player.position.z + (spawnVirtualZ - virtualDistance);
+                Vector3 spawnPosition = new Vector3(xPosition, spawnHeight, spawnZ);
+
+                // Randomly choose between regular and mega collectible
+                bool isMega = Random.value < currentConfig.MegaCollectibleSpawnRatio;
+                string poolTag = isMega ? "MegaCollectible" : "Collectible";
+
+                GameObject collectible = ObjectPooler.Instance?.SpawnFromPool(poolTag, spawnPosition, Quaternion.identity);
+
+                if (collectible != null)
+                {
+                    // If mega collectible, set its point value
+                    if (isMega)
+                    {
+                        var collectibleComponent = collectible.GetComponent<Collectible>();
+                        if (collectibleComponent != null)
+                        {
+                            collectibleComponent.SetPointValue(currentConfig.MegaCollectiblePointValue);
+                        }
+                    }
+
+                    collectiblesSpawned++;
+                }
+            }
+
+            Debug.Log($"Spawned coin arc with {coinCount} coins over {obstacle.obstacleType} at lane {obstacle.lane}, peak height {peakHeight}");
+        }
+
+        /// <summary>
+        /// Check for upcoming jumpable obstacles within arc range
+        /// Returns the obstacle data if found, null otherwise
+        /// </summary>
+        private ObstacleData? GetUpcomingJumpableObstacle(float zPosition, float lookAheadDistance = 8f)
+        {
+            foreach (ObstacleData obstacle in obstaclePositions)
+            {
+                // Check if obstacle is ahead of current position
+                float distanceAhead = obstacle.zPosition - zPosition;
+
+                // Only consider obstacles within the look-ahead range
+                if (distanceAhead > 0 && distanceAhead <= lookAheadDistance)
+                {
+                    // Check if it's a jumpable obstacle type
+                    if (obstacle.obstacleType == "ObstacleJump" ||
+                        obstacle.obstacleType == "ObstaclePalisade" ||
+                        obstacle.obstacleType == "ObstacleBroadJump")
+                    {
+                        return obstacle;
+                    }
+                }
+            }
+
+            return null;
         }
 
         private void DespawnObjects()
