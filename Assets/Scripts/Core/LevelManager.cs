@@ -10,17 +10,16 @@ namespace RingSport.Core
 
         [Header("Level Settings")]
         [SerializeField] private int maxLevels = 9;
-        [SerializeField] private float levelDuration = 60f; // seconds per level
 
         private int currentLevel = 1;
         private int currentScore = 0;
         private float levelTimer = 0f;
         private float distanceTraveled = 0f;
-        private bool levelActive = false;
+        private LevelConfig currentLevelConfig;
 
         public int CurrentLevel => currentLevel;
         public int CurrentScore => currentScore;
-        public float LevelProgress => Mathf.Clamp01(levelTimer / levelDuration);
+        public float LevelProgress => currentLevelConfig != null ? Mathf.Clamp01(levelTimer / currentLevelConfig.LevelDuration) : 0f;
         public float DistanceTraveled => distanceTraveled;
 
         private void Awake()
@@ -36,11 +35,17 @@ namespace RingSport.Core
 
         private void Update()
         {
-            if (!levelActive) return;
+            // Only run timer during Playing state
+            if (GameManager.Instance?.CurrentState != GameState.Playing)
+                return;
+
+            if (currentLevelConfig == null)
+                return;
 
             levelTimer += Time.deltaTime;
 
-            if (levelTimer >= levelDuration)
+            // Check if level duration has been reached (level complete)
+            if (levelTimer >= currentLevelConfig.LevelDuration)
             {
                 EndLevel();
             }
@@ -48,18 +53,24 @@ namespace RingSport.Core
 
         public void StartLevel()
         {
-            levelActive = true;
             levelTimer = 0f;
             distanceTraveled = 0f;
             currentScore = 0;
 
+            // Generate the level and get its config
             LevelGenerator.Instance?.GenerateLevel(currentLevel);
+
+            // Get the current level config from LevelGenerator
+            currentLevelConfig = LevelGenerator.Instance?.GetCurrentConfig();
+
+            if (currentLevelConfig == null)
+            {
+                Debug.LogError("Failed to get level config!");
+            }
         }
 
         public void EndLevel()
         {
-            levelActive = false;
-
             if (currentLevel < maxLevels)
             {
                 GameManager.Instance?.CompleteLevel();
@@ -103,12 +114,12 @@ namespace RingSport.Core
             currentScore = 0;
             levelTimer = 0f;
             distanceTraveled = 0f;
-            levelActive = false;
+            currentLevelConfig = null;
         }
 
         public float GetLevelDuration()
         {
-            return levelDuration;
+            return currentLevelConfig != null ? currentLevelConfig.LevelDuration : 60f;
         }
     }
 }

@@ -101,6 +101,7 @@ GameObject:
   - component: {fileID: 7444648596810052242}
   - component: {fileID: 414752696257621577}
   - component: {fileID: 2966558594096419057}
+  - component: {fileID: 3968050892574083617}
   m_Layer: 0
   m_Name: Coin
   m_TagString: Collectible
@@ -173,3 +174,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f92761b0e9ef74b5189be54ab9997f10, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.ScrollableObject
+--- !u!114 &3968050892574083617
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7986111755232233134}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25f6f4a11cb804fe88af481dd67ecbd9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.CollectibleAnimation
+  rotationSpeed: 50
+  rotationAxis: {x: 0, y: 1, z: 0}
+  hoverHeight: 0.3
+  hoverSpeed: 2

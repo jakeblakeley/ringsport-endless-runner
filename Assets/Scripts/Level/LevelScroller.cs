@@ -11,6 +11,7 @@ namespace RingSport.Level
         [SerializeField] private PlayerController player;
 
         private float scrollSpeed = 0f;
+        private bool isPaused = false;
 
         private void Awake()
         {
@@ -25,11 +26,18 @@ namespace RingSport.Level
 
         private void Update()
         {
-            if (GameManager.Instance?.CurrentState != GameState.Playing || player == null)
+            if (isPaused || GameManager.Instance?.CurrentState != GameState.Playing || player == null)
                 return;
 
             // Get current speed from player (includes sprint)
             scrollSpeed = player.ForwardSpeed;
+
+            // Apply level speed multiplier
+            LevelConfig currentConfig = LevelGenerator.Instance?.GetCurrentConfig();
+            if (currentConfig != null)
+            {
+                scrollSpeed *= currentConfig.SpeedMultiplier;
+            }
 
             // Track distance for level progress
             LevelManager.Instance?.AddDistance(scrollSpeed * Time.deltaTime);
@@ -37,7 +45,7 @@ namespace RingSport.Level
 
         public void ScrollObject(Transform obj)
         {
-            if (GameManager.Instance?.CurrentState != GameState.Playing)
+            if (isPaused || GameManager.Instance?.CurrentState != GameState.Playing)
                 return;
 
             // Move objects toward player (negative Z direction)
@@ -47,6 +55,16 @@ namespace RingSport.Level
         public float GetScrollSpeed()
         {
             return scrollSpeed;
+        }
+
+        public void Pause()
+        {
+            isPaused = true;
+        }
+
+        public void Resume()
+        {
+            isPaused = false;
         }
 
         public void SetPlayer(PlayerController playerController)

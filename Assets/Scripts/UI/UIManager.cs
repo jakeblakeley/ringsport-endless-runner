@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using RingSport.Core;
+using RingSport.Player;
 
 namespace RingSport.UI
 {
@@ -21,6 +22,9 @@ namespace RingSport.UI
         [Header("Game HUD")]
         [SerializeField] private TextMeshProUGUI scoreText;
         [SerializeField] private TextMeshProUGUI levelText;
+        [SerializeField] private Image sprintBarFill;
+        [SerializeField] private Color sprintBarNormalColor = new Color(0.29f, 0.56f, 0.89f, 1f); // Blue
+        [SerializeField] private Color sprintBarExhaustedColor = new Color(0.91f, 0.30f, 0.24f, 1f); // Red
 
         [Header("Reward Screen")]
         [SerializeField] private TextMeshProUGUI rewardLevelText;
@@ -31,6 +35,9 @@ namespace RingSport.UI
         [Header("Game Over Screen")]
         [SerializeField] private Button retryButton;
         [SerializeField] private Button homeButton;
+
+        [Header("Minigames")]
+        [SerializeField] private PalisadeMinigame palisadeMinigame;
 
         private void Awake()
         {
@@ -125,6 +132,29 @@ namespace RingSport.UI
         {
             if (levelText != null)
                 levelText.text = $"Level: {level}";
+        }
+
+        public void UpdateSprintBar(float fillAmount, bool isExhausted)
+        {
+            if (sprintBarFill != null)
+            {
+                sprintBarFill.fillAmount = fillAmount;
+                sprintBarFill.color = isExhausted ? sprintBarExhaustedColor : sprintBarNormalColor;
+            }
+        }
+
+        public void ShowPalisadeMinigame(int requiredTaps, Vector3 obstaclePosition, float obstacleHeight, PlayerController player)
+        {
+            Debug.Log($"UIManager.ShowPalisadeMinigame called - requiredTaps: {requiredTaps}, palisadeMinigame: {(palisadeMinigame != null ? "assigned" : "NULL")}");
+
+            if (palisadeMinigame != null)
+            {
+                palisadeMinigame.StartMinigame(requiredTaps, obstaclePosition, obstacleHeight, player);
+            }
+            else
+            {
+                Debug.LogError("PalisadeMinigame reference not set in UIManager!");
+            }
         }
 
         private void OnStartButtonClicked()

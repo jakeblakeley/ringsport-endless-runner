@@ -7,6 +7,8 @@ namespace RingSport.Level
     {
         [Header("Level Info")]
         [SerializeField] private int levelNumber = 1;
+        [Tooltip("Duration in seconds to complete this level")]
+        [SerializeField] private float levelDuration = 60f;
 
         [Header("Obstacle Settings")]
         [SerializeField] private int maxObstacles = 20;
@@ -39,8 +41,12 @@ namespace RingSport.Level
         [Tooltip("Higher values = more avoid obstacles vs jump obstacles")]
         [Range(0f, 1f)]
         [SerializeField] private float avoidObstacleProbability = 0.5f;
+        [Tooltip("Speed multiplier for the level (1.0 = normal, 1.5 = 50% faster, etc.)")]
+        [Range(0.5f, 3f)]
+        [SerializeField] private float speedMultiplier = 1.0f;
 
         public int LevelNumber => levelNumber;
+        public float LevelDuration => levelDuration;
         public int MaxObstacles => maxObstacles;
         public float MinObstacleSpacing => minObstacleSpacing;
         public float MaxObstacleSpacing => maxObstacleSpacing;
@@ -54,10 +60,12 @@ namespace RingSport.Level
         public float MegaCollectibleSpawnRatio => megaCollectibleSpawnRatio;
         public int MegaCollectiblePointValue => megaCollectiblePointValue;
         public float AvoidObstacleProbability => avoidObstacleProbability;
+        public float SpeedMultiplier => speedMultiplier;
 
         private void OnValidate()
         {
             // Ensure valid values
+            levelDuration = Mathf.Max(1f, levelDuration);
             maxObstacles = Mathf.Max(1, maxObstacles);
             maxCollectibles = Mathf.Max(1, maxCollectibles);
             minObstacleSpacing = Mathf.Max(1f, minObstacleSpacing);
@@ -67,6 +75,7 @@ namespace RingSport.Level
             collectibleToObstacleRatio = Mathf.Max(0.1f, collectibleToObstacleRatio);
             minCollectibleObstacleDistance = Mathf.Max(0f, minCollectibleObstacleDistance);
             megaCollectiblePointValue = Mathf.Max(1, megaCollectiblePointValue);
+            speedMultiplier = Mathf.Clamp(speedMultiplier, 0.5f, 3f);
         }
     }
 }

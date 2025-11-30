@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Level3
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelConfig
   levelNumber: 3
+  levelDuration: 60
   maxObstacles: 40
   minObstacleSpacing: 10
   maxObstacleSpacing: 20

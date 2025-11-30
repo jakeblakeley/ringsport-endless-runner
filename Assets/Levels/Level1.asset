@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: Level1
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelConfig
   levelNumber: 1
-  maxObstacles: 20
+  levelDuration: 45
+  maxObstacles: 30
   minObstacleSpacing: 10
   maxObstacleSpacing: 20
   maxCollectibles: 30
@@ -26,3 +27,4 @@ MonoBehaviour:
   megaCollectibleSpawnRatio: 0.1
   megaCollectiblePointValue: 50
   avoidObstacleProbability: 0.5
+  speedMultiplier: 2
