@@ -12,18 +12,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7a7a1fc9ad314477cbfcabe6a7d178ef, type: 3}
   m_Name: Level5 - Ring 2 Leg 2
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelConfig
-  levelNumber: 3
+  levelNumber: 5
   levelDuration: 60
   maxObstacles: 40
-  minObstacleSpacing: 10
-  maxObstacleSpacing: 20
+  minObstacleSpacing: 8
+  maxObstacleSpacing: 14
   maxCollectibles: 30
-  minCollectibleSpacing: 5
-  maxCollectibleSpacing: 15
+  minCollectibleSpacing: 4
+  maxCollectibleSpacing: 9
   collectibleToObstacleRatio: 3
   minCollectibleObstacleDistance: 2
-  collectibleLineBias: 0.65
-  collectibleAboveObstacleChance: 0.5
-  megaCollectibleSpawnRatio: 0.15
+  collectibleLineBias: 0.6
+  collectibleAboveObstacleChance: 0.45
+  megaCollectibleSpawnRatio: 0.08
   megaCollectiblePointValue: 50
-  avoidObstacleProbability: 0.5
+  avoidObstacleProbability: 0.45
+  speedMultiplier: 1.6
+  maxEffectiveSpeed: 28
+  minPatternDifficulty: 4
+  maxPatternDifficulty: 7
+  patternUsageRatio: 0.75

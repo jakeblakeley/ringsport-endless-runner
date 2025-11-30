@@ -11,17 +11,22 @@ namespace RingSport.Core
         [Header("Level Settings")]
         [SerializeField] private int maxLevels = 9;
 
+        [Header("Retry Settings")]
+        [SerializeField] private int maxRetries = 3;
+
         private int currentLevel = 1;
         private int currentScore = 0;
         private float levelTimer = 0f;
         private float distanceTraveled = 0f;
         private LevelConfig currentLevelConfig;
         private bool hasCalledLevelEnding = false; // Track if we've already called OnLevelEnding
+        private int retriesRemaining = 3;
 
         public int CurrentLevel => currentLevel;
         public int CurrentScore => currentScore;
         public float LevelProgress => currentLevelConfig != null ? Mathf.Clamp01(levelTimer / currentLevelConfig.LevelDuration) : 0f;
         public float DistanceTraveled => distanceTraveled;
+        public int RetriesRemaining => retriesRemaining;
 
         private void Awake()
         {
@@ -32,6 +37,7 @@ namespace RingSport.Core
             }
 
             Instance = this;
+            Debug.Log($"[LevelManager] Initialized. Initial retries: {retriesRemaining}");
         }
 
         private void Update()
@@ -108,7 +114,10 @@ namespace RingSport.Core
             if (currentLevel < maxLevels)
             {
                 currentLevel++;
-                GameManager.Instance?.StartGame();
+                Debug.Log($"[LevelManager] Advancing to level {currentLevel}. Retries NOT reset: {retriesRemaining} remaining");
+                // Don't call StartGame() as it resets progress including retries
+                // Instead, directly transition to Playing state
+                GameManager.Instance?.SetState(GameState.Playing);
             }
             else
             {
@@ -124,6 +133,21 @@ namespace RingSport.Core
             levelTimer = 0f;
             distanceTraveled = 0f;
             currentLevelConfig = null;
+            retriesRemaining = maxRetries;
+            Debug.Log($"[LevelManager] Progress reset. Retries reset to {retriesRemaining}");
+        }
+
+        public bool UseRetry()
+        {
+            if (retriesRemaining > 0)
+            {
+                retriesRemaining--;
+                Debug.Log($"[LevelManager] Death occurred. Retry consumed. Retries remaining: {retriesRemaining}");
+                return true;
+            }
+
+            Debug.Log("[LevelManager] Death occurred but out of retries!");
+            return false;
         }
 
         public float GetLevelDuration()

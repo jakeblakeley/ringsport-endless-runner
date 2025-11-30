@@ -104,6 +104,12 @@ namespace RingSport.Core
 
         public void TriggerGameOver()
         {
+            // Consume a retry when the player dies
+            if (LevelManager.Instance != null)
+            {
+                LevelManager.Instance.UseRetry();
+            }
+
             SetState(GameState.GameOver);
         }
     }

@@ -100,6 +100,17 @@ namespace RingSport.Level
             // Clear previous level
             ObjectPooler.Instance?.ClearAllPools();
 
+            // Reset player to starting position and state
+            if (player != null)
+            {
+                var playerController = player.GetComponent<RingSport.Player.PlayerController>();
+                if (playerController != null)
+                {
+                    playerController.ResetPosition();
+                    Debug.Log("Player position and velocity reset for new level");
+                }
+            }
+
             // Get config for this level (1-9)
             int configIndex = Mathf.Clamp(levelNumber - 1, 0, levelConfigs.Length - 1);
             currentConfig = levelConfigs[configIndex];
@@ -716,7 +727,6 @@ namespace RingSport.Level
                 // Check if this position is near any obstacle (within 3 units before or after)
                 ObstacleData? nearbyObstacle = GetNearbyObstacle(nextCollectibleSpawnZ, 3f);
 
-                bool spawnAboveObstacle = false;
                 float spawnHeight = 1f; // Default collectible height
                 int lane = 0;
 
@@ -756,8 +766,6 @@ namespace RingSport.Level
                     if (nearbyObstacle.Value.CanHaveCollectibleAbove() && Random.value < currentConfig.CollectibleAboveObstacleChance)
                     {
                         // Spawn above the jump or palisade obstacle
-                        spawnAboveObstacle = true;
-
                         // Use the same lane as the obstacle
                         lane = nearbyObstacle.Value.lane;
 

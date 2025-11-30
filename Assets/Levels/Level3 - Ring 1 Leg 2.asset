@@ -16,14 +16,19 @@ MonoBehaviour:
   levelDuration: 60
   maxObstacles: 40
   minObstacleSpacing: 10
-  maxObstacleSpacing: 20
+  maxObstacleSpacing: 16
   maxCollectibles: 30
-  minCollectibleSpacing: 5
-  maxCollectibleSpacing: 15
+  minCollectibleSpacing: 4.5
+  maxCollectibleSpacing: 11
   collectibleToObstacleRatio: 3
   minCollectibleObstacleDistance: 2
   collectibleLineBias: 0.65
-  collectibleAboveObstacleChance: 0.5
-  megaCollectibleSpawnRatio: 0.15
+  collectibleAboveObstacleChance: 0.4
+  megaCollectibleSpawnRatio: 0.06
   megaCollectiblePointValue: 50
-  avoidObstacleProbability: 0.5
+  avoidObstacleProbability: 0.35
+  speedMultiplier: 1.5
+  maxEffectiveSpeed: 24
+  minPatternDifficulty: 2
+  maxPatternDifficulty: 5
+  patternUsageRatio: 0.7

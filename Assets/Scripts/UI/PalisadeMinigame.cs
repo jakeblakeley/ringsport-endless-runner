@@ -53,7 +53,7 @@ namespace RingSport.UI
             // Fallback: search the scene
             if (playerInput == null)
             {
-                playerInput = FindObjectOfType<PlayerInput>();
+                playerInput = FindAnyObjectByType<PlayerInput>();
                 if (playerInput == null)
                 {
                     Debug.LogError("PlayerInput not found! PalisadeMinigame requires PlayerInput to be in the scene.");

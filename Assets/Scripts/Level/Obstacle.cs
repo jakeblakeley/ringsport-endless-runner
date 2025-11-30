@@ -149,10 +149,19 @@ namespace RingSport.Level
             Debug.Log("=== HandlePalisadeCollision finished ===");
         }
 
+#if UNITY_EDITOR
         private void OnValidate()
         {
             // Set tag based on obstacle type for pooling
-            gameObject.tag = "Obstacle";
+            // Use delayCall to avoid SendMessage errors during validation
+            UnityEditor.EditorApplication.delayCall += () =>
+            {
+                if (this != null && gameObject != null)
+                {
+                    gameObject.tag = "Obstacle";
+                }
+            };
         }
+#endif
     }
 }

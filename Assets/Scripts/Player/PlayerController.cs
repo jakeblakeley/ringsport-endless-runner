@@ -35,7 +35,6 @@ namespace RingSport.Player
         private float targetLaneX = 0f;
         private int currentLane = 0; // -1 = left, 0 = center, 1 = right
         private bool isSprinting = false;
-        private bool isStopped = false;
         private bool isMovementPaused = false;
         private float lastInputTime = -1f;
         private float inputCooldown = 0.2f;
@@ -180,7 +179,16 @@ namespace RingSport.Player
             // Smooth lane transition
             float currentX = transform.position.x;
             float newX = Mathf.Lerp(currentX, targetLaneX, laneChangeSpeed * Time.deltaTime);
-            velocity.x = (newX - currentX) / Time.deltaTime;
+
+            // Prevent division by zero/very small deltaTime which can cause NaN
+            if (Time.deltaTime > 0.0001f)
+            {
+                velocity.x = (newX - currentX) / Time.deltaTime;
+            }
+            else
+            {
+                velocity.x = 0f;
+            }
         }
 
         private void HandleGravity()
@@ -254,12 +262,10 @@ namespace RingSport.Player
 
         public void Stop()
         {
-            isStopped = true;
         }
 
         public void Resume()
         {
-            isStopped = false;
         }
 
         public void ResetPosition()
@@ -269,7 +275,6 @@ namespace RingSport.Player
             transform.position = new Vector3(0f, transform.position.y, transform.position.z);
             velocity = Vector3.zero;
             isSprinting = false;
-            isStopped = false;
 
             // Reset sprint stamina to full
             currentSprintStamina = maxSprintDuration;

@@ -34,6 +34,8 @@ namespace RingSport.UI
 
         [Header("Game Over Screen")]
         [SerializeField] private Button retryButton;
+        [SerializeField] private TextMeshProUGUI retryButtonText;
+        [SerializeField] private TextMeshProUGUI gameOverText;
         [SerializeField] private Button homeButton;
 
         [Header("Minigames")]
@@ -119,7 +121,37 @@ namespace RingSport.UI
         {
             HideAllScreens();
             if (gameOverScreen != null)
+            {
                 gameOverScreen.SetActive(true);
+
+                // Check if player has retries remaining (retry was already consumed in TriggerGameOver)
+                bool hasRetries = LevelManager.Instance != null && LevelManager.Instance.RetriesRemaining > 0;
+
+                if (hasRetries)
+                {
+                    // Player still has retries - show retry button and hide game over text
+                    if (retryButton != null)
+                        retryButton.gameObject.SetActive(true);
+
+                    if (gameOverText != null)
+                        gameOverText.gameObject.SetActive(false);
+
+                    UpdateRetryButtonText();
+                }
+                else
+                {
+                    // Player is out of retries - show "Game Over" and hide retry button
+                    if (retryButton != null)
+                        retryButton.gameObject.SetActive(false);
+
+                    if (gameOverText != null)
+                    {
+                        gameOverText.gameObject.SetActive(true);
+                    }
+
+                    Debug.Log("[UIManager] Out of retries - showing Game Over message");
+                }
+            }
         }
 
         public void UpdateScore(int score)
@@ -140,6 +172,16 @@ namespace RingSport.UI
             {
                 sprintBarFill.fillAmount = fillAmount;
                 sprintBarFill.color = isExhausted ? sprintBarExhaustedColor : sprintBarNormalColor;
+            }
+        }
+
+        public void UpdateRetryButtonText()
+        {
+            if (retryButtonText != null && LevelManager.Instance != null)
+            {
+                int retriesLeft = LevelManager.Instance.RetriesRemaining;
+                retryButtonText.text = $"Retry ({retriesLeft} left)";
+                Debug.Log($"[UIManager] Retry button text updated: Retry ({retriesLeft} left)");
             }
         }
 

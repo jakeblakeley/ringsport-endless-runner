@@ -87,9 +87,19 @@ namespace RingSport.Level
             pointValue = value;
         }
 
+#if UNITY_EDITOR
         private void OnValidate()
         {
-            gameObject.tag = "Collectible";
+            // Set tag for pooling
+            // Use delayCall to avoid SendMessage errors during validation
+            UnityEditor.EditorApplication.delayCall += () =>
+            {
+                if (this != null && gameObject != null)
+                {
+                    gameObject.tag = "Collectible";
+                }
+            };
         }
+#endif
     }
 }
