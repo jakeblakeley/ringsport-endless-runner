@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a7a1fc9ad314477cbfcabe6a7d178ef, type: 3}
+  m_Name: Level5 - Ring 2 Leg 2
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelConfig
+  levelNumber: 3
+  levelDuration: 60
+  maxObstacles: 40
+  minObstacleSpacing: 10
+  maxObstacleSpacing: 20
+  maxCollectibles: 30
+  minCollectibleSpacing: 5
+  maxCollectibleSpacing: 15
+  collectibleToObstacleRatio: 3
+  minCollectibleObstacleDistance: 2
+  collectibleLineBias: 0.65
+  collectibleAboveObstacleChance: 0.5
+  megaCollectibleSpawnRatio: 0.15
+  megaCollectiblePointValue: 50
+  avoidObstacleProbability: 0.5

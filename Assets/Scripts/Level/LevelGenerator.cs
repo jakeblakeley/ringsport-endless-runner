@@ -34,6 +34,10 @@ namespace RingSport.Level
         [Header("Level Configuration")]
         [SerializeField] private LevelConfig[] levelConfigs;
 
+        [Header("Pattern Library")]
+        [Tooltip("Hand-crafted obstacle patterns for more memorable gameplay")]
+        [SerializeField] private ObstaclePattern[] obstaclePatterns;
+
         [Header("Spawn Settings")]
         [SerializeField] private float spawnDistance = 50f;
         [SerializeField] private float despawnDistance = -10f;
@@ -57,6 +61,11 @@ namespace RingSport.Level
         private bool isInCoinTrain = false;
         private int coinTrainRemaining = 0;
         private int coinTrainLane = 0;
+
+        // Recovery zone tracking (fairness after palisade minigames)
+        private bool inRecoveryZone = false;
+        private float recoveryZoneEndVirtualZ = 0f;
+        private const float RECOVERY_ZONE_DURATION = 15f; // 15 units = ~1-1.5 seconds at normal speed
 
         private void Awake()
         {
@@ -121,6 +130,10 @@ namespace RingSport.Level
             coinTrainRemaining = 0;
             coinTrainLane = 0;
 
+            // Reset recovery zone
+            inRecoveryZone = false;
+            recoveryZoneEndVirtualZ = 0f;
+
             Debug.Log($"Virtual distance reset to 0. Floor will start spawning from Virtual Z: {nextFloorSpawnZ}");
             Debug.Log($"With floorTileSpacing={floorTileSpacing}, floors should spawn at: 0, {floorTileSpacing}, {floorTileSpacing*2}, {floorTileSpacing*3}, etc.");
         }
@@ -183,8 +196,43 @@ namespace RingSport.Level
                 }
             }
 
+            // FAIRNESS: Check if we're in a recovery zone (after palisade minigame)
+            if (inRecoveryZone)
+            {
+                if (virtualDistance >= recoveryZoneEndVirtualZ)
+                {
+                    // Recovery zone ended
+                    inRecoveryZone = false;
+                    Debug.Log("Recovery zone ended, resuming obstacle spawning");
+                }
+                else
+                {
+                    // Still in recovery zone - don't spawn obstacles
+                    return;
+                }
+            }
+
             if (virtualDistance + spawnDistance > nextObstacleSpawnZ)
             {
+                // Decide between pattern-based and random generation using LevelConfig ratio
+                bool usePattern = obstaclePatterns != null &&
+                                  obstaclePatterns.Length > 0 &&
+                                  Random.value < currentConfig.PatternUsageRatio;
+
+                if (usePattern)
+                {
+                    // Try to spawn a pattern
+                    ObstaclePattern selectedPattern = SelectRandomPattern(currentConfig);
+                    if (selectedPattern != null && TrySpawnPattern(selectedPattern))
+                    {
+                        // Pattern spawned successfully
+                        return;
+                    }
+                    // If pattern spawn failed, fall through to random generation
+                    Debug.Log("Pattern spawn failed, using random generation as fallback");
+                }
+
+                // Random generation (original logic)
                 // 40% chance to spawn a row of obstacles instead of a single obstacle
                 if (Random.value < 0.4f)
                 {
@@ -267,9 +315,89 @@ namespace RingSport.Level
                 }
                 else
                 {
-                    Debug.LogWarning($"Failed to spawn {poolTag}!");
+                    // Pool exhausted - don't advance spawn position, will retry next frame
+                    Debug.LogWarning($"Pool exhausted for {poolTag}, will retry next frame");
                 }
             }
+        }
+
+        /// <summary>
+        /// Select a random pattern that's valid for the current level
+        /// Uses LevelConfig's min/max pattern difficulty settings
+        /// </summary>
+        private ObstaclePattern SelectRandomPattern(LevelConfig config)
+        {
+            if (obstaclePatterns == null || obstaclePatterns.Length == 0)
+                return null;
+
+            // Get current level number (1-9)
+            int currentLevelNum = System.Array.IndexOf(levelConfigs, config) + 1;
+
+            // Filter patterns valid for this level (by level range AND difficulty range)
+            var validPatterns = new System.Collections.Generic.List<ObstaclePattern>();
+            foreach (var pattern in obstaclePatterns)
+            {
+                if (pattern != null &&
+                    pattern.IsValidForLevel(currentLevelNum) &&
+                    pattern.difficultyRating >= config.MinPatternDifficulty &&
+                    pattern.difficultyRating <= config.MaxPatternDifficulty)
+                {
+                    validPatterns.Add(pattern);
+                }
+            }
+
+            if (validPatterns.Count == 0)
+            {
+                Debug.LogWarning($"No valid patterns found for level {currentLevelNum} (difficulty {config.MinPatternDifficulty}-{config.MaxPatternDifficulty})");
+                return null;
+            }
+
+            // Select random pattern from valid ones
+            return validPatterns[Random.Range(0, validPatterns.Count)];
+        }
+
+        /// <summary>
+        /// Attempt to spawn an obstacle pattern
+        /// Returns true if successful, false if failed (clearance issues, etc.)
+        /// </summary>
+        private bool TrySpawnPattern(ObstaclePattern pattern)
+        {
+            if (pattern == null || pattern.obstacles == null || pattern.obstacles.Length == 0)
+                return false;
+
+            // Validate pattern is solvable
+            if (!pattern.IsSolvable())
+            {
+                Debug.LogWarning($"Pattern '{pattern.patternName}' is not solvable, skipping");
+                return false;
+            }
+
+            // Check clearance for all obstacles in the pattern
+            foreach (var obstacleDef in pattern.obstacles)
+            {
+                float obstacleZ = nextObstacleSpawnZ + obstacleDef.zOffset;
+
+                // Check if this position has clearance issues
+                if (HasObstacleInLaneBehind(obstacleDef.lane, obstacleZ, 4f))
+                {
+                    Debug.Log($"Pattern '{pattern.patternName}' failed clearance check at lane {obstacleDef.lane}, Z offset {obstacleDef.zOffset}");
+                    return false;
+                }
+            }
+
+            // All checks passed - spawn the pattern
+            Debug.Log($"Spawning pattern: {pattern.patternName} (difficulty {pattern.difficultyRating})");
+
+            foreach (var obstacleDef in pattern.obstacles)
+            {
+                float obstacleZ = nextObstacleSpawnZ + obstacleDef.zOffset;
+                SpawnObstacleAtLane(obstacleDef.obstacleType, obstacleDef.lane, obstacleZ);
+            }
+
+            // Advance spawn position by pattern length
+            nextObstacleSpawnZ += pattern.patternLength;
+
+            return true;
         }
 
         /// <summary>
@@ -292,6 +420,7 @@ namespace RingSport.Level
 
         /// <summary>
         /// Spawn 2 identical obstacles in 2 of the 3 lanes (at same Z position)
+        /// FAIRNESS: Retries with single obstacle if clearance fails
         /// </summary>
         private void SpawnTwoLaneRow()
         {
@@ -309,8 +438,9 @@ namespace RingSport.Level
             if (HasObstacleInLaneBehind(lane1, nextObstacleSpawnZ, 4f) ||
                 HasObstacleInLaneBehind(lane2, nextObstacleSpawnZ, 4f))
             {
-                // Skip this spawn if clearance check fails
-                nextObstacleSpawnZ += Random.Range(currentConfig.MinObstacleSpacing, currentConfig.MaxObstacleSpacing);
+                // Clearance failed for row - try spawning a single obstacle instead
+                Debug.Log("Two-lane row clearance failed, retrying with single obstacle");
+                SpawnSingleObstacleWithRetry();
                 return;
             }
 
@@ -324,6 +454,8 @@ namespace RingSport.Level
 
         /// <summary>
         /// Spawn 3 obstacles across all 3 lanes (at same Z position, at least 2 of same type)
+        /// FAIRNESS GUARANTEE: Ensures at least 1 lane is passable
+        /// FAIRNESS: Retries with two-lane or single obstacle if clearance fails
         /// </summary>
         private void SpawnSingleLaneRow()
         {
@@ -332,8 +464,9 @@ namespace RingSport.Level
                 HasObstacleInLaneBehind(0, nextObstacleSpawnZ, 4f) ||
                 HasObstacleInLaneBehind(1, nextObstacleSpawnZ, 4f))
             {
-                // Skip this spawn if any lane has clearance issues
-                nextObstacleSpawnZ += Random.Range(currentConfig.MinObstacleSpacing, currentConfig.MaxObstacleSpacing);
+                // Clearance failed for 3-lane row - try a simpler two-lane row instead
+                Debug.Log("Three-lane row clearance failed, retrying with two-lane row");
+                SpawnTwoLaneRow();
                 return;
             }
 
@@ -357,6 +490,16 @@ namespace RingSport.Level
 
             // Assign types to lanes (can result in AAB, ABA, or BAA patterns across lanes)
             string[] types = { type1, type2, type3 };
+
+            // FAIRNESS CHECK: Ensure at least one obstacle is passable (not all instant-death)
+            if (!HasAtLeastOnePassableObstacle(types))
+            {
+                // Replace one obstacle with a passable type
+                string[] passableTypes = { "ObstacleJump", "ObstaclePalisade", "ObstacleBroadJump" };
+                types[Random.Range(0, 3)] = passableTypes[Random.Range(0, passableTypes.Length)];
+                Debug.Log($"Prevented impossible 3-lane row! Replaced one instant-death obstacle with passable type.");
+            }
+
             ShuffleArray(types);
 
             // Spawn all 3 at the same Z position, one in each lane
@@ -390,6 +533,59 @@ namespace RingSport.Level
         }
 
         /// <summary>
+        /// Spawn a single obstacle with retry logic for clearance
+        /// FAIRNESS: Only skips if all lanes are blocked (very rare)
+        /// </summary>
+        private void SpawnSingleObstacleWithRetry()
+        {
+            string poolTag = GetRandomObstacleType();
+            int lane = Random.Range(-1, 2);
+
+            // Try to find a clear lane
+            if (HasObstacleInLaneBehind(lane, nextObstacleSpawnZ, 4f))
+            {
+                int[] lanes = { -1, 0, 1 };
+                bool foundClearLane = false;
+
+                foreach (int testLane in lanes)
+                {
+                    if (!HasObstacleInLaneBehind(testLane, nextObstacleSpawnZ, 4f))
+                    {
+                        lane = testLane;
+                        foundClearLane = true;
+                        break;
+                    }
+                }
+
+                // Only skip if all lanes are blocked (very rare edge case)
+                if (!foundClearLane)
+                {
+                    Debug.LogWarning("All lanes blocked, skipping spawn (rare edge case)");
+                    nextObstacleSpawnZ += Random.Range(currentConfig.MinObstacleSpacing, currentConfig.MaxObstacleSpacing);
+                    return;
+                }
+            }
+
+            float xPosition = lane * 3f;
+            float spawnZ = player.position.z + (nextObstacleSpawnZ - virtualDistance);
+            Vector3 spawnPosition = new Vector3(xPosition, 0f, spawnZ);
+
+            GameObject obstacle = ObjectPooler.Instance?.SpawnFromPool(poolTag, spawnPosition, Quaternion.identity);
+
+            if (obstacle != null)
+            {
+                obstaclesSpawned++;
+                obstaclePositions.Add(new ObstacleData(nextObstacleSpawnZ, lane, poolTag));
+                nextObstacleSpawnZ += Random.Range(currentConfig.MinObstacleSpacing, currentConfig.MaxObstacleSpacing);
+            }
+            else
+            {
+                // Pool exhausted - don't advance spawn position, will retry next frame
+                Debug.LogWarning($"Pool exhausted for {poolTag}, will retry next frame");
+            }
+        }
+
+        /// <summary>
         /// Spawn a single obstacle at the specified lane and virtual Z position
         /// </summary>
         private void SpawnObstacleAtLane(string poolTag, int lane, float virtualZ)
@@ -412,6 +608,34 @@ namespace RingSport.Level
             {
                 Debug.LogWarning($"Failed to spawn {poolTag} at lane {lane}!");
             }
+        }
+
+        /// <summary>
+        /// Check if an obstacle type is passable (not instant death)
+        /// </summary>
+        private bool IsObstaclePassable(string obstacleType)
+        {
+            // Jump, Palisade, and BroadJump can be passed by player actions
+            // Avoid and Pylon are instant death
+            return obstacleType == "ObstacleJump" ||
+                   obstacleType == "ObstaclePalisade" ||
+                   obstacleType == "ObstacleBroadJump";
+        }
+
+        /// <summary>
+        /// Validate that at least one obstacle in the array is passable
+        /// This prevents impossible 3-lane rows (e.g., 3 avoid obstacles)
+        /// </summary>
+        private bool HasAtLeastOnePassableObstacle(string[] obstacleTypes)
+        {
+            foreach (string obstacleType in obstacleTypes)
+            {
+                if (IsObstaclePassable(obstacleType))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -450,6 +674,29 @@ namespace RingSport.Level
             return false;
         }
 
+        /// <summary>
+        /// Check if there are any obstacles in the specified lane ahead of the given Z position
+        /// FAIRNESS: Used to prevent coin trains from leading into obstacles
+        /// </summary>
+        private bool HasObstacleInLaneAhead(int lane, float zPosition, float aheadDistance)
+        {
+            foreach (ObstacleData obstacle in obstaclePositions)
+            {
+                // Check if obstacle is in the same lane
+                if (obstacle.lane == lane)
+                {
+                    // Check if obstacle is within the distance ahead of this position
+                    float distanceAhead = obstacle.zPosition - zPosition;
+                    if (distanceAhead > 0 && distanceAhead <= aheadDistance)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         private void SpawnCollectibles()
         {
             // Check if we should stop spawning (last 3 seconds of level)
@@ -478,11 +725,29 @@ namespace RingSport.Level
                 {
                     // Continue the coin train in the same lane
                     lane = coinTrainLane;
-                    coinTrainRemaining--;
 
-                    if (coinTrainRemaining == 0)
+                    // FAIRNESS CHECK: Lookahead to prevent coin train leading into obstacle
+                    // Check if there's an obstacle ahead in this lane within the coin train distance
+                    float lookaheadDistance = 2.5f * coinTrainRemaining; // Estimate remaining train length
+                    if (HasObstacleInLaneAhead(coinTrainLane, nextCollectibleSpawnZ, lookaheadDistance))
                     {
+                        // Obstacle detected ahead - end coin train early for safety
+                        Debug.Log($"Coin train lookahead detected obstacle in lane {coinTrainLane}, ending train early");
                         isInCoinTrain = false;
+                        coinTrainRemaining = 0;
+
+                        // Use biased lane selection instead
+                        lane = GetNextCollectibleLane(previousCollectibleLane);
+                    }
+                    else
+                    {
+                        // Safe to continue train
+                        coinTrainRemaining--;
+
+                        if (coinTrainRemaining == 0)
+                        {
+                            isInCoinTrain = false;
+                        }
                     }
                 }
                 else if (nearbyObstacle.HasValue)
@@ -654,10 +919,18 @@ namespace RingSport.Level
             if (ObjectPooler.Instance == null || player == null)
                 return;
 
-            // Clean up obstacle tracking data for objects that have been despawned
-            // Remove obstacles that are far behind the player
-            float cleanupThreshold = virtualDistance - 20f; // Keep some history
-            obstaclePositions.RemoveAll(obstacle => obstacle.zPosition < cleanupThreshold);
+            // FAIRNESS: More aggressive cleanup for obstacle tracking data
+            // Remove obstacles that are far behind the player (more aggressive than before)
+            float cleanupThreshold = virtualDistance - 10f; // Reduced from 20f for tighter memory usage
+            int removedCount = obstaclePositions.RemoveAll(obstacle => obstacle.zPosition < cleanupThreshold);
+
+            // Periodic deep cleanup every 100 virtual units to prevent unbounded growth
+            if (virtualDistance % 100f < 1f && obstaclePositions.Count > 50)
+            {
+                // Keep only obstacles within 30 units of current position
+                obstaclePositions.RemoveAll(obstacle => obstacle.zPosition < virtualDistance - 30f);
+                Debug.Log($"Deep cleanup performed: obstacle list size = {obstaclePositions.Count}");
+            }
 
             // Find all active pooled objects behind the player and return them
             GameObject[] allObjects = GameObject.FindGameObjectsWithTag("Obstacle");
@@ -696,6 +969,50 @@ namespace RingSport.Level
         public LevelConfig GetCurrentConfig()
         {
             return currentConfig;
+        }
+
+        /// <summary>
+        /// Called when a palisade minigame is completed
+        /// Creates a recovery zone (no obstacles) for fairness
+        /// </summary>
+        public void OnPalisadeCompleted()
+        {
+            if (!inRecoveryZone)
+            {
+                inRecoveryZone = true;
+                recoveryZoneEndVirtualZ = virtualDistance + RECOVERY_ZONE_DURATION;
+                Debug.Log($"Palisade completed! Recovery zone active until virtual Z: {recoveryZoneEndVirtualZ:F2}");
+            }
+        }
+
+        /// <summary>
+        /// Called when level is ending - despawns all obstacles for fairness
+        /// FAIRNESS: Prevents unfair hits from obstacles that spawned earlier
+        /// </summary>
+        public void OnLevelEnding()
+        {
+            if (ObjectPooler.Instance == null)
+                return;
+
+            Debug.Log("Level ending - despawning all obstacles");
+
+            // Despawn all active obstacles
+            GameObject[] allObjects = GameObject.FindGameObjectsWithTag("Obstacle");
+            foreach (GameObject obj in allObjects)
+            {
+                ObjectPooler.Instance.ReturnToPool(obj);
+            }
+
+            // Clear tracking data
+            obstaclePositions.Clear();
+        }
+
+        /// <summary>
+        /// Get current virtual distance (for external systems to check)
+        /// </summary>
+        public float GetVirtualDistance()
+        {
+            return virtualDistance;
         }
     }
 }

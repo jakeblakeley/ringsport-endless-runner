@@ -44,6 +44,20 @@ namespace RingSport.Level
         [Tooltip("Speed multiplier for the level (1.0 = normal, 1.5 = 50% faster, etc.)")]
         [Range(0.5f, 3f)]
         [SerializeField] private float speedMultiplier = 1.0f;
+        [Tooltip("Maximum effective speed (sprint × multiplier capped at this value for fairness)")]
+        [Range(15f, 45f)]
+        [SerializeField] private float maxEffectiveSpeed = 30f;
+
+        [Header("Pattern Difficulty")]
+        [Tooltip("Minimum pattern difficulty rating for this level (1-10)")]
+        [Range(1, 10)]
+        [SerializeField] private int minPatternDifficulty = 1;
+        [Tooltip("Maximum pattern difficulty rating for this level (1-10)")]
+        [Range(1, 10)]
+        [SerializeField] private int maxPatternDifficulty = 5;
+        [Tooltip("Percentage of obstacle spawns that should use patterns vs random (0-1)")]
+        [Range(0f, 1f)]
+        [SerializeField] private float patternUsageRatio = 0.7f;
 
         public int LevelNumber => levelNumber;
         public float LevelDuration => levelDuration;
@@ -61,6 +75,10 @@ namespace RingSport.Level
         public int MegaCollectiblePointValue => megaCollectiblePointValue;
         public float AvoidObstacleProbability => avoidObstacleProbability;
         public float SpeedMultiplier => speedMultiplier;
+        public float MaxEffectiveSpeed => maxEffectiveSpeed;
+        public int MinPatternDifficulty => minPatternDifficulty;
+        public int MaxPatternDifficulty => maxPatternDifficulty;
+        public float PatternUsageRatio => patternUsageRatio;
 
         private void OnValidate()
         {
@@ -76,6 +94,9 @@ namespace RingSport.Level
             minCollectibleObstacleDistance = Mathf.Max(0f, minCollectibleObstacleDistance);
             megaCollectiblePointValue = Mathf.Max(1, megaCollectiblePointValue);
             speedMultiplier = Mathf.Clamp(speedMultiplier, 0.5f, 3f);
+            maxEffectiveSpeed = Mathf.Clamp(maxEffectiveSpeed, 15f, 45f);
+            minPatternDifficulty = Mathf.Clamp(minPatternDifficulty, 1, 10);
+            maxPatternDifficulty = Mathf.Clamp(maxPatternDifficulty, minPatternDifficulty, 10);
         }
     }
 }

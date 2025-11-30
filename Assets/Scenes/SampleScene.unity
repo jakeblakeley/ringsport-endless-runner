@@ -2501,6 +2501,26 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 897fabbf3bf474fe9a8500fd12a6291d, type: 2}
   - {fileID: 11400000, guid: a6dbb7ca8d8c44e5bb2b3dde4beaf3e3, type: 2}
   - {fileID: 11400000, guid: 3e017d2e3c38a497a9c801ba4748feb8, type: 2}
+  - {fileID: 11400000, guid: c5f939239064242ab9525bc5600a85ed, type: 2}
+  - {fileID: 11400000, guid: ff827d4e3566f43689cdb27f6e1fd882, type: 2}
+  - {fileID: 11400000, guid: 95988e54a6f9c4cc99bc149af74212bf, type: 2}
+  - {fileID: 11400000, guid: 40f2edd57bdc64a28959f768f2850420, type: 2}
+  - {fileID: 11400000, guid: 74ef4478373834191b516fa0c55b0de6, type: 2}
+  obstaclePatterns:
+  - {fileID: 11400000, guid: 88349c566fe504bbeb1677343fa2aeb5, type: 2}
+  - {fileID: 11400000, guid: d8d90a5a4a73f4f7d8c62d7384f2792c, type: 2}
+  - {fileID: 11400000, guid: f0dd2b74bd06f4043a86e465a3d77dee, type: 2}
+  - {fileID: 11400000, guid: 474ace7604029469193df174cab28c7c, type: 2}
+  - {fileID: 11400000, guid: b7537ffffecac4c698c40845f6fe9039, type: 2}
+  - {fileID: 11400000, guid: dace58e61a1444ec29ef929471fcd412, type: 2}
+  - {fileID: 11400000, guid: 56832ef4e6d2b4e59ad5ae13fd752689, type: 2}
+  - {fileID: 11400000, guid: 871d0fdf8f62446e2bd66e52cbb56ab7, type: 2}
+  - {fileID: 11400000, guid: 66b98cc218ec546b2a0c8f1d52e2691e, type: 2}
+  - {fileID: 11400000, guid: d424c9a29d07b426eb9c524e37e37712, type: 2}
+  - {fileID: 11400000, guid: abb05a1ba5d58415b9c16e2c91cba1d4, type: 2}
+  - {fileID: 11400000, guid: 12fd6be9f80004947912682e63a1ddb6, type: 2}
+  - {fileID: 11400000, guid: a1e7dd2d933c747cb9caebb50b6105da, type: 2}
+  - {fileID: 11400000, guid: c7420c8232a2e4b70862f1a9ec4ced12, type: 2}
   spawnDistance: 100
   despawnDistance: -10
   player: {fileID: 1473303864}
@@ -2887,7 +2907,7 @@ MonoBehaviour:
   laneDistance: 3
   laneChangeSpeed: 10
   jumpHeight: 1.35
-  gravity: -30
+  gravity: -50
   maxSprintDuration: 5
   sprintDrainRate: 1
   sprintRefillRate: 1

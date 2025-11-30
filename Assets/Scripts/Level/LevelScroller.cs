@@ -37,6 +37,9 @@ namespace RingSport.Level
             if (currentConfig != null)
             {
                 scrollSpeed *= currentConfig.SpeedMultiplier;
+
+                // FAIRNESS: Cap speed to prevent impossible reaction times
+                scrollSpeed = Mathf.Min(scrollSpeed, currentConfig.MaxEffectiveSpeed);
             }
 
             // Track distance for level progress

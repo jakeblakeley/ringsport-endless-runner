@@ -253,6 +253,12 @@ namespace RingSport.UI
             // Animate player over obstacle
             yield return player.StartCoroutine(player.AnimateOverObstacle(obstaclePosition, obstacleHeight));
 
+            // Trigger recovery zone in level generator (fairness feature)
+            if (LevelGenerator.Instance != null)
+            {
+                LevelGenerator.Instance.OnPalisadeCompleted();
+            }
+
             // Resume game
             player?.ResumeMovement();
             LevelScroller.Instance?.Resume();

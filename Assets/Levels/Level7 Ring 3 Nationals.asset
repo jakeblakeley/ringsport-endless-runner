@@ -10,20 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7a7a1fc9ad314477cbfcabe6a7d178ef, type: 3}
-  m_Name: Level2
+  m_Name: Level7 Ring 3 Nationals
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelConfig
-  levelNumber: 2
+  levelNumber: 3
   levelDuration: 60
-  maxObstacles: 30
+  maxObstacles: 40
   minObstacleSpacing: 10
   maxObstacleSpacing: 20
   maxCollectibles: 30
   minCollectibleSpacing: 5
   maxCollectibleSpacing: 15
-  collectibleToObstacleRatio: 2.5
+  collectibleToObstacleRatio: 3
   minCollectibleObstacleDistance: 2
   collectibleLineBias: 0.65
-  collectibleAboveObstacleChance: 0.4
-  megaCollectibleSpawnRatio: 0.12
+  collectibleAboveObstacleChance: 0.5
+  megaCollectibleSpawnRatio: 0.15
   megaCollectiblePointValue: 50
   avoidObstacleProbability: 0.5

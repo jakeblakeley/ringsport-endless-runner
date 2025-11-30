@@ -16,6 +16,7 @@ namespace RingSport.Core
         private float levelTimer = 0f;
         private float distanceTraveled = 0f;
         private LevelConfig currentLevelConfig;
+        private bool hasCalledLevelEnding = false; // Track if we've already called OnLevelEnding
 
         public int CurrentLevel => currentLevel;
         public int CurrentScore => currentScore;
@@ -44,6 +45,13 @@ namespace RingSport.Core
 
             levelTimer += Time.deltaTime;
 
+            // FAIRNESS: Despawn obstacles 2 seconds before level ends
+            if (!hasCalledLevelEnding && levelTimer >= currentLevelConfig.LevelDuration - 2f)
+            {
+                LevelGenerator.Instance?.OnLevelEnding();
+                hasCalledLevelEnding = true;
+            }
+
             // Check if level duration has been reached (level complete)
             if (levelTimer >= currentLevelConfig.LevelDuration)
             {
@@ -56,6 +64,7 @@ namespace RingSport.Core
             levelTimer = 0f;
             distanceTraveled = 0f;
             currentScore = 0;
+            hasCalledLevelEnding = false; // Reset for new level
 
             // Generate the level and get its config
             LevelGenerator.Instance?.GenerateLevel(currentLevel);

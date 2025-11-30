@@ -1,0 +1,17 @@
+# Example Obstacle Pattern: Easy Zigzag
+# To use: Create a new ObstaclePattern asset in Unity (Right-click > Create > RingSport > Obstacle Pattern)
+# Then configure it with these values:
+
+Pattern Name: Easy Zigzag
+Difficulty Rating: 2
+Min Level: 1
+Max Level: 4
+Pattern Length: 25
+
+Obstacles:
+1. Type: ObstacleJump, Lane: -1 (left), Z Offset: 0
+2. Type: ObstacleJump, Lane: 0 (center), Z Offset: 8
+3. Type: ObstacleJump, Lane: 1 (right), Z Offset: 16
+
+Description: Simple left-center-right zigzag pattern with jumpable obstacles.
+Player learns lane switching at comfortable pace.
