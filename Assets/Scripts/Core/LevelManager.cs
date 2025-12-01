@@ -22,6 +22,7 @@ namespace RingSport.Core
         private int retriesRemaining = 3;
 
         public int CurrentLevel => currentLevel;
+        public int MaxLevels => maxLevels;
         public float LevelProgress => currentLevelConfig != null ? Mathf.Clamp01(levelTimer / currentLevelConfig.LevelDuration) : 0f;
         public float DistanceTraveled => distanceTraveled;
         public int RetriesRemaining => retriesRemaining;
@@ -91,15 +92,28 @@ namespace RingSport.Core
 
             int levelScore = ScoreManager.Instance?.CurrentScore ?? 0;
 
+            // Get next level information if not at final level
+            string nextLevelName = "";
+            string nextLevelLocation = "";
+
             if (currentLevel < maxLevels)
             {
+                int nextLevelNumber = currentLevel + 1;
+                LevelConfig nextLevelConfig = LevelGenerator.Instance?.GetLevelConfig(nextLevelNumber);
+
+                if (nextLevelConfig != null)
+                {
+                    nextLevelName = nextLevelConfig.LevelName;
+                    nextLevelLocation = nextLevelConfig.Location;
+                }
+
                 GameManager.Instance?.CompleteLevel();
-                UIManager.Instance?.ShowRewardScreen(currentLevel, levelScore);
+                UIManager.Instance?.ShowRewardScreen(currentLevel, levelScore, nextLevelName, nextLevelLocation);
             }
             else
             {
                 // All levels completed
-                UIManager.Instance?.ShowRewardScreen(currentLevel, levelScore);
+                UIManager.Instance?.ShowRewardScreen(currentLevel, levelScore, nextLevelName, nextLevelLocation);
             }
         }
 

@@ -35,6 +35,8 @@ namespace RingSport.UI
         [SerializeField] private GameObject newHighScoreIndicator;
         [SerializeField] private Button nextLevelButton;
         [SerializeField] private Button returnHomeButton;
+        [SerializeField] private TextMeshProUGUI nextLevelNameText;
+        [SerializeField] private TextMeshProUGUI nextLevelLocationText;
 
         [Header("Game Over Screen")]
         [SerializeField] private Button retryButton;
@@ -118,18 +120,48 @@ namespace RingSport.UI
             }
         }
 
-        public void ShowRewardScreen(int level, int score)
+        public void ShowRewardScreen(int level, int score, string nextLevelName = "", string nextLevelLocation = "")
         {
             HideAllScreens();
             if (rewardScreen != null)
             {
                 rewardScreen.SetActive(true);
 
+                // Display next level in "X/9" format
                 if (rewardLevelText != null)
-                    rewardLevelText.text = $"Level {level} Complete!";
+                {
+                    int maxLevels = LevelManager.Instance?.MaxLevels ?? 9;
+                    int nextLevel = level + 1;
+
+                    if (nextLevel <= maxLevels)
+                    {
+                        rewardLevelText.text = $"{nextLevel}/{maxLevels}";
+                    }
+                    else
+                    {
+                        rewardLevelText.text = "All Levels Complete!";
+                    }
+                }
 
                 if (rewardScoreText != null)
                     rewardScoreText.text = $"Level Score: {score}";
+
+                // Display next level information
+                if (nextLevelNameText != null)
+                {
+                    if (!string.IsNullOrEmpty(nextLevelName))
+                        nextLevelNameText.text = nextLevelName;
+                    else
+                        nextLevelNameText.text = "";
+                }
+
+                if (nextLevelLocationText != null)
+                {
+                    if (!string.IsNullOrEmpty(nextLevelLocation))
+                        nextLevelLocationText.text = nextLevelLocation;
+                    else
+                        nextLevelLocationText.text = "";
+                }
 
                 // Display total score and high score
                 if (ScoreManager.Instance != null)

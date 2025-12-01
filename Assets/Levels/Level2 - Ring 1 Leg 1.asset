@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelConfig
   levelNumber: 2
   levelDuration: 60
+  levelName: Ring 1 - Leg 1
+  location: The PNW
   maxObstacles: 30
   minObstacleSpacing: 11
   maxObstacleSpacing: 18

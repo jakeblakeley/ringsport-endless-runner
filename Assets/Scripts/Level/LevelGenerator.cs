@@ -1113,6 +1113,15 @@ namespace RingSport.Level
             return currentConfig;
         }
 
+        public LevelConfig GetLevelConfig(int levelNumber)
+        {
+            if (levelConfigs == null || levelConfigs.Length == 0)
+                return null;
+
+            int configIndex = Mathf.Clamp(levelNumber - 1, 0, levelConfigs.Length - 1);
+            return levelConfigs[configIndex];
+        }
+
         /// <summary>
         /// Called when a palisade minigame is completed
         /// Creates a recovery zone (no obstacles) for fairness
