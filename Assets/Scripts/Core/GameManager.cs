@@ -89,11 +89,17 @@ namespace RingSport.Core
 
         public void RestartLevel()
         {
+            // Finalize score from the failed attempt before restarting
+            ScoreManager.Instance?.FinalizeLevelScore();
             SetState(GameState.Playing);
         }
 
         public void ReturnToHome()
         {
+            // Finalize current level score before quitting
+            ScoreManager.Instance?.FinalizeLevelScore();
+            // Save high score before returning home (if player quits mid-run)
+            ScoreManager.Instance?.CheckAndSaveHighScore();
             SetState(GameState.Home);
         }
 

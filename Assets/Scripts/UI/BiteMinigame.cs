@@ -153,7 +153,7 @@ namespace RingSport.UI
                 minigamePanel.SetActive(false);
 
             int level = LevelManager.Instance?.CurrentLevel ?? 1;
-            int score = LevelManager.Instance?.CurrentScore ?? 0;
+            int score = ScoreManager.Instance?.CurrentScore ?? 0;
 
             UIManager.Instance?.ShowRewardScreen(level, score);
         }

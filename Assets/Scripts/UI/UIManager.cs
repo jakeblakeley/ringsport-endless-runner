@@ -18,6 +18,7 @@ namespace RingSport.UI
 
         [Header("Home Screen")]
         [SerializeField] private Button startButton;
+        [SerializeField] private TextMeshProUGUI highScoreText;
 
         [Header("Game HUD")]
         [SerializeField] private TextMeshProUGUI scoreText;
@@ -29,6 +30,9 @@ namespace RingSport.UI
         [Header("Reward Screen")]
         [SerializeField] private TextMeshProUGUI rewardLevelText;
         [SerializeField] private TextMeshProUGUI rewardScoreText;
+        [SerializeField] private TextMeshProUGUI rewardTotalScoreText;
+        [SerializeField] private TextMeshProUGUI rewardHighScoreText;
+        [SerializeField] private GameObject newHighScoreIndicator;
         [SerializeField] private Button nextLevelButton;
         [SerializeField] private Button returnHomeButton;
 
@@ -36,6 +40,9 @@ namespace RingSport.UI
         [SerializeField] private Button retryButton;
         [SerializeField] private TextMeshProUGUI retryButtonText;
         [SerializeField] private TextMeshProUGUI gameOverText;
+        [SerializeField] private TextMeshProUGUI gameOverTotalScoreText;
+        [SerializeField] private TextMeshProUGUI gameOverHighScoreText;
+        [SerializeField] private GameObject gameOverNewHighScoreIndicator;
         [SerializeField] private Button homeButton;
 
         [Header("Minigames")]
@@ -88,7 +95,16 @@ namespace RingSport.UI
         {
             HideAllScreens();
             if (homeScreen != null)
+            {
                 homeScreen.SetActive(true);
+
+                // Display high score
+                if (highScoreText != null && ScoreManager.Instance != null)
+                {
+                    int highScore = ScoreManager.Instance.HighScore;
+                    highScoreText.text = highScore > 0 ? $"High Score: {highScore}" : "High Score: -";
+                }
+            }
         }
 
         public void ShowGameHUD()
@@ -113,7 +129,34 @@ namespace RingSport.UI
                     rewardLevelText.text = $"Level {level} Complete!";
 
                 if (rewardScoreText != null)
-                    rewardScoreText.text = $"Score: {score}";
+                    rewardScoreText.text = $"Level Score: {score}";
+
+                // Display total score and high score
+                if (ScoreManager.Instance != null)
+                {
+                    int totalScore = ScoreManager.Instance.TotalScore;
+                    int highScore = ScoreManager.Instance.HighScore;
+                    bool isNewHighScore = ScoreManager.Instance.IsNewHighScore();
+
+                    Debug.Log($"[UIManager] RewardScreen - Total: {totalScore}, High: {highScore}, IsNew: {isNewHighScore}");
+
+                    if (rewardTotalScoreText != null)
+                        rewardTotalScoreText.text = $"Total Score: {totalScore}";
+
+                    if (rewardHighScoreText != null)
+                        rewardHighScoreText.text = $"High Score: {highScore}";
+
+                    // Show "NEW HIGH SCORE!" indicator if applicable
+                    if (newHighScoreIndicator != null)
+                    {
+                        newHighScoreIndicator.SetActive(isNewHighScore);
+                        Debug.Log($"[UIManager] Setting newHighScoreIndicator active to: {isNewHighScore}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[UIManager] newHighScoreIndicator is NULL! Please assign it in the Inspector.");
+                    }
+                }
             }
         }
 
@@ -150,6 +193,34 @@ namespace RingSport.UI
                     }
 
                     Debug.Log("[UIManager] Out of retries - showing Game Over message");
+                }
+
+                // Display total score and high score
+                if (ScoreManager.Instance != null)
+                {
+                    int totalScore = ScoreManager.Instance.TotalScore;
+                    int highScore = ScoreManager.Instance.HighScore;
+                    bool isNewHighScore = ScoreManager.Instance.IsNewHighScore();
+
+                    Debug.Log($"[UIManager] GameOverScreen - Total: {totalScore}, High: {highScore}, IsNew: {isNewHighScore}, HasRetries: {hasRetries}");
+
+                    if (gameOverTotalScoreText != null)
+                        gameOverTotalScoreText.text = $"Total Score: {totalScore}";
+
+                    if (gameOverHighScoreText != null)
+                        gameOverHighScoreText.text = $"High Score: {highScore}";
+
+                    // Show "NEW HIGH SCORE!" indicator if applicable (only when out of retries)
+                    if (gameOverNewHighScoreIndicator != null)
+                    {
+                        bool shouldShow = !hasRetries && isNewHighScore;
+                        gameOverNewHighScoreIndicator.SetActive(shouldShow);
+                        Debug.Log($"[UIManager] Setting gameOverNewHighScoreIndicator active to: {shouldShow}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[UIManager] gameOverNewHighScoreIndicator is NULL! Please assign it in the Inspector.");
+                    }
                 }
             }
         }
