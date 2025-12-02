@@ -97,85 +97,89 @@ namespace RingSport.Level.Spawning
                     return;
                 }
 
-                // Randomly choose obstacle type (5 types: Avoid, Jump, Palisade, Pylon, Broad Jump)
-                float randomValue = Random.value;
-                string poolTag;
+                // Spawn single random obstacle
+                SpawnRandomSingleObstacle();
+            }
+        }
 
-                if (randomValue < 0.2f)
+        /// <summary>
+        /// Spawns a single random obstacle with clearance checking
+        /// </summary>
+        private void SpawnRandomSingleObstacle()
+        {
+            // Select obstacle type
+            string poolTag = GetRandomObstacleType();
+
+            // Select initial random lane
+            int lane = Random.Range(-1, 2);
+
+            // Try to find a clear lane if the random one is blocked
+            if (!TryFindClearLane(ref lane))
+            {
+                // No clear lane available, skip this spawn and try again later
+                nextObstacleSpawnZ += Random.Range(context.CurrentConfig.MinObstacleSpacing, context.CurrentConfig.MaxObstacleSpacing);
+                return;
+            }
+
+            // Spawn the obstacle
+            SpawnSingleObstacleAtPosition(poolTag, lane);
+        }
+
+        /// <summary>
+        /// Tries to find a clear lane for obstacle spawning
+        /// Returns true if a clear lane was found, false otherwise
+        /// </summary>
+        private bool TryFindClearLane(ref int lane)
+        {
+            // Check if current lane has clearance
+            if (!obstacleTracker.HasObstacleInLaneBehind(lane, nextObstacleSpawnZ, 4f))
+            {
+                return true; // Current lane is clear
+            }
+
+            // Try to find a clear lane
+            int[] lanes = { -1, 0, 1 };
+            foreach (int testLane in lanes)
+            {
+                if (!obstacleTracker.HasObstacleInLaneBehind(testLane, nextObstacleSpawnZ, 4f))
                 {
-                    poolTag = "ObstacleAvoid";
+                    lane = testLane;
+                    return true;
                 }
-                else if (randomValue < 0.4f)
-                {
-                    poolTag = "ObstacleJump";
-                }
-                else if (randomValue < 0.6f)
-                {
-                    poolTag = "ObstaclePalisade";
-                }
-                else if (randomValue < 0.8f)
-                {
-                    poolTag = "ObstaclePylon";
-                }
-                else
-                {
-                    poolTag = "ObstacleBroadJump";
-                }
+            }
 
-                // Random lane
-                int lane = Random.Range(-1, 2);
+            // No clear lane found
+            return false;
+        }
 
-                // Apply clearance check to all obstacles: ensure no obstacles within 4 units behind in the same lane
-                bool hasObstacleBehind = obstacleTracker.HasObstacleInLaneBehind(lane, nextObstacleSpawnZ, 4f);
+        /// <summary>
+        /// Spawns a single obstacle at the specified lane
+        /// </summary>
+        private void SpawnSingleObstacleAtPosition(string poolTag, int lane)
+        {
+            float xPosition = lane * 3f;
 
-                if (hasObstacleBehind)
-                {
-                    // Try to find a clear lane
-                    int[] lanes = { -1, 0, 1 };
-                    bool foundClearLane = false;
+            // Spawn at player position + offset
+            float spawnZ = context.PlayerPosition.z + (nextObstacleSpawnZ - context.VirtualDistance);
+            Vector3 spawnPosition = new Vector3(xPosition, 0f, spawnZ);
 
-                    foreach (int testLane in lanes)
-                    {
-                        if (!obstacleTracker.HasObstacleInLaneBehind(testLane, nextObstacleSpawnZ, 4f))
-                        {
-                            lane = testLane;
-                            foundClearLane = true;
-                            break;
-                        }
-                    }
+            Debug.Log($"Attempting to spawn {poolTag} at {spawnPosition}, virtual:{context.VirtualDistance}, count: {obstaclesSpawned}");
 
-                    // If no clear lane, skip this spawn and try again later
-                    if (!foundClearLane)
-                    {
-                        nextObstacleSpawnZ += Random.Range(context.CurrentConfig.MinObstacleSpacing, context.CurrentConfig.MaxObstacleSpacing);
-                        return;
-                    }
-                }
+            GameObject obstacle = ObjectPooler.Instance?.SpawnFromPool(poolTag, spawnPosition, Quaternion.identity);
 
-                float xPosition = lane * 3f;
-
-                // Spawn at player position + offset
-                float spawnZ = context.PlayerPosition.z + (nextObstacleSpawnZ - context.VirtualDistance);
-                Vector3 spawnPosition = new Vector3(xPosition, 0f, spawnZ);
-
-                Debug.Log($"Attempting to spawn {poolTag} at {spawnPosition}, virtual:{context.VirtualDistance}, count: {obstaclesSpawned}");
-
-                GameObject obstacle = ObjectPooler.Instance?.SpawnFromPool(poolTag, spawnPosition, Quaternion.identity);
-
-                if (obstacle != null)
-                {
-                    obstaclesSpawned++;
-                    // Track this obstacle's position, lane, and type
-                    obstacleTracker.AddObstacle(new ObstacleData(nextObstacleSpawnZ, lane, poolTag));
-                    despawnManager.RegisterObstacle(obstacle);
-                    nextObstacleSpawnZ += Random.Range(context.CurrentConfig.MinObstacleSpacing, context.CurrentConfig.MaxObstacleSpacing);
-                    Debug.Log($"Successfully spawned {poolTag}. Next spawn at virtual: {nextObstacleSpawnZ}");
-                }
-                else
-                {
-                    // Pool exhausted - don't advance spawn position, will retry next frame
-                    Debug.LogWarning($"Pool exhausted for {poolTag}, will retry next frame");
-                }
+            if (obstacle != null)
+            {
+                obstaclesSpawned++;
+                // Track this obstacle's position, lane, and type
+                obstacleTracker.AddObstacle(new ObstacleData(nextObstacleSpawnZ, lane, poolTag));
+                despawnManager.RegisterObstacle(obstacle);
+                nextObstacleSpawnZ += Random.Range(context.CurrentConfig.MinObstacleSpacing, context.CurrentConfig.MaxObstacleSpacing);
+                Debug.Log($"Successfully spawned {poolTag}. Next spawn at virtual: {nextObstacleSpawnZ}");
+            }
+            else
+            {
+                // Pool exhausted - don't advance spawn position, will retry next frame
+                Debug.LogWarning($"Pool exhausted for {poolTag}, will retry next frame");
             }
         }
 
@@ -353,7 +357,7 @@ namespace RingSport.Level.Spawning
             if (!HasAtLeastOnePassableObstacle(types))
             {
                 // Replace one obstacle with a passable type
-                string[] passableTypes = { "ObstacleJump", "ObstaclePalisade", "ObstacleBroadJump" };
+                string[] passableTypes = { PoolTags.ObstacleJump, PoolTags.ObstaclePalisade, PoolTags.ObstacleBroadJump };
                 types[Random.Range(0, 3)] = passableTypes[Random.Range(0, passableTypes.Length)];
                 Debug.Log($"Prevented impossible 3-lane row! Replaced one instant-death obstacle with passable type.");
             }
@@ -379,15 +383,15 @@ namespace RingSport.Level.Spawning
             float randomValue = Random.value;
 
             if (randomValue < 0.2f)
-                return "ObstacleAvoid";
+                return PoolTags.ObstacleAvoid;
             else if (randomValue < 0.4f)
-                return "ObstacleJump";
+                return PoolTags.ObstacleJump;
             else if (randomValue < 0.6f)
-                return "ObstaclePalisade";
+                return PoolTags.ObstaclePalisade;
             else if (randomValue < 0.8f)
-                return "ObstaclePylon";
+                return PoolTags.ObstaclePylon;
             else
-                return "ObstacleBroadJump";
+                return PoolTags.ObstacleBroadJump;
         }
 
         /// <summary>
@@ -477,9 +481,9 @@ namespace RingSport.Level.Spawning
         {
             // Jump, Palisade, and BroadJump can be passed by player actions
             // Avoid and Pylon are instant death
-            return obstacleType == "ObstacleJump" ||
-                   obstacleType == "ObstaclePalisade" ||
-                   obstacleType == "ObstacleBroadJump";
+            return obstacleType == PoolTags.ObstacleJump ||
+                   obstacleType == PoolTags.ObstaclePalisade ||
+                   obstacleType == PoolTags.ObstacleBroadJump;
         }
 
         /// <summary>

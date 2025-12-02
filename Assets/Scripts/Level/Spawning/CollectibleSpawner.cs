@@ -72,155 +72,212 @@ namespace RingSport.Level.Spawning
 
             if (context.VirtualDistance + context.SpawnDistance > nextCollectibleSpawnZ)
             {
-                // First, check if there's an upcoming jumpable obstacle that needs a coin arc
-                ObstacleData? upcomingObstacle = obstacleTracker.GetUpcomingJumpableObstacle(nextCollectibleSpawnZ);
-
-                if (upcomingObstacle.HasValue && !obstaclesWithArcs.Contains(upcomingObstacle.Value.zPosition))
+                // Try to spawn coin arc for jumpable obstacles first
+                if (TrySpawnCoinArcForObstacle())
                 {
-                    // Spawn coin arc for this obstacle
-                    SpawnCoinArc(upcomingObstacle.Value);
+                    return; // Coin arc spawned, skip regular collectible this frame
+                }
 
-                    // Mark this obstacle as having an arc
-                    obstaclesWithArcs.Add(upcomingObstacle.Value.zPosition);
+                // Determine lane and height for regular collectible
+                DetermineLaneAndHeight(out int lane, out float spawnHeight);
 
-                    // Advance spawn position past the arc (obstacle position + 3.5 units after + a small buffer)
-                    nextCollectibleSpawnZ = upcomingObstacle.Value.zPosition + 4.5f;
+                // Spawn the collectible
+                SpawnSingleCollectible(lane, spawnHeight);
+            }
+        }
 
-                    // End any coin train that might be active
+        /// <summary>
+        /// Tries to spawn a coin arc for an upcoming jumpable obstacle
+        /// Returns true if a coin arc was spawned
+        /// </summary>
+        private bool TrySpawnCoinArcForObstacle()
+        {
+            // Check if there's an upcoming jumpable obstacle that needs a coin arc
+            ObstacleData? upcomingObstacle = obstacleTracker.GetUpcomingJumpableObstacle(nextCollectibleSpawnZ);
+
+            if (upcomingObstacle.HasValue && !obstaclesWithArcs.Contains(upcomingObstacle.Value.zPosition))
+            {
+                // Spawn coin arc for this obstacle
+                SpawnCoinArc(upcomingObstacle.Value);
+
+                // Mark this obstacle as having an arc
+                obstaclesWithArcs.Add(upcomingObstacle.Value.zPosition);
+
+                // Advance spawn position past the arc (obstacle position + 3.5 units after + a small buffer)
+                nextCollectibleSpawnZ = upcomingObstacle.Value.zPosition + 4.5f;
+
+                // End any coin train that might be active
+                isInCoinTrain = false;
+                coinTrainRemaining = 0;
+
+                return true; // Coin arc spawned
+            }
+
+            return false; // No coin arc spawned
+        }
+
+        /// <summary>
+        /// Determines the lane and spawn height for a collectible based on obstacles and coin trains
+        /// </summary>
+        private void DetermineLaneAndHeight(out int lane, out float spawnHeight)
+        {
+            spawnHeight = 1f; // Default collectible height
+            lane = 0; // Default lane
+
+            // Check if this position is near any obstacle (within 3 units before or after)
+            ObstacleData? nearbyObstacle = obstacleTracker.GetNearbyObstacle(nextCollectibleSpawnZ, 3f);
+
+            // Determine lane based on coin train or obstacle proximity
+            if (isInCoinTrain && coinTrainRemaining > 0)
+            {
+                HandleCoinTrainLogic(out lane);
+            }
+            else if (nearbyObstacle.HasValue)
+            {
+                HandleNearbyObstacleLogic(nearbyObstacle.Value, out lane, out spawnHeight);
+            }
+            else
+            {
+                HandleOpenSpaceLogic(out lane);
+            }
+        }
+
+        /// <summary>
+        /// Handles lane selection logic when in a coin train
+        /// </summary>
+        private void HandleCoinTrainLogic(out int lane)
+        {
+            // Continue the coin train in the same lane
+            lane = coinTrainLane;
+
+            // FAIRNESS CHECK: Lookahead to prevent coin train leading into obstacle
+            float lookaheadDistance = 2.5f * coinTrainRemaining; // Estimate remaining train length
+            if (obstacleTracker.HasObstacleInLaneAhead(coinTrainLane, nextCollectibleSpawnZ, lookaheadDistance))
+            {
+                // Obstacle detected ahead - end coin train early for safety
+                Debug.Log($"Coin train lookahead detected obstacle in lane {coinTrainLane}, ending train early");
+                isInCoinTrain = false;
+                coinTrainRemaining = 0;
+
+                // Use biased lane selection instead
+                lane = GetNextCollectibleLane(previousCollectibleLane);
+            }
+            else
+            {
+                // Safe to continue train
+                coinTrainRemaining--;
+
+                if (coinTrainRemaining == 0)
+                {
                     isInCoinTrain = false;
-                    coinTrainRemaining = 0;
-
-                    return; // Skip regular collectible spawning this frame
                 }
+            }
+        }
 
-                // Check if this position is near any obstacle (within 3 units before or after)
-                ObstacleData? nearbyObstacle = obstacleTracker.GetNearbyObstacle(nextCollectibleSpawnZ, 3f);
+        /// <summary>
+        /// Handles lane and height selection logic when near an obstacle
+        /// </summary>
+        private void HandleNearbyObstacleLogic(ObstacleData obstacle, out int lane, out float spawnHeight)
+        {
+            spawnHeight = 1f; // Default
 
-                float spawnHeight = 1f; // Default collectible height
-                int lane = 0;
+            // Check if we should spawn above the obstacle
+            if (obstacle.CanHaveCollectibleAbove() && Random.value < context.CurrentConfig.CollectibleAboveObstacleChance)
+            {
+                // Spawn above the jump or palisade obstacle
+                lane = obstacle.lane;
 
-                // Determine lane based on coin train or obstacle proximity
-                if (isInCoinTrain && coinTrainRemaining > 0)
+                // Palisades are 2m tall, so spawn collectibles higher above them
+                if (obstacle.obstacleType == PoolTags.ObstaclePalisade)
                 {
-                    // Continue the coin train in the same lane
-                    lane = coinTrainLane;
-
-                    // FAIRNESS CHECK: Lookahead to prevent coin train leading into obstacle
-                    // Check if there's an obstacle ahead in this lane within the coin train distance
-                    float lookaheadDistance = 2.5f * coinTrainRemaining; // Estimate remaining train length
-                    if (obstacleTracker.HasObstacleInLaneAhead(coinTrainLane, nextCollectibleSpawnZ, lookaheadDistance))
-                    {
-                        // Obstacle detected ahead - end coin train early for safety
-                        Debug.Log($"Coin train lookahead detected obstacle in lane {coinTrainLane}, ending train early");
-                        isInCoinTrain = false;
-                        coinTrainRemaining = 0;
-
-                        // Use biased lane selection instead
-                        lane = GetNextCollectibleLane(previousCollectibleLane);
-                    }
-                    else
-                    {
-                        // Safe to continue train
-                        coinTrainRemaining--;
-
-                        if (coinTrainRemaining == 0)
-                        {
-                            isInCoinTrain = false;
-                        }
-                    }
-                }
-                else if (nearbyObstacle.HasValue)
-                {
-                    // Near an obstacle - check if we should spawn above it
-                    if (nearbyObstacle.Value.CanHaveCollectibleAbove() && Random.value < context.CurrentConfig.CollectibleAboveObstacleChance)
-                    {
-                        // Spawn above the jump or palisade obstacle
-                        // Use the same lane as the obstacle
-                        lane = nearbyObstacle.Value.lane;
-
-                        // Palisades are 2m tall, so spawn collectibles higher above them
-                        if (nearbyObstacle.Value.obstacleType == "ObstaclePalisade")
-                        {
-                            spawnHeight = 3f; // Above 2m tall palisade
-                        }
-                        else
-                        {
-                            spawnHeight = 1.5f; // Above regular jump obstacles
-                        }
-                    }
-                    else
-                    {
-                        // Near an obstacle but not spawning above it
-                        // Spawn in a different lane than the obstacle
-                        int[] otherLanes = GetLanesExcept(nearbyObstacle.Value.lane);
-                        lane = otherLanes[Random.Range(0, otherLanes.Length)];
-
-                        // Maybe start a coin train (40% chance)
-                        if (!isInCoinTrain && Random.value < 0.4f)
-                        {
-                            StartCoinTrain(lane);
-                        }
-                    }
+                    spawnHeight = 3f; // Above 2m tall palisade
                 }
                 else
                 {
-                    // No nearby obstacle - decide whether to start a coin train
-                    if (!isInCoinTrain && Random.value < 0.5f)
-                    {
-                        // Start a new coin train
-                        lane = Random.Range(-1, 2);
-                        StartCoinTrain(lane);
-                    }
-                    else
-                    {
-                        // Use biased lane selection (Subway Surfers style)
-                        lane = GetNextCollectibleLane(previousCollectibleLane);
-                    }
+                    spawnHeight = 1.5f; // Above regular jump obstacles
                 }
+            }
+            else
+            {
+                // Near an obstacle but not spawning above it
+                // Spawn in a different lane than the obstacle
+                int[] otherLanes = GetLanesExcept(obstacle.lane);
+                lane = otherLanes[Random.Range(0, otherLanes.Length)];
 
-                float xPosition = lane * 3f;
-
-                // Spawn at player position + offset
-                float spawnZ = context.PlayerPosition.z + (nextCollectibleSpawnZ - context.VirtualDistance);
-                Vector3 spawnPosition = new Vector3(xPosition, spawnHeight, spawnZ);
-
-                // Randomly choose between regular and mega collectible
-                bool isMega = Random.value < context.CurrentConfig.MegaCollectibleSpawnRatio;
-                string poolTag = isMega ? "MegaCollectible" : "Collectible";
-
-                GameObject collectible = ObjectPooler.Instance?.SpawnFromPool(poolTag, spawnPosition, Quaternion.identity);
-
-                if (collectible != null)
+                // Maybe start a coin train (40% chance)
+                if (!isInCoinTrain && Random.value < 0.4f)
                 {
-                    // If mega collectible, set its point value
-                    if (isMega)
-                    {
-                        var collectibleComponent = collectible.GetComponent<Collectible>();
-                        if (collectibleComponent != null)
-                        {
-                            collectibleComponent.SetPointValue(context.CurrentConfig.MegaCollectiblePointValue);
-                        }
-                    }
-
-                    collectiblesSpawned++;
-                    previousCollectibleLane = lane; // Remember this lane for next spawn
-
-                    // Register with despawn manager
-                    despawnManager.RegisterCollectible(collectible);
-
-                    // Adjust spacing: tighter for coin trains, normal otherwise
-                    float spacing;
-                    if (isInCoinTrain && coinTrainRemaining > 0)
-                    {
-                        spacing = 2.5f; // Tight spacing for coin trains
-                    }
-                    else
-                    {
-                        spacing = Random.Range(context.CurrentConfig.MinCollectibleSpacing, context.CurrentConfig.MaxCollectibleSpacing);
-                    }
-
-                    nextCollectibleSpawnZ += spacing;
+                    StartCoinTrain(lane);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Handles lane selection logic when in open space (no obstacles nearby)
+        /// </summary>
+        private void HandleOpenSpaceLogic(out int lane)
+        {
+            // No nearby obstacle - decide whether to start a coin train
+            if (!isInCoinTrain && Random.value < 0.5f)
+            {
+                // Start a new coin train
+                lane = Random.Range(-1, 2);
+                StartCoinTrain(lane);
+            }
+            else
+            {
+                // Use biased lane selection (Subway Surfers style)
+                lane = GetNextCollectibleLane(previousCollectibleLane);
+            }
+        }
+
+        /// <summary>
+        /// Spawns a single collectible at the specified lane and height
+        /// </summary>
+        private void SpawnSingleCollectible(int lane, float spawnHeight)
+        {
+            float xPosition = lane * 3f;
+
+            // Spawn at player position + offset
+            float spawnZ = context.PlayerPosition.z + (nextCollectibleSpawnZ - context.VirtualDistance);
+            Vector3 spawnPosition = new Vector3(xPosition, spawnHeight, spawnZ);
+
+            // Randomly choose between regular and mega collectible
+            bool isMega = Random.value < context.CurrentConfig.MegaCollectibleSpawnRatio;
+            string poolTag = isMega ? PoolTags.MegaCollectible : PoolTags.Collectible;
+
+            GameObject collectible = ObjectPooler.Instance?.SpawnFromPool(poolTag, spawnPosition, Quaternion.identity);
+
+            if (collectible != null)
+            {
+                // If mega collectible, set its point value
+                if (isMega)
+                {
+                    var collectibleComponent = collectible.GetComponent<Collectible>();
+                    if (collectibleComponent != null)
+                    {
+                        collectibleComponent.SetPointValue(context.CurrentConfig.MegaCollectiblePointValue);
+                    }
+                }
+
+                collectiblesSpawned++;
+                previousCollectibleLane = lane; // Remember this lane for next spawn
+
+                // Register with despawn manager
+                despawnManager.RegisterCollectible(collectible);
+
+                // Adjust spacing: tighter for coin trains, normal otherwise
+                float spacing;
+                if (isInCoinTrain && coinTrainRemaining > 0)
+                {
+                    spacing = 2.5f; // Tight spacing for coin trains
+                }
+                else
+                {
+                    spacing = Random.Range(context.CurrentConfig.MinCollectibleSpacing, context.CurrentConfig.MaxCollectibleSpacing);
+                }
+
+                nextCollectibleSpawnZ += spacing;
             }
         }
 
@@ -287,11 +344,11 @@ namespace RingSport.Level.Spawning
 
             // Determine peak height based on obstacle type
             float peakHeight;
-            if (obstacle.obstacleType == "ObstaclePalisade")
+            if (obstacle.obstacleType == PoolTags.ObstaclePalisade)
             {
                 peakHeight = 3.5f; // Higher arc for tall palisades
             }
-            else if (obstacle.obstacleType == "ObstacleBroadJump")
+            else if (obstacle.obstacleType == PoolTags.ObstacleBroadJump)
             {
                 peakHeight = 2.5f; // Medium arc for broad jumps
             }

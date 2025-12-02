@@ -13,11 +13,17 @@ namespace RingSport.Level
         [SerializeField] private float hoverSpeed = 2f;
 
         private float previousHoverOffset = 0f;
+        private Transform cachedTransform;
+
+        private void Awake()
+        {
+            cachedTransform = transform;
+        }
 
         private void LateUpdate()
         {
             // Rotate the collectible
-            transform.Rotate(rotationAxis.normalized, rotationSpeed * Time.deltaTime, Space.World);
+            cachedTransform.Rotate(rotationAxis.normalized, rotationSpeed * Time.deltaTime, Space.World);
 
             // Use global time for synchronized animation across all collectibles
             float hoverTime = Time.time * hoverSpeed;
@@ -31,7 +37,7 @@ namespace RingSport.Level
 
             // Apply the delta hover offset to work with ScrollableObject
             float deltaHover = currentHoverOffset - previousHoverOffset;
-            transform.position += new Vector3(0f, deltaHover, 0f);
+            cachedTransform.position += new Vector3(0f, deltaHover, 0f);
 
             // Store for next frame
             previousHoverOffset = currentHoverOffset;

@@ -34,24 +34,26 @@ namespace RingSport.Player
         private bool isGrounded;
         private float targetLaneX = 0f;
         private int currentLane = 0; // -1 = left, 0 = center, 1 = right
-        private bool isSprinting = false;
         private bool isMovementPaused = false;
         private float lastInputTime = -1f;
         private float inputCooldown = 0.2f;
 
-        // Sprint stamina tracking
-        private float currentSprintStamina;
-        private bool isSprintExhausted = false;
+        // Stamina system for sprint management
+        private PlayerStaminaSystem staminaSystem;
 
-        public float ForwardSpeed => isSprinting ? forwardSpeed * sprintMultiplier : forwardSpeed;
+        // Cached manager references for performance
+        private GameManager gameManager;
+        private UIManager uiManager;
+
+        public float ForwardSpeed => staminaSystem.IsSprinting ? forwardSpeed * sprintMultiplier : forwardSpeed;
 
         private void Awake()
         {
             characterController = GetComponent<CharacterController>();
             playerInput = GetComponent<PlayerInput>();
 
-            // Initialize sprint stamina to full
-            currentSprintStamina = maxSprintDuration;
+            // Initialize stamina system
+            staminaSystem = new PlayerStaminaSystem(maxSprintDuration, sprintDrainRate, sprintRefillRate);
 
             if (playerInput == null)
             {
@@ -67,6 +69,16 @@ namespace RingSport.Player
             }
 
             SetupInputActions();
+        }
+
+        private void Start()
+        {
+            // Cache manager references for performance
+            gameManager = GameManager.Instance;
+            uiManager = UIManager.Instance;
+
+            // Initialize stamina system with UI manager
+            staminaSystem.Initialize(uiManager);
         }
 
         private void SetupInputActions()
@@ -123,13 +135,13 @@ namespace RingSport.Player
 
         private void Update()
         {
-            if (GameManager.Instance?.CurrentState != GameState.Playing || isMovementPaused)
+            if (gameManager?.CurrentState != GameState.Playing || isMovementPaused)
                 return;
 
             HandleGroundCheck();
             HandleLaneMovement();
             HandleGravity();
-            HandleSprintStamina();
+            staminaSystem.Update(Time.deltaTime); // Delegate to stamina system
 
             // Only move in X (lanes) and Y (jump/gravity), not Z
             Vector3 movement = new Vector3(velocity.x, velocity.y, 0f);
@@ -196,45 +208,6 @@ namespace RingSport.Player
             velocity.y += gravity * Time.deltaTime;
         }
 
-        private void HandleSprintStamina()
-        {
-            if (isSprinting && !isSprintExhausted)
-            {
-                // Drain stamina while sprinting
-                currentSprintStamina -= sprintDrainRate * Time.deltaTime;
-
-                if (currentSprintStamina <= 0f)
-                {
-                    currentSprintStamina = 0f;
-                    isSprintExhausted = true;
-                    isSprinting = false; // Force stop sprinting
-                }
-            }
-            else if (!isSprinting)
-            {
-                // Refill stamina when not sprinting
-                currentSprintStamina += sprintRefillRate * Time.deltaTime;
-
-                if (currentSprintStamina >= maxSprintDuration)
-                {
-                    currentSprintStamina = maxSprintDuration;
-
-                    // Unlock sprint once fully refilled
-                    if (isSprintExhausted)
-                    {
-                        isSprintExhausted = false;
-                    }
-                }
-            }
-
-            // Update UI
-            if (UIManager.Instance != null)
-            {
-                float fillAmount = currentSprintStamina / maxSprintDuration;
-                UIManager.Instance.UpdateSprintBar(fillAmount, isSprintExhausted);
-            }
-        }
-
         private void OnJump(InputAction.CallbackContext context)
         {
             Debug.Log($"Jump pressed! isGrounded: {isGrounded}, velocity.y: {velocity.y}");
@@ -248,16 +221,17 @@ namespace RingSport.Player
 
         private void OnSprintStarted(InputAction.CallbackContext context)
         {
-            // Only allow sprinting if not exhausted
-            if (!isSprintExhausted)
+            // Delegate to stamina system
+            if (staminaSystem.CanSprint())
             {
-                isSprinting = true;
+                staminaSystem.IsSprinting = true;
             }
         }
 
         private void OnSprintCanceled(InputAction.CallbackContext context)
         {
-            isSprinting = false;
+            // Delegate to stamina system
+            staminaSystem.IsSprinting = false;
         }
 
         public void Stop()
@@ -274,11 +248,9 @@ namespace RingSport.Player
             targetLaneX = 0f;
             transform.position = new Vector3(0f, transform.position.y, transform.position.z);
             velocity = Vector3.zero;
-            isSprinting = false;
 
-            // Reset sprint stamina to full
-            currentSprintStamina = maxSprintDuration;
-            isSprintExhausted = false;
+            // Reset stamina system
+            staminaSystem.Reset();
         }
 
         public void PauseMovement()
@@ -286,7 +258,7 @@ namespace RingSport.Player
             isMovementPaused = true;
 
             // Force stop sprinting and unsubscribe from sprint events
-            isSprinting = false;
+            staminaSystem.IsSprinting = false;
             if (sprintAction != null)
             {
                 sprintAction.performed -= OnSprintStarted;

@@ -19,7 +19,20 @@ namespace RingSport.Level
 
         private bool hasBeenTriggered = false; // Prevent multiple triggers
 
+        // Cached component references for performance
+        private Collider obstacleCollider;
+        private GameManager gameManager;
+        private UIManager uiManager;
+
         public ObstacleType Type => obstacleType;
+
+        private void Awake()
+        {
+            // Cache component references
+            obstacleCollider = GetComponent<Collider>();
+            gameManager = GameManager.Instance;
+            uiManager = UIManager.Instance;
+        }
 
         private void OnEnable()
         {
@@ -68,7 +81,7 @@ namespace RingSport.Level
                 case ObstacleType.Avoid:
                     // Instant game over
                     Debug.Log($"Hit AVOID obstacle! Game Over!");
-                    GameManager.Instance?.TriggerGameOver();
+                    gameManager?.TriggerGameOver();
                     break;
 
                 case ObstacleType.JumpOver:
@@ -76,7 +89,7 @@ namespace RingSport.Level
                     if (playerHeight < jumpHeightThreshold)
                     {
                         Debug.Log($"Hit JUMP obstacle while too low (height: {playerHeight}, required: {jumpHeightThreshold})! Game Over!");
-                        GameManager.Instance?.TriggerGameOver();
+                        gameManager?.TriggerGameOver();
                     }
                     else
                     {
@@ -94,12 +107,11 @@ namespace RingSport.Level
         {
             Debug.Log("=== HandlePalisadeCollision started ===");
 
-            // Get the collider to determine obstacle height
-            Collider obstacleCollider = GetComponent<Collider>();
+            // Use cached collider reference
             if (obstacleCollider == null)
             {
                 Debug.LogError("Palisade obstacle has no collider!");
-                GameManager.Instance?.TriggerGameOver();
+                gameManager?.TriggerGameOver();
                 return;
             }
 
@@ -118,7 +130,7 @@ namespace RingSport.Level
             if (hitHeightPercent < 0.5f)
             {
                 Debug.Log($"Hit Palisade too low ({hitHeightPercent * 100f:F1}%)! Game Over!");
-                GameManager.Instance?.TriggerGameOver();
+                gameManager?.TriggerGameOver();
                 return;
             }
 
@@ -129,7 +141,7 @@ namespace RingSport.Level
             requiredTaps = Mathf.Max(1, requiredTaps); // Ensure at least 1 tap
 
             Debug.Log($"Palisade requires {requiredTaps} taps (hit at {hitHeightPercent * 100f:F1}%)");
-            Debug.Log($"About to call UIManager.ShowPalisadeMinigame, UIManager.Instance: {(UIManager.Instance != null ? "EXISTS" : "NULL")}");
+            Debug.Log($"About to call UIManager.ShowPalisadeMinigame, UIManager.Instance: {(uiManager != null ? "EXISTS" : "NULL")}");
 
             // Pass obstacle bottom position for accurate arc calculation
             Vector3 obstacleBottomPosition = new Vector3(
@@ -139,7 +151,7 @@ namespace RingSport.Level
             );
 
             // Trigger the minigame
-            UIManager.Instance?.ShowPalisadeMinigame(
+            uiManager?.ShowPalisadeMinigame(
                 requiredTaps,
                 obstacleBottomPosition,
                 obstacleHeight,

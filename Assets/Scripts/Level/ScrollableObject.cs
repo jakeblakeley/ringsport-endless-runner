@@ -4,11 +4,20 @@ namespace RingSport.Level
 {
     public class ScrollableObject : MonoBehaviour
     {
+        private LevelScroller scroller;
+        private Transform cachedTransform;
+
+        private void Start()
+        {
+            scroller = LevelScroller.Instance;
+            cachedTransform = transform;
+        }
+
         private void Update()
         {
-            if (LevelScroller.Instance != null)
+            if (scroller != null)
             {
-                LevelScroller.Instance.ScrollObject(transform);
+                scroller.ScrollObject(cachedTransform);
             }
         }
     }
