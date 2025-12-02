@@ -32,26 +32,14 @@ namespace RingSport.Level
         [Range(10f, 100f)]
         private float arcDistance = 20f;
 
-        [Header("Atmospheric Tint")]
-        [SerializeField, Tooltip("Color tint applied to distant objects")]
-        private Color tintColor = new Color(0.8f, 0.9f, 1.0f, 1.0f);
-
-        [SerializeField, Tooltip("Strength of the atmospheric tint effect")]
-        [Range(0f, 1f)]
-        private float tintStrength = 0.5f;
-
         // Shader property IDs (cached for performance)
         private static readonly int PlayerPositionID = Shader.PropertyToID("_PlayerPosition");
         private static readonly int ArcStrengthID = Shader.PropertyToID("_ArcStrength");
         private static readonly int ArcDistanceID = Shader.PropertyToID("_ArcDistance");
-        private static readonly int TintColorID = Shader.PropertyToID("_TintColor");
-        private static readonly int TintStrengthID = Shader.PropertyToID("_TintStrength");
 
         // Track previous values to detect changes
         private float previousArcStrength;
         private float previousArcDistance;
-        private Color previousTintColor;
-        private float previousTintStrength;
 
         private void Start()
         {
@@ -124,14 +112,10 @@ namespace RingSport.Level
         {
             Shader.SetGlobalFloat(ArcStrengthID, arcStrength);
             Shader.SetGlobalFloat(ArcDistanceID, arcDistance);
-            Shader.SetGlobalColor(TintColorID, tintColor);
-            Shader.SetGlobalFloat(TintStrengthID, tintStrength);
 
             // Update tracked values
             previousArcStrength = arcStrength;
             previousArcDistance = arcDistance;
-            previousTintColor = tintColor;
-            previousTintStrength = tintStrength;
         }
 
         /// <summary>
@@ -140,9 +124,7 @@ namespace RingSport.Level
         private bool HasParametersChanged()
         {
             return !Mathf.Approximately(previousArcStrength, arcStrength) ||
-                   !Mathf.Approximately(previousArcDistance, arcDistance) ||
-                   previousTintColor != tintColor ||
-                   !Mathf.Approximately(previousTintStrength, tintStrength);
+                   !Mathf.Approximately(previousArcDistance, arcDistance);
         }
 
         /// <summary>
@@ -187,24 +169,6 @@ namespace RingSport.Level
         public void SetArcDistance(float distance)
         {
             arcDistance = Mathf.Clamp(distance, 10f, 100f);
-            UpdateArcParameters();
-        }
-
-        /// <summary>
-        /// Set the tint color for distant objects.
-        /// </summary>
-        public void SetTintColor(Color color)
-        {
-            tintColor = color;
-            UpdateArcParameters();
-        }
-
-        /// <summary>
-        /// Set the tint strength.
-        /// </summary>
-        public void SetTintStrength(float strength)
-        {
-            tintStrength = Mathf.Clamp01(strength);
             UpdateArcParameters();
         }
 

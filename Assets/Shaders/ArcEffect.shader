@@ -11,10 +11,6 @@ Shader "Custom/Mobile/ArcEffect"
         _ArcDistance ("Arc Distance", Range(10, 100)) = 50.0
         _PlayerPosition ("Player Position", Vector) = (0, 0, 0, 0)
 
-        [Header(Atmospheric Tint)]
-        _TintColor ("Tint Color", Color) = (0.8, 0.9, 1.0, 1.0)
-        _TintStrength ("Tint Strength", Range(0, 1)) = 0.5
-
         [Header(Lighting)]
         _Smoothness ("Smoothness", Range(0, 1)) = 0.5
         _Metallic ("Metallic", Range(0, 1)) = 0.0
@@ -80,7 +76,6 @@ Shader "Custom/Mobile/ArcEffect"
                 float3 positionWS : TEXCOORD1;
                 float3 normalWS : TEXCOORD2;
                 half fogFactor : TEXCOORD3;
-                half arcBlend : TEXCOORD4; // Store arc blend factor for fragment shader
                 UNITY_VERTEX_INPUT_INSTANCE_ID
                 UNITY_VERTEX_OUTPUT_STEREO
             };
@@ -92,8 +87,6 @@ Shader "Custom/Mobile/ArcEffect"
             float _ArcStrength;
             float _ArcDistance;
             float3 _PlayerPosition;
-            half4 _TintColor;
-            half _TintStrength;
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
@@ -102,15 +95,15 @@ Shader "Custom/Mobile/ArcEffect"
                 half _Metallic;
             CBUFFER_END
 
-            // Calculate arc offset and blend factor
-            void ApplyArcEffect(inout float3 positionWS, out half arcBlend)
+            // Calculate arc offset
+            void ApplyArcEffect(inout float3 positionWS)
             {
                 // Calculate horizontal distance from player (XZ plane only)
                 float2 offset = positionWS.xz - _PlayerPosition.xz;
                 half distance = length(offset);
 
                 // Normalize distance by arc distance parameter
-                arcBlend = saturate(distance / _ArcDistance);
+                half arcBlend = saturate(distance / _ArcDistance);
 
                 // Apply quadratic falloff for smooth, natural curve
                 half arcAmount = arcBlend * arcBlend * _ArcStrength;
@@ -133,8 +126,7 @@ Shader "Custom/Mobile/ArcEffect"
 
                 // Apply arc effect in world space
                 float3 positionWS = vertexInput.positionWS;
-                half arcBlend;
-                ApplyArcEffect(positionWS, arcBlend);
+                ApplyArcEffect(positionWS);
 
                 // Recalculate clip space position after arc modification
                 output.positionCS = TransformWorldToHClip(positionWS);
@@ -142,7 +134,6 @@ Shader "Custom/Mobile/ArcEffect"
                 output.normalWS = normalInput.normalWS;
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
                 output.fogFactor = ComputeFogFactor(output.positionCS.z);
-                output.arcBlend = arcBlend;
 
                 return output;
             }
@@ -155,10 +146,6 @@ Shader "Custom/Mobile/ArcEffect"
                 // Sample base texture
                 half4 baseMap = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
                 half4 albedo = baseMap * _BaseColor;
-
-                // Apply atmospheric tint based on arc blend factor
-                half tintAmount = input.arcBlend * _TintStrength;
-                albedo.rgb = lerp(albedo.rgb, _TintColor.rgb * albedo.rgb, tintAmount);
 
                 // Setup lighting
                 InputData inputData = (InputData)0;
@@ -229,11 +216,11 @@ Shader "Custom/Mobile/ArcEffect"
             CBUFFER_END
 
             // Reuse arc effect function
-            void ApplyArcEffect(inout float3 positionWS, out half arcBlend)
+            void ApplyArcEffect(inout float3 positionWS)
             {
                 float2 offset = positionWS.xz - _PlayerPosition.xz;
                 half distance = length(offset);
-                arcBlend = saturate(distance / _ArcDistance);
+                half arcBlend = saturate(distance / _ArcDistance);
                 half arcAmount = arcBlend * arcBlend * _ArcStrength;
                 positionWS.y -= arcAmount;
             }
@@ -258,8 +245,7 @@ Shader "Custom/Mobile/ArcEffect"
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
 
                 // Apply arc effect to shadow caster as well
-                half arcBlend;
-                ApplyArcEffect(positionWS, arcBlend);
+                ApplyArcEffect(positionWS);
 
                 float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _MainLightPosition.xyz));
 
@@ -324,11 +310,11 @@ Shader "Custom/Mobile/ArcEffect"
                 half _Metallic;
             CBUFFER_END
 
-            void ApplyArcEffect(inout float3 positionWS, out half arcBlend)
+            void ApplyArcEffect(inout float3 positionWS)
             {
                 float2 offset = positionWS.xz - _PlayerPosition.xz;
                 half distance = length(offset);
-                arcBlend = saturate(distance / _ArcDistance);
+                half arcBlend = saturate(distance / _ArcDistance);
                 half arcAmount = arcBlend * arcBlend * _ArcStrength;
                 positionWS.y -= arcAmount;
             }
@@ -354,8 +340,7 @@ Shader "Custom/Mobile/ArcEffect"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
                 float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
-                half arcBlend;
-                ApplyArcEffect(positionWS, arcBlend);
+                ApplyArcEffect(positionWS);
 
                 output.positionCS = TransformWorldToHClip(positionWS);
                 return output;
