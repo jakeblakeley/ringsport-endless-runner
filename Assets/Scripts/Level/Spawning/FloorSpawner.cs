@@ -14,6 +14,7 @@ namespace RingSport.Level.Spawning
         private GameObject finishLineFloorPrefab;
         private bool hasSpawnedFinishLine = false;
         private float finishLineSpawnZ = -1f;
+        private GameObject finishLineFloorInstance = null; // Track the instantiated finish line floor
 
         private SpawnContext context;
         private DespawnManager despawnManager;
@@ -32,6 +33,14 @@ namespace RingSport.Level.Spawning
         /// </summary>
         public void Initialize()
         {
+            // Destroy previous finish line floor if it exists
+            if (finishLineFloorInstance != null)
+            {
+                Object.Destroy(finishLineFloorInstance);
+                finishLineFloorInstance = null;
+                Debug.Log("Destroyed previous finish line floor");
+            }
+
             // Start floor at 0, so first tile spawns at world Z = 0
             nextFloorSpawnZ = 0f;
             hasSpawnedFinishLine = false;
@@ -81,6 +90,7 @@ namespace RingSport.Level.Spawning
                     {
                         floorTile = Object.Instantiate(finishLineFloorPrefab, spawnPosition, Quaternion.identity);
                         floorTile.transform.localScale = new Vector3(floorTileLength, 1f, floorTileLength);
+                        finishLineFloorInstance = floorTile; // Save reference for cleanup
                         hasSpawnedFinishLine = true;
                         Debug.Log($"Finish line floor spawned at World Z: {spawnZ:F2}, Virtual Z: {nextFloorSpawnZ:F2}");
                     }
