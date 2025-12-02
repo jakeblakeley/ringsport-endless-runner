@@ -3,6 +3,7 @@ using UnityEngine.InputSystem;
 using RingSport.Core;
 using RingSport.Level;
 using RingSport.UI;
+using RingSport.Input;
 
 namespace RingSport.Player
 {
@@ -29,6 +30,7 @@ namespace RingSport.Player
         private InputAction moveAction;
         private InputAction jumpAction;
         private InputAction sprintAction;
+        private MobileInputHandler mobileInputHandler;
 
         private Vector3 velocity;
         private bool isGrounded;
@@ -51,6 +53,14 @@ namespace RingSport.Player
         {
             characterController = GetComponent<CharacterController>();
             playerInput = GetComponent<PlayerInput>();
+
+            // Get or add MobileInputHandler
+            mobileInputHandler = GetComponent<MobileInputHandler>();
+            if (mobileInputHandler == null)
+            {
+                mobileInputHandler = gameObject.AddComponent<MobileInputHandler>();
+                Debug.Log("MobileInputHandler added to player");
+            }
 
             // Initialize stamina system
             staminaSystem = new PlayerStaminaSystem(maxSprintDuration, sprintDrainRate, sprintRefillRate);
@@ -115,6 +125,14 @@ namespace RingSport.Player
         private void OnEnable()
         {
             playerInput?.ActivateInput();
+
+            // Subscribe to mobile input events
+            if (mobileInputHandler != null)
+            {
+                mobileInputHandler.OnJumpTriggered += OnMobileJump;
+                mobileInputHandler.OnSprintStarted += OnMobileSprint;
+                mobileInputHandler.OnSprintEnded += OnMobileSprintEnded;
+            }
         }
 
         private void OnDisable()
@@ -130,6 +148,14 @@ namespace RingSport.Player
             {
                 sprintAction.performed -= OnSprintStarted;
                 sprintAction.canceled -= OnSprintCanceled;
+            }
+
+            // Unsubscribe from mobile input events
+            if (mobileInputHandler != null)
+            {
+                mobileInputHandler.OnJumpTriggered -= OnMobileJump;
+                mobileInputHandler.OnSprintStarted -= OnMobileSprint;
+                mobileInputHandler.OnSprintEnded -= OnMobileSprintEnded;
             }
         }
 
@@ -169,7 +195,14 @@ namespace RingSport.Player
 
         private void HandleLaneMovement()
         {
+            // Read input from both Input System and Mobile Input Handler
             Vector2 moveInput = moveAction.ReadValue<Vector2>();
+
+            // Check for mobile input if handler is active
+            if (mobileInputHandler != null && mobileInputHandler.IsActive())
+            {
+                moveInput = mobileInputHandler.MoveInput;
+            }
 
             // Discrete lane switching with cooldown
             if (Time.time - lastInputTime > inputCooldown)
@@ -217,6 +250,36 @@ namespace RingSport.Player
                 velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
                 Debug.Log($"Jumping! New velocity.y: {velocity.y}");
             }
+        }
+
+        private void OnMobileJump()
+        {
+            Debug.Log($"Mobile jump triggered! isGrounded: {isGrounded}, velocity.y: {velocity.y}");
+
+            if (isGrounded)
+            {
+                velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+                Debug.Log($"Mobile jumping! New velocity.y: {velocity.y}");
+            }
+        }
+
+        private void OnMobileSprint()
+        {
+            Debug.Log("Mobile sprint started!");
+
+            // Delegate to stamina system
+            if (staminaSystem.CanSprint())
+            {
+                staminaSystem.IsSprinting = true;
+            }
+        }
+
+        private void OnMobileSprintEnded()
+        {
+            Debug.Log("Mobile sprint ended!");
+
+            // Delegate to stamina system
+            staminaSystem.IsSprinting = false;
         }
 
         private void OnSprintStarted(InputAction.CallbackContext context)

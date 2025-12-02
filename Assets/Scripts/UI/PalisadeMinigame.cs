@@ -5,6 +5,7 @@ using TMPro;
 using RingSport.Core;
 using RingSport.Player;
 using RingSport.Level;
+using RingSport.Input;
 
 namespace RingSport.UI
 {
@@ -21,8 +22,10 @@ namespace RingSport.UI
 
         private PlayerInput playerInput;
         private InputAction sprintAction;
+        private MobileInputHandler mobileInputHandler;
         private bool isActive = false;
         private bool isSubscribed = false;
+        private bool isMobileSubscribed = false;
         private int currentTaps = 0;
         private int requiredTaps = 0;
         private float timeRemaining = 0f;
@@ -106,6 +109,29 @@ namespace RingSport.UI
                 isSubscribed = true;
                 Debug.Log("PalisadeMinigame subscribed to sprint input");
             }
+
+            // Also subscribe to mobile input if available
+            SubscribeToMobileInput();
+        }
+
+        private void SubscribeToMobileInput()
+        {
+            if (isMobileSubscribed)
+                return;
+
+            // Get mobile input handler from player if we don't have it
+            if (mobileInputHandler == null && player != null)
+            {
+                mobileInputHandler = player.GetComponent<MobileInputHandler>();
+            }
+
+            // Subscribe to mobile press events
+            if (mobileInputHandler != null)
+            {
+                mobileInputHandler.OnPressTriggered += OnMobileTap;
+                isMobileSubscribed = true;
+                Debug.Log("PalisadeMinigame subscribed to mobile input");
+            }
         }
 
         private void UnsubscribeFromInput()
@@ -118,6 +144,22 @@ namespace RingSport.UI
                 sprintAction.performed -= OnTapPressed;
                 isSubscribed = false;
                 Debug.Log("PalisadeMinigame unsubscribed from sprint input");
+            }
+
+            // Also unsubscribe from mobile input
+            UnsubscribeFromMobileInput();
+        }
+
+        private void UnsubscribeFromMobileInput()
+        {
+            if (!isMobileSubscribed)
+                return;
+
+            if (mobileInputHandler != null)
+            {
+                mobileInputHandler.OnPressTriggered -= OnMobileTap;
+                isMobileSubscribed = false;
+                Debug.Log("PalisadeMinigame unsubscribed from mobile input");
             }
         }
 
@@ -197,6 +239,25 @@ namespace RingSport.UI
             UpdateProgressBar();
 
             Debug.Log($"Tap registered! {currentTaps}/{requiredTaps}");
+
+            // Check if enough taps
+            if (currentTaps >= requiredTaps)
+            {
+                HandleSuccess();
+            }
+        }
+
+        private void OnMobileTap()
+        {
+            Debug.Log($"OnMobileTap called! isActive: {isActive}, currentTaps: {currentTaps}, requiredTaps: {requiredTaps}");
+
+            if (!isActive)
+                return;
+
+            currentTaps++;
+            UpdateProgressBar();
+
+            Debug.Log($"Mobile tap registered! {currentTaps}/{requiredTaps}");
 
             // Check if enough taps
             if (currentTaps >= requiredTaps)
@@ -290,6 +351,7 @@ namespace RingSport.UI
         {
             // Cleanup on destroy
             UnsubscribeFromInput();
+            UnsubscribeFromMobileInput();
         }
     }
 }
