@@ -3049,9 +3049,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1338864902}
   - component: {fileID: 1338864901}
-  - component: {fileID: 1338864900}
-  - component: {fileID: 1338864903}
-  - component: {fileID: 1338864904}
   - component: {fileID: 1338864905}
   m_Layer: 0
   m_Name: GameManager
@@ -3060,20 +3057,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1338864900
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1338864898}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a0bb7b079c0d240448dc7a871dd4580a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Core.LevelManager
-  maxLevels: 9
-  maxRetries: 3
 --- !u!114 &1338864901
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3102,60 +3085,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1338864903
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1338864898}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 61de494f875174c3b85ac43bdfb7b36d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelScroller
-  player: {fileID: 1473303862}
---- !u!114 &1338864904
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1338864898}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1b205b5ef33eb45e8a3e48be268e1760, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelGenerator
-  levelConfigs:
-  - {fileID: 11400000, guid: 897fabbf3bf474fe9a8500fd12a6291d, type: 2}
-  - {fileID: 11400000, guid: a6dbb7ca8d8c44e5bb2b3dde4beaf3e3, type: 2}
-  - {fileID: 11400000, guid: 3e017d2e3c38a497a9c801ba4748feb8, type: 2}
-  - {fileID: 11400000, guid: c5f939239064242ab9525bc5600a85ed, type: 2}
-  - {fileID: 11400000, guid: ff827d4e3566f43689cdb27f6e1fd882, type: 2}
-  - {fileID: 11400000, guid: 95988e54a6f9c4cc99bc149af74212bf, type: 2}
-  - {fileID: 11400000, guid: 40f2edd57bdc64a28959f768f2850420, type: 2}
-  - {fileID: 11400000, guid: 74ef4478373834191b516fa0c55b0de6, type: 2}
-  obstaclePatterns:
-  - {fileID: 11400000, guid: 88349c566fe504bbeb1677343fa2aeb5, type: 2}
-  - {fileID: 11400000, guid: d8d90a5a4a73f4f7d8c62d7384f2792c, type: 2}
-  - {fileID: 11400000, guid: f0dd2b74bd06f4043a86e465a3d77dee, type: 2}
-  - {fileID: 11400000, guid: 474ace7604029469193df174cab28c7c, type: 2}
-  - {fileID: 11400000, guid: b7537ffffecac4c698c40845f6fe9039, type: 2}
-  - {fileID: 11400000, guid: dace58e61a1444ec29ef929471fcd412, type: 2}
-  - {fileID: 11400000, guid: 56832ef4e6d2b4e59ad5ae13fd752689, type: 2}
-  - {fileID: 11400000, guid: 871d0fdf8f62446e2bd66e52cbb56ab7, type: 2}
-  - {fileID: 11400000, guid: 66b98cc218ec546b2a0c8f1d52e2691e, type: 2}
-  - {fileID: 11400000, guid: d424c9a29d07b426eb9c524e37e37712, type: 2}
-  - {fileID: 11400000, guid: abb05a1ba5d58415b9c16e2c91cba1d4, type: 2}
-  - {fileID: 11400000, guid: 12fd6be9f80004947912682e63a1ddb6, type: 2}
-  - {fileID: 11400000, guid: a1e7dd2d933c747cb9caebb50b6105da, type: 2}
-  - {fileID: 11400000, guid: c7420c8232a2e4b70862f1a9ec4ced12, type: 2}
-  spawnDistance: 100
-  despawnDistance: -10
-  player: {fileID: 1473303864}
-  floorTileLength: 1
-  floorTileSpacing: 10
 --- !u!114 &1338864905
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3980,6 +3909,9 @@ GameObject:
   m_Component:
   - component: {fileID: 1536131752}
   - component: {fileID: 1536131753}
+  - component: {fileID: 1536131756}
+  - component: {fileID: 1536131755}
+  - component: {fileID: 1536131754}
   m_Layer: 0
   m_Name: Level
   m_TagString: Untagged
@@ -4026,6 +3958,77 @@ MonoBehaviour:
   arcDistance: 100
   tintColor: {r: 0.8, g: 0.9, b: 1, a: 1}
   tintStrength: 0.4
+--- !u!114 &1536131754
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1536131751}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61de494f875174c3b85ac43bdfb7b36d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelScroller
+  player: {fileID: 1473303862}
+--- !u!114 &1536131755
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1536131751}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b205b5ef33eb45e8a3e48be268e1760, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelGenerator
+  levelConfigs:
+  - {fileID: 11400000, guid: 897fabbf3bf474fe9a8500fd12a6291d, type: 2}
+  - {fileID: 11400000, guid: a6dbb7ca8d8c44e5bb2b3dde4beaf3e3, type: 2}
+  - {fileID: 11400000, guid: 3e017d2e3c38a497a9c801ba4748feb8, type: 2}
+  - {fileID: 11400000, guid: c5f939239064242ab9525bc5600a85ed, type: 2}
+  - {fileID: 11400000, guid: ff827d4e3566f43689cdb27f6e1fd882, type: 2}
+  - {fileID: 11400000, guid: 95988e54a6f9c4cc99bc149af74212bf, type: 2}
+  - {fileID: 11400000, guid: 40f2edd57bdc64a28959f768f2850420, type: 2}
+  - {fileID: 11400000, guid: 74ef4478373834191b516fa0c55b0de6, type: 2}
+  obstaclePatterns:
+  - {fileID: 11400000, guid: 88349c566fe504bbeb1677343fa2aeb5, type: 2}
+  - {fileID: 11400000, guid: d8d90a5a4a73f4f7d8c62d7384f2792c, type: 2}
+  - {fileID: 11400000, guid: f0dd2b74bd06f4043a86e465a3d77dee, type: 2}
+  - {fileID: 11400000, guid: 474ace7604029469193df174cab28c7c, type: 2}
+  - {fileID: 11400000, guid: b7537ffffecac4c698c40845f6fe9039, type: 2}
+  - {fileID: 11400000, guid: dace58e61a1444ec29ef929471fcd412, type: 2}
+  - {fileID: 11400000, guid: 56832ef4e6d2b4e59ad5ae13fd752689, type: 2}
+  - {fileID: 11400000, guid: 871d0fdf8f62446e2bd66e52cbb56ab7, type: 2}
+  - {fileID: 11400000, guid: 66b98cc218ec546b2a0c8f1d52e2691e, type: 2}
+  - {fileID: 11400000, guid: d424c9a29d07b426eb9c524e37e37712, type: 2}
+  - {fileID: 11400000, guid: abb05a1ba5d58415b9c16e2c91cba1d4, type: 2}
+  - {fileID: 11400000, guid: 12fd6be9f80004947912682e63a1ddb6, type: 2}
+  - {fileID: 11400000, guid: a1e7dd2d933c747cb9caebb50b6105da, type: 2}
+  - {fileID: 11400000, guid: c7420c8232a2e4b70862f1a9ec4ced12, type: 2}
+  spawnDistance: 100
+  despawnDistance: -10
+  player: {fileID: 1473303864}
+  endGameDespawnDistance: 80
+  floorTileLength: 1
+  floorTileSpacing: 10
+  finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 0fe4b79c1ecc145449b326ef594205b6, type: 3}
+--- !u!114 &1536131756
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1536131751}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0bb7b079c0d240448dc7a871dd4580a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Core.LevelManager
+  maxLevels: 9
+  endGameWarningTime: 5
+  maxRetries: 3
 --- !u!1 &1550134029
 GameObject:
   m_ObjectHideFlags: 0
@@ -5695,7 +5698,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1338864900}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: RingSport.Core.LevelManager, Assembly-CSharp
         m_MethodName: NextLevel
         m_Mode: 1

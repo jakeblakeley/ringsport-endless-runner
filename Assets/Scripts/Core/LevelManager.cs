@@ -11,6 +11,10 @@ namespace RingSport.Core
         [Header("Level Settings")]
         [SerializeField] private int maxLevels = 9;
 
+        [Header("End Game Settings")]
+        [Tooltip("Time before level end to trigger end game behavior (despawn distant obstacles)")]
+        [SerializeField] private float endGameWarningTime = 5f;
+
         [Header("Retry Settings")]
         [SerializeField] private int maxRetries = 3;
 
@@ -19,6 +23,7 @@ namespace RingSport.Core
         private float distanceTraveled = 0f;
         private LevelConfig currentLevelConfig;
         private bool hasCalledLevelEnding = false; // Track if we've already called OnLevelEnding
+        private bool hasReachedFinishLine = false; // Track if player has reached finish line
         private int retriesRemaining = 3;
 
         public int CurrentLevel => currentLevel;
@@ -50,17 +55,11 @@ namespace RingSport.Core
 
             levelTimer += Time.deltaTime;
 
-            // FAIRNESS: Despawn obstacles 2 seconds before level ends
-            if (!hasCalledLevelEnding && levelTimer >= currentLevelConfig.LevelDuration - 2f)
+            // FAIRNESS: Despawn obstacles before level ends
+            if (!hasCalledLevelEnding && levelTimer >= currentLevelConfig.LevelDuration - endGameWarningTime)
             {
                 LevelGenerator.Instance?.OnLevelEnding();
                 hasCalledLevelEnding = true;
-            }
-
-            // Check if level duration has been reached (level complete)
-            if (levelTimer >= currentLevelConfig.LevelDuration)
-            {
-                EndLevel();
             }
         }
 
@@ -69,6 +68,7 @@ namespace RingSport.Core
             levelTimer = 0f;
             distanceTraveled = 0f;
             hasCalledLevelEnding = false; // Reset for new level
+            hasReachedFinishLine = false; // Reset for new level
 
             // Start tracking score for this level
             ScoreManager.Instance?.StartLevel(currentLevel);
@@ -115,6 +115,22 @@ namespace RingSport.Core
                 // All levels completed
                 UIManager.Instance?.ShowRewardScreen(currentLevel, levelScore, nextLevelName, nextLevelLocation);
             }
+        }
+
+        /// <summary>
+        /// Called when player reaches the finish line floor
+        /// </summary>
+        public void OnFinishLineReached()
+        {
+            // Only trigger if we're in the Playing state and haven't already finished
+            if (hasReachedFinishLine || GameManager.Instance?.CurrentState != GameState.Playing)
+            {
+                return;
+            }
+
+            hasReachedFinishLine = true;
+            Debug.Log("Finish line reached - completing level!");
+            EndLevel();
         }
 
         public void AddScore(int points)

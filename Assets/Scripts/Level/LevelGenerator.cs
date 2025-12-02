@@ -24,13 +24,19 @@ namespace RingSport.Level
         [SerializeField] private float despawnDistance = -10f;
         [SerializeField] private Transform player;
 
+        [Header("End Game Settings")]
+        [Tooltip("Distance ahead of player at which obstacles are despawned when level is ending")]
+        [SerializeField] private float endGameDespawnDistance = 10f;
+
         [Header("Floor Settings")]
         [SerializeField] private float floorTileLength = 10f;
         [SerializeField] private float floorTileSpacing = 10f; // Distance between tile start positions
+        [SerializeField] private GameObject finishLineFloorPrefab;
 
         // Core systems
         private LevelConfig currentConfig;
         private float virtualDistance = 0f; // Tracks how far the level has scrolled
+        private bool isLevelEnding = false; // Tracks if we're in the end game phase
 
         // Spawning and management systems
         private SpawnContext spawnContext;
@@ -66,10 +72,10 @@ namespace RingSport.Level
             // Create tracking and management systems
             obstacleTracker = new ObstacleTracker();
             recoveryZoneManager = new RecoveryZoneManager();
-            despawnManager = new DespawnManager(despawnDistance);
+            despawnManager = new DespawnManager(despawnDistance, endGameDespawnDistance);
 
             // Create spawning systems
-            floorSpawner = new FloorSpawner(spawnContext, despawnManager, floorTileLength, floorTileSpacing);
+            floorSpawner = new FloorSpawner(spawnContext, despawnManager, floorTileLength, floorTileSpacing, finishLineFloorPrefab);
             obstacleSpawner = new ObstacleSpawner(
                 spawnContext,
                 obstacleTracker,
@@ -101,6 +107,14 @@ namespace RingSport.Level
 
             // Delegate to management systems
             despawnManager.DespawnBehindPlayer(player.position);
+
+            // During end game, also despawn obstacles and collectibles too far ahead
+            if (isLevelEnding)
+            {
+                despawnManager.DespawnObstaclesAheadOfPlayer(player.position);
+                despawnManager.DespawnCollectiblesAheadOfPlayer(player.position);
+            }
+
             obstacleTracker.Cleanup(virtualDistance);
         }
 
@@ -136,8 +150,9 @@ namespace RingSport.Level
             Debug.Log($"Generating Level {levelNumber} - Max Obstacles: {currentConfig.MaxObstacles}, Max Collectibles: {currentConfig.MaxCollectibles}");
             Debug.Log($"Floor settings - Tile Length: {floorTileLength}, Tile Spacing: {floorTileSpacing}");
 
-            // Reset virtual distance
+            // Reset virtual distance and ending flag
             virtualDistance = 0f;
+            isLevelEnding = false;
 
             // Reset all systems
             obstacleTracker.Clear();
@@ -186,13 +201,14 @@ namespace RingSport.Level
         }
 
         /// <summary>
-        /// Called when level is ending - despawns all obstacles for fairness
-        /// FAIRNESS: Prevents unfair hits from obstacles that spawned earlier
+        /// Called when level is ending - starts despawning distant obstacles for fairness
+        /// FAIRNESS: Prevents unfair hits from obstacles too far ahead
         /// </summary>
         public void OnLevelEnding()
         {
-            despawnManager.DespawnAllObstacles();
-            obstacleTracker.Clear();
+            isLevelEnding = true;
+            floorSpawner.SetFinishLinePosition(endGameDespawnDistance);
+            Debug.Log("Level ending - will despawn obstacles beyond " + endGameDespawnDistance + " units ahead");
         }
 
         /// <summary>

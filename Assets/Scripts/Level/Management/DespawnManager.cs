@@ -14,10 +14,12 @@ namespace RingSport.Level
         private List<GameObject> activeFloorTiles = new List<GameObject>();
 
         private float despawnDistance;
+        private float endGameDespawnDistance;
 
-        public DespawnManager(float despawnDistance)
+        public DespawnManager(float despawnDistance, float endGameDespawnDistance)
         {
             this.despawnDistance = despawnDistance;
+            this.endGameDespawnDistance = endGameDespawnDistance;
         }
 
         /// <summary>
@@ -115,6 +117,50 @@ namespace RingSport.Level
             }
 
             activeObstacles.Clear();
+        }
+
+        /// <summary>
+        /// Despawn obstacles ahead of the player beyond a certain distance
+        /// FAIRNESS: Prevents unfair hits from obstacles too far ahead during level ending
+        /// </summary>
+        public void DespawnObstaclesAheadOfPlayer(Vector3 playerPosition)
+        {
+            if (ObjectPooler.Instance == null)
+                return;
+
+            float maxObstacleZ = playerPosition.z + endGameDespawnDistance;
+
+            // Despawn obstacles beyond the max distance ahead
+            for (int i = activeObstacles.Count - 1; i >= 0; i--)
+            {
+                if (activeObstacles[i] != null && activeObstacles[i].transform.position.z > maxObstacleZ)
+                {
+                    ObjectPooler.Instance.ReturnToPool(activeObstacles[i]);
+                    activeObstacles.RemoveAt(i);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Despawn collectibles ahead of the player beyond a certain distance
+        /// Used during level ending to create smooth transition
+        /// </summary>
+        public void DespawnCollectiblesAheadOfPlayer(Vector3 playerPosition)
+        {
+            if (ObjectPooler.Instance == null)
+                return;
+
+            float maxCollectibleZ = playerPosition.z + endGameDespawnDistance;
+
+            // Despawn collectibles beyond the max distance ahead
+            for (int i = activeCollectibles.Count - 1; i >= 0; i--)
+            {
+                if (activeCollectibles[i] != null && activeCollectibles[i].transform.position.z > maxCollectibleZ)
+                {
+                    ObjectPooler.Instance.ReturnToPool(activeCollectibles[i]);
+                    activeCollectibles.RemoveAt(i);
+                }
+            }
         }
 
         /// <summary>
