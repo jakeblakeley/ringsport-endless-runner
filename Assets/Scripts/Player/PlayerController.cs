@@ -195,13 +195,17 @@ namespace RingSport.Player
 
         private void HandleLaneMovement()
         {
-            // Read input from both Input System and Mobile Input Handler
+            // Read input from keyboard/gamepad
             Vector2 moveInput = moveAction.ReadValue<Vector2>();
 
-            // Check for mobile input if handler is active
-            if (mobileInputHandler != null && mobileInputHandler.IsActive())
+            // Touch takes priority when it has input
+            if (mobileInputHandler != null)
             {
-                moveInput = mobileInputHandler.MoveInput;
+                Vector2 mobileMove = mobileInputHandler.MoveInput;
+                if (mobileMove != Vector2.zero)
+                {
+                    moveInput = mobileMove;
+                }
             }
 
             // Discrete lane switching with cooldown

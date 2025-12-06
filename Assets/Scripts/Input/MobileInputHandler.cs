@@ -103,12 +103,6 @@ namespace RingSport.Input
             {
                 JumpPressed = false;
             }
-
-            // Check for control scheme changes
-            if (autoDetectTouchscreen)
-            {
-                CheckForControlSchemeChange();
-            }
         }
 
         /// <summary>
@@ -116,65 +110,16 @@ namespace RingSport.Input
         /// </summary>
         private void DetermineActivation()
         {
-            // Enable in Editor for testing (mouse simulation)
-            if (Application.isEditor && enableInEditorForTesting)
+            // Always activate - we now support simultaneous keyboard and touch input
+            // Touch gestures will take priority when they have input
+            bool hasTouchscreen = Touchscreen.current != null;
+            bool isWebGL = Application.platform == RuntimePlatform.WebGLPlayer;
+            bool isEditor = Application.isEditor && enableInEditorForTesting;
+
+            if (hasTouchscreen || isWebGL || isEditor)
             {
                 SetActive(true);
-                Debug.Log("MobileInputHandler: Activated in Editor for testing (mouse simulation enabled)");
-                return;
-            }
-
-            if (forceEnableOnWebGL && Application.platform == RuntimePlatform.WebGLPlayer)
-            {
-                SetActive(true);
-                Debug.Log("MobileInputHandler: Activated for WebGL");
-                return;
-            }
-
-            if (autoDetectTouchscreen)
-            {
-                bool hasTouchscreen = Touchscreen.current != null;
-                SetActive(hasTouchscreen);
-                Debug.Log($"MobileInputHandler: Touchscreen detected = {hasTouchscreen}, Active = {isActive}");
-            }
-        }
-
-        /// <summary>
-        /// Check if the control scheme has changed (e.g., user connected a gamepad)
-        /// </summary>
-        private void CheckForControlSchemeChange()
-        {
-            // Don't auto-disable in Editor when testing with mouse
-            if (Application.isEditor && enableInEditorForTesting)
-            {
-                return;
-            }
-
-            // Disable mobile input if keyboard or gamepad input is detected
-            if (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
-            {
-                if (isActive)
-                {
-                    Debug.Log("MobileInputHandler: Keyboard input detected, deactivating");
-                    SetActive(false);
-                }
-            }
-            else if (Gamepad.current != null && Gamepad.current.wasUpdatedThisFrame)
-            {
-                if (isActive)
-                {
-                    Debug.Log("MobileInputHandler: Gamepad input detected, deactivating");
-                    SetActive(false);
-                }
-            }
-            // Reactivate if touchscreen input is detected
-            else if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.isPressed)
-            {
-                if (!isActive)
-                {
-                    Debug.Log("MobileInputHandler: Touch input detected, activating");
-                    SetActive(true);
-                }
+                Debug.Log($"MobileInputHandler: Activated (touchscreen={hasTouchscreen}, webgl={isWebGL}, editor={isEditor})");
             }
         }
 
@@ -203,8 +148,6 @@ namespace RingSport.Input
         /// </summary>
         private void HandleSwipeLeft()
         {
-            if (!isActive) return;
-
             MoveInput = new Vector2(-1f, 0f);
             moveInputResetTime = Time.time + MOVE_INPUT_DURATION;
             OnLaneChangeLeft?.Invoke();
@@ -217,8 +160,6 @@ namespace RingSport.Input
         /// </summary>
         private void HandleSwipeRight()
         {
-            if (!isActive) return;
-
             MoveInput = new Vector2(1f, 0f);
             moveInputResetTime = Time.time + MOVE_INPUT_DURATION;
             OnLaneChangeRight?.Invoke();
@@ -231,8 +172,6 @@ namespace RingSport.Input
         /// </summary>
         private void HandleSwipeUp()
         {
-            if (!isActive) return;
-
             JumpPressed = true;
             OnJumpTriggered?.Invoke();
 
@@ -244,8 +183,6 @@ namespace RingSport.Input
         /// </summary>
         private void HandlePress()
         {
-            if (!isActive) return;
-
             OnPressTriggered?.Invoke();
 
             if (showDebugLogs)
@@ -257,8 +194,6 @@ namespace RingSport.Input
         /// </summary>
         private void HandleHoldStarted()
         {
-            if (!isActive) return;
-
             OnSprintStarted?.Invoke();
 
             Debug.Log("Mobile Input: SPRINT STARTED");
@@ -269,8 +204,6 @@ namespace RingSport.Input
         /// </summary>
         private void HandleHoldEnded()
         {
-            if (!isActive) return;
-
             OnSprintEnded?.Invoke();
 
             Debug.Log("Mobile Input: SPRINT ENDED");
