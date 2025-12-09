@@ -31,6 +31,8 @@ namespace RingSport.Level
         [Header("Floor Settings")]
         [SerializeField] private float floorTileLength = 10f;
         [SerializeField] private float floorTileSpacing = 10f; // Distance between tile start positions
+        [Tooltip("Scale multiplier for floor tiles (also scales length and spacing)")]
+        [SerializeField] private float floorScale = 1f;
         [SerializeField] private GameObject finishLineFloorPrefab;
 
         // Core systems
@@ -74,8 +76,10 @@ namespace RingSport.Level
             recoveryZoneManager = new RecoveryZoneManager();
             despawnManager = new DespawnManager(despawnDistance, endGameDespawnDistance);
 
-            // Create spawning systems
-            floorSpawner = new FloorSpawner(spawnContext, despawnManager, floorTileLength, floorTileSpacing, finishLineFloorPrefab);
+            // Create spawning systems (apply scale to floor dimensions)
+            float scaledTileLength = floorTileLength * floorScale;
+            float scaledTileSpacing = floorTileSpacing * floorScale;
+            floorSpawner = new FloorSpawner(spawnContext, despawnManager, scaledTileLength, scaledTileSpacing, floorScale, finishLineFloorPrefab);
             obstacleSpawner = new ObstacleSpawner(
                 spawnContext,
                 obstacleTracker,
@@ -149,6 +153,24 @@ namespace RingSport.Level
 
             Debug.Log($"Generating Level {levelNumber} - Max Obstacles: {currentConfig.MaxObstacles}, Max Collectibles: {currentConfig.MaxCollectibles}");
             Debug.Log($"Floor settings - Tile Length: {floorTileLength}, Tile Spacing: {floorTileSpacing}");
+
+            // Set floor prefabs from location config
+            if (currentConfig.LocationConfig != null)
+            {
+                floorSpawner.SetMainFloorPrefab(currentConfig.LocationConfig.MainFloorPrefab);
+                floorSpawner.SetSideFloorPrefab(currentConfig.LocationConfig.SideFloorPrefab);
+                floorSpawner.SetFinishLineFloorPrefab(currentConfig.LocationConfig.FinishLineFloorPrefab);
+                floorSpawner.ConfigureScenery(currentConfig.LocationConfig);
+                Debug.Log($"Location: {currentConfig.Location}, Floor prefabs set from LocationConfig");
+            }
+            else
+            {
+                floorSpawner.SetMainFloorPrefab(null);
+                floorSpawner.SetSideFloorPrefab(null);
+                floorSpawner.SetFinishLineFloorPrefab(null);
+                floorSpawner.ConfigureScenery(null);
+                Debug.LogWarning($"Level {levelNumber} has no LocationConfig assigned - using fallback floor spawning");
+            }
 
             // Reset virtual distance and ending flag
             virtualDistance = 0f;
@@ -231,6 +253,7 @@ namespace RingSport.Level
             Debug.Log($"Active Obstacles: {despawnManager.GetActiveObstacleCount()}");
             Debug.Log($"Active Collectibles: {despawnManager.GetActiveCollectibleCount()}");
             Debug.Log($"Active Floor Tiles: {despawnManager.GetActiveFloorTileCount()}");
+            Debug.Log($"Active Scenery: {despawnManager.GetActiveSceneryCount()}");
             Debug.Log($"Tracked Obstacles: {obstacleTracker.Count}");
         }
         #endif

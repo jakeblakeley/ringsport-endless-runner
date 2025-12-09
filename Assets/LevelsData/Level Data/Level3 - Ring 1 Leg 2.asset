@@ -10,27 +10,28 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7a7a1fc9ad314477cbfcabe6a7d178ef, type: 3}
-  m_Name: Level8 Ring3 Finale
+  m_Name: Level3 - Ring 1 Leg 2
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelConfig
-  levelNumber: 8
-  levelDuration: 180
-  levelName: Ring 3 Finale
-  location: France
+  levelNumber: 3
+  levelDuration: 60
+  levelName: Ring 1 - Leg 2
+  location: 0
+  locationConfig: {fileID: 11400000, guid: 7252f75e62b7b4004bbcea2cdc15ffc3, type: 2}
   maxObstacles: 40
-  minObstacleSpacing: 5
-  maxObstacleSpacing: 11
+  minObstacleSpacing: 10
+  maxObstacleSpacing: 16
   maxCollectibles: 30
-  minCollectibleSpacing: 3
-  maxCollectibleSpacing: 6
+  minCollectibleSpacing: 4.5
+  maxCollectibleSpacing: 11
   collectibleToObstacleRatio: 3
   minCollectibleObstacleDistance: 2
-  collectibleLineBias: 0.5
-  collectibleAboveObstacleChance: 0.5
-  megaCollectibleSpawnRatio: 0.12
+  collectibleLineBias: 0.65
+  collectibleAboveObstacleChance: 0.4
+  megaCollectibleSpawnRatio: 0.06
   megaCollectiblePointValue: 50
-  avoidObstacleProbability: 0.6
-  speedMultiplier: 2
-  maxEffectiveSpeed: 30
-  minPatternDifficulty: 7
-  maxPatternDifficulty: 10
-  patternUsageRatio: 0.85
+  avoidObstacleProbability: 0.35
+  speedMultiplier: 1.5
+  maxEffectiveSpeed: 24
+  minPatternDifficulty: 2
+  maxPatternDifficulty: 5
+  patternUsageRatio: 0.7

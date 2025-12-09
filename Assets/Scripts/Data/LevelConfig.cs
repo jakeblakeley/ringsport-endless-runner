@@ -11,8 +11,11 @@ namespace RingSport.Level
         [SerializeField] private float levelDuration = 60f;
         [Tooltip("Display name of the level (e.g., 'Brevet', 'Ring 1 Leg 1')")]
         [SerializeField] private string levelName = "";
-        [Tooltip("Location where the level takes place (e.g., 'Training Grounds')")]
-        [SerializeField] private string location = "";
+        [Tooltip("Location where the level takes place")]
+        [SerializeField] private Location location = Location.Arizona;
+
+        [Tooltip("Location configuration defining floor prefabs for this location")]
+        [SerializeField] private LocationConfig locationConfig;
 
         [Header("Obstacle Settings")]
         [SerializeField] private int maxObstacles = 20;
@@ -66,7 +69,8 @@ namespace RingSport.Level
         public int LevelNumber => levelNumber;
         public float LevelDuration => levelDuration;
         public string LevelName => levelName;
-        public string Location => location;
+        public Location Location => location;
+        public LocationConfig LocationConfig => locationConfig;
         public int MaxObstacles => maxObstacles;
         public float MinObstacleSpacing => minObstacleSpacing;
         public float MaxObstacleSpacing => maxObstacleSpacing;

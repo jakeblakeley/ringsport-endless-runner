@@ -23,7 +23,7 @@ RenderSettings:
   m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
   m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
   m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
-  m_AmbientIntensity: 1
+  m_AmbientIntensity: 2
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
   m_SkyboxMaterial: {fileID: 2100000, guid: 4dfd11b20db5b45c5a3ae55bae6f81de, type: 2}
@@ -4172,8 +4172,9 @@ MonoBehaviour:
   despawnDistance: -10
   player: {fileID: 1473303864}
   endGameDespawnDistance: 80
-  floorTileLength: 1
+  floorTileLength: 10
   floorTileSpacing: 10
+  floorScale: 1.2
   finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 0fe4b79c1ecc145449b326ef594205b6, type: 3}
 --- !u!114 &1536131756
 MonoBehaviour:
@@ -5976,9 +5977,6 @@ MonoBehaviour:
   - tag: MegaCollectible
     prefab: {fileID: 7986111755232233135, guid: 7a92ef3b45cd2478abc12345678defab, type: 3}
     size: 5
-  - tag: Floor
-    prefab: {fileID: 1462051254498222346, guid: e104286d6fe3d4ff7993306ec6595b2e, type: 3}
-    size: 20
   - tag: ObstacleJump
     prefab: {fileID: 4498538065955409012, guid: 8654d6b688338446fb3419b6aa15b006, type: 3}
     size: 20

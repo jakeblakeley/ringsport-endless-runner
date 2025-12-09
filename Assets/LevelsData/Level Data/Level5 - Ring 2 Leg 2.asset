@@ -15,7 +15,8 @@ MonoBehaviour:
   levelNumber: 5
   levelDuration: 90
   levelName: Ring 2 Leg 2
-  location: The PNW
+  location: 0
+  locationConfig: {fileID: 11400000, guid: 7252f75e62b7b4004bbcea2cdc15ffc3, type: 2}
   maxObstacles: 40
   minObstacleSpacing: 8
   maxObstacleSpacing: 14

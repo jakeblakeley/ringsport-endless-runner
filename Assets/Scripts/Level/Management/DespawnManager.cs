@@ -12,6 +12,7 @@ namespace RingSport.Level
         private List<GameObject> activeObstacles = new List<GameObject>();
         private List<GameObject> activeCollectibles = new List<GameObject>();
         private List<GameObject> activeFloorTiles = new List<GameObject>();
+        private List<GameObject> activeScenery = new List<GameObject>();
 
         private float despawnDistance;
         private float endGameDespawnDistance;
@@ -56,6 +57,17 @@ namespace RingSport.Level
         }
 
         /// <summary>
+        /// Register a spawned scenery object
+        /// </summary>
+        public void RegisterScenery(GameObject scenery)
+        {
+            if (scenery != null && !activeScenery.Contains(scenery))
+            {
+                activeScenery.Add(scenery);
+            }
+        }
+
+        /// <summary>
         /// Despawn objects behind the player
         /// </summary>
         public void DespawnBehindPlayer(Vector3 playerPosition)
@@ -92,6 +104,16 @@ namespace RingSport.Level
                 {
                     ObjectPooler.Instance.ReturnToPool(activeFloorTiles[i]);
                     activeFloorTiles.RemoveAt(i);
+                }
+            }
+
+            // Despawn scenery
+            for (int i = activeScenery.Count - 1; i >= 0; i--)
+            {
+                if (activeScenery[i] != null && activeScenery[i].transform.position.z < despawnZ)
+                {
+                    ObjectPooler.Instance.ReturnToPool(activeScenery[i]);
+                    activeScenery.RemoveAt(i);
                 }
             }
         }
@@ -171,6 +193,7 @@ namespace RingSport.Level
             activeObstacles.Clear();
             activeCollectibles.Clear();
             activeFloorTiles.Clear();
+            activeScenery.Clear();
         }
 
         /// <summary>
@@ -179,5 +202,6 @@ namespace RingSport.Level
         public int GetActiveObstacleCount() => activeObstacles.Count;
         public int GetActiveCollectibleCount() => activeCollectibles.Count;
         public int GetActiveFloorTileCount() => activeFloorTiles.Count;
+        public int GetActiveSceneryCount() => activeScenery.Count;
     }
 }

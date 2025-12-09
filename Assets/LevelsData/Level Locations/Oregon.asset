@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 478324e1853214d59b881293bbe0fa35, type: 3}
+  m_Name: Oregon
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LocationConfig
+  location: 2
+  mainFloorPrefab: {fileID: 1462051254498222346, guid: e104286d6fe3d4ff7993306ec6595b2e, type: 3}
+  sideFloorPrefab: {fileID: 1462051254498222346, guid: 5ad2ae2e6438a451682bcceed35ef26d, type: 3}
+  finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 44683ea439a6341d39827a153f18c8cb, type: 3}
+  sceneryPrefabs:
+  - {fileID: 8489945017951798651, guid: 343cfa8f68aea44b9a66e58c2d5b9b2b, type: 3}
+  - {fileID: 3331292244305782605, guid: 871d817582967485c92a690160bd0b8c, type: 3}
+  - {fileID: 7959957112906387362, guid: 9c87fb69122a44ce095879a44c40c6ee, type: 3}
+  - {fileID: 8957011775704472474, guid: ce856465627fc4dd28fca72d6673388a, type: 3}
+  - {fileID: 5411888475498954246, guid: 620aae177997e41f89ce877cded0fc29, type: 3}
+  minSceneryPerFloor: 1
+  maxSceneryPerFloor: 5
+  sceneryMinDistance: 1.5
+  sceneryPoolSize: 30

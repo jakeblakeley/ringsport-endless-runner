@@ -104,7 +104,7 @@ namespace RingSport.Core
                 if (nextLevelConfig != null)
                 {
                     nextLevelName = nextLevelConfig.LevelName;
-                    nextLevelLocation = nextLevelConfig.Location;
+                    nextLevelLocation = nextLevelConfig.Location.ToString();
                 }
 
                 GameManager.Instance?.CompleteLevel();

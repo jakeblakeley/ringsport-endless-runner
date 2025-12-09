@@ -15,7 +15,8 @@ MonoBehaviour:
   levelNumber: 1
   levelDuration: 15
   levelName: Brevet
-  location: Arizona
+  location: 0
+  locationConfig: {fileID: 11400000, guid: 7252f75e62b7b4004bbcea2cdc15ffc3, type: 2}
   maxObstacles: 30
   minObstacleSpacing: 12
   maxObstacleSpacing: 20

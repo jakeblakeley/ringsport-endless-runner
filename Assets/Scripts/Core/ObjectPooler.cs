@@ -121,5 +121,40 @@ namespace RingSport.Core
                 }
             }
         }
+
+        /// <summary>
+        /// Creates a pool at runtime if it doesn't already exist
+        /// </summary>
+        public void CreatePoolIfNeeded(string tag, GameObject prefab, int size)
+        {
+            if (poolDictionary == null)
+            {
+                poolDictionary = new Dictionary<string, Queue<GameObject>>();
+            }
+
+            if (poolDictionary.ContainsKey(tag))
+                return;
+
+            Queue<GameObject> objectPool = new Queue<GameObject>();
+
+            for (int i = 0; i < size; i++)
+            {
+                GameObject obj = Instantiate(prefab);
+                obj.SetActive(false);
+                obj.transform.SetParent(transform);
+                objectPool.Enqueue(obj);
+            }
+
+            poolDictionary.Add(tag, objectPool);
+            Debug.Log($"Created runtime pool '{tag}' with {size} objects");
+        }
+
+        /// <summary>
+        /// Check if a pool exists
+        /// </summary>
+        public bool HasPool(string tag)
+        {
+            return poolDictionary != null && poolDictionary.ContainsKey(tag);
+        }
     }
 }
