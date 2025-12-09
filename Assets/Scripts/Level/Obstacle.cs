@@ -28,16 +28,18 @@ namespace RingSport.Level
 
         private void Awake()
         {
-            // Cache component references
+            // Cache component reference (collider doesn't change)
             obstacleCollider = GetComponent<Collider>();
-            gameManager = GameManager.Instance;
-            uiManager = UIManager.Instance;
         }
 
         private void OnEnable()
         {
             // Reset trigger state when object is reused from pool
             hasBeenTriggered = false;
+
+            // Cache singleton references on enable (they may not exist during Awake for pooled objects)
+            gameManager = GameManager.Instance;
+            uiManager = UIManager.Instance;
         }
 
         private void OnTriggerEnter(Collider other)
@@ -85,8 +87,13 @@ namespace RingSport.Level
                     break;
 
                 case ObstacleType.JumpOver:
-                    // If player didn't jump high enough, game over
-                    if (playerHeight < jumpHeightThreshold)
+                    // If player is on the ground or didn't jump high enough, game over
+                    if (player.IsGrounded)
+                    {
+                        Debug.Log($"Hit JUMP obstacle while grounded! Game Over!");
+                        gameManager?.TriggerGameOver();
+                    }
+                    else if (playerHeight < jumpHeightThreshold)
                     {
                         Debug.Log($"Hit JUMP obstacle while too low (height: {playerHeight}, required: {jumpHeightThreshold})! Game Over!");
                         gameManager?.TriggerGameOver();

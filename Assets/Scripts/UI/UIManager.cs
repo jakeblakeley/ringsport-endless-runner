@@ -3,6 +3,8 @@ using UnityEngine.UI;
 using TMPro;
 using RingSport.Core;
 using RingSport.Player;
+using System;
+using System.Collections;
 
 namespace RingSport.UI
 {
@@ -49,6 +51,14 @@ namespace RingSport.UI
 
         [Header("Minigames")]
         [SerializeField] private PalisadeMinigame palisadeMinigame;
+
+        [Header("Countdown")]
+        [SerializeField] private GameObject countdownPanel;
+        [SerializeField] private TextMeshProUGUI countdownText;
+        [SerializeField] private string[] countdownNumbers = { "3", "2", "1" };
+        [SerializeField] private AnimationCurve countdownScaleAnimation = AnimationCurve.EaseInOut(0f, 1.5f, 1f, 1f);
+
+        private Coroutine countdownCoroutine;
 
         private void Awake()
         {
@@ -300,6 +310,50 @@ namespace RingSport.UI
             {
                 Debug.LogError("PalisadeMinigame reference not set in UIManager!");
             }
+        }
+
+        public void StartCountdown(float duration, Action onComplete)
+        {
+            if (countdownPanel == null || countdownText == null)
+            {
+                Debug.LogWarning("Countdown UI not assigned, skipping countdown");
+                onComplete?.Invoke();
+                return;
+            }
+
+            if (countdownCoroutine != null)
+            {
+                StopCoroutine(countdownCoroutine);
+            }
+
+            countdownCoroutine = StartCoroutine(CountdownRoutine(duration, onComplete));
+        }
+
+        private IEnumerator CountdownRoutine(float totalDuration, Action onComplete)
+        {
+            countdownPanel.SetActive(true);
+
+            float timePerNumber = totalDuration / countdownNumbers.Length;
+
+            for (int i = 0; i < countdownNumbers.Length; i++)
+            {
+                countdownText.text = countdownNumbers[i];
+
+                float elapsed = 0f;
+                while (elapsed < timePerNumber)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    float normalizedTime = elapsed / timePerNumber;
+                    float scale = countdownScaleAnimation.Evaluate(normalizedTime);
+                    countdownText.transform.localScale = Vector3.one * scale;
+
+                    yield return null;
+                }
+            }
+
+            countdownPanel.SetActive(false);
+            countdownCoroutine = null;
+            onComplete?.Invoke();
         }
 
         private void OnStartButtonClicked()

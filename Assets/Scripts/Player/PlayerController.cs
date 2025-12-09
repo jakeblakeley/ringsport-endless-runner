@@ -48,6 +48,7 @@ namespace RingSport.Player
         private UIManager uiManager;
 
         public float ForwardSpeed => staminaSystem.IsSprinting ? forwardSpeed * sprintMultiplier : forwardSpeed;
+        public bool IsGrounded => isGrounded;
 
         private void Awake()
         {
