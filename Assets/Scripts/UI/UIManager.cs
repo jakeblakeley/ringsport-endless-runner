@@ -74,7 +74,6 @@ namespace RingSport.UI
         private void Start()
         {
             SetupButtons();
-            HideAllScreens();
         }
 
         private void SetupButtons()
