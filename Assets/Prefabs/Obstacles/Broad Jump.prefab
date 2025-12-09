@@ -509,8 +509,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.7, y: 0.4, z: 1.4}
-  m_Center: {x: 0, y: 0.2, z: 0.2}
+  m_Size: {x: 0.7, y: 0.7, z: 1.4}
+  m_Center: {x: 0, y: 0.35, z: 0.2}
 --- !u!114 &5974903991187782536
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -535,8 +535,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c84915303bd24bbe9c1492e9d4a82ac, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.Obstacle
-  obstacleType: 0
-  jumpHeightThreshold: 1.5
+  obstacleType: 1
+  jumpHeightThreshold: 0.5
 --- !u!1 &4179702883351255233
 GameObject:
   m_ObjectHideFlags: 0
