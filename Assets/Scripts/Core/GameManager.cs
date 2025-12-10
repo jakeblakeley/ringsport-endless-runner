@@ -77,6 +77,7 @@ namespace RingSport.Core
             // Reset any paused states from previous game over (e.g., palisade minigame failure)
             LevelScroller.Instance?.Resume();
             var player = Object.FindAnyObjectByType<PlayerController>();
+            player?.ResetPosition();
             player?.ResumeMovement();
 
             LevelManager.Instance?.StartLevel();
@@ -92,6 +93,10 @@ namespace RingSport.Core
         private void HandleLevelCompleteState()
         {
             Time.timeScale = 0f;
+
+            var player = Object.FindAnyObjectByType<PlayerController>();
+            player?.ResetPosition();
+
             CameraStateMachine.Instance?.SetState(CameraStateType.Start);
         }
 

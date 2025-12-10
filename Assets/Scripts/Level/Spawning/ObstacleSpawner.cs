@@ -159,8 +159,8 @@ namespace RingSport.Level.Spawning
         {
             float xPosition = lane * 3f;
 
-            // Spawn at player position + offset
-            float spawnZ = context.PlayerPosition.z + (nextObstacleSpawnZ - context.VirtualDistance);
+            // Anchor to world origin (0,0,0) for grid alignment
+            float spawnZ = nextObstacleSpawnZ - context.VirtualDistance;
             Vector3 spawnPosition = new Vector3(xPosition, 0f, spawnZ);
 
             Debug.Log($"Attempting to spawn {poolTag} at {spawnPosition}, virtual:{context.VirtualDistance}, count: {obstaclesSpawned}");
@@ -429,7 +429,8 @@ namespace RingSport.Level.Spawning
             }
 
             float xPosition = lane * 3f;
-            float spawnZ = context.PlayerPosition.z + (nextObstacleSpawnZ - context.VirtualDistance);
+            // Anchor to world origin (0,0,0) for grid alignment
+            float spawnZ = nextObstacleSpawnZ - context.VirtualDistance;
             Vector3 spawnPosition = new Vector3(xPosition, 0f, spawnZ);
 
             GameObject obstacle = ObjectPooler.Instance?.SpawnFromPool(poolTag, spawnPosition, Quaternion.identity);
@@ -454,7 +455,8 @@ namespace RingSport.Level.Spawning
         private void SpawnObstacleAtLane(string poolTag, int lane, float virtualZ)
         {
             float xPosition = lane * 3f;
-            float spawnZ = context.PlayerPosition.z + (virtualZ - context.VirtualDistance);
+            // Anchor to world origin (0,0,0) for grid alignment
+            float spawnZ = virtualZ - context.VirtualDistance;
             Vector3 spawnPosition = new Vector3(xPosition, 0f, spawnZ);
 
             Debug.Log($"Attempting to spawn {poolTag} at lane {lane}, virtual Z: {virtualZ}");

@@ -18,6 +18,10 @@ namespace RingSport.Level
         [Tooltip("Optional: Override finish line floor prefab for this location")]
         [SerializeField] private GameObject finishLineFloorPrefab;
 
+        [Header("Start Scene")]
+        [Tooltip("Optional prefab to instantiate at (0,0,0) when the level starts. Destroyed when it passes the despawn distance.")]
+        [SerializeField] private GameObject startScenePrefab;
+
         [Header("Scenery")]
         [Tooltip("Prefabs to scatter on side floors for visual decoration")]
         [SerializeField] private GameObject[] sceneryPrefabs;
@@ -38,6 +42,7 @@ namespace RingSport.Level
         public GameObject MainFloorPrefab => mainFloorPrefab;
         public GameObject SideFloorPrefab => sideFloorPrefab;
         public GameObject FinishLineFloorPrefab => finishLineFloorPrefab;
+        public GameObject StartScenePrefab => startScenePrefab;
         public GameObject[] SceneryPrefabs => sceneryPrefabs;
         public int MinSceneryPerFloor => minSceneryPerFloor;
         public int MaxSceneryPerFloor => maxSceneryPerFloor;

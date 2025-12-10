@@ -314,8 +314,12 @@ namespace RingSport.Player
         {
             currentLane = 0;
             targetLaneX = 0f;
-            transform.position = new Vector3(0f, transform.position.y, transform.position.z);
             velocity = Vector3.zero;
+
+            // Disable CharacterController to allow direct position change
+            characterController.enabled = false;
+            transform.position = new Vector3(0f, transform.position.y, transform.position.z);
+            characterController.enabled = true;
 
             // Reset stamina system
             staminaSystem.Reset();

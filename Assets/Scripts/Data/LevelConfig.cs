@@ -17,10 +17,6 @@ namespace RingSport.Level
         [Tooltip("Location configuration defining floor prefabs for this location")]
         [SerializeField] private LocationConfig locationConfig;
 
-        [Header("Start Scene")]
-        [Tooltip("Optional prefab to instantiate at (0,0,0) when the level starts. Destroyed when it passes the despawn distance.")]
-        [SerializeField] private GameObject startScenePrefab;
-
         [Header("Obstacle Settings")]
         [SerializeField] private int maxObstacles = 20;
         [SerializeField] private float minObstacleSpacing = 10f;
@@ -75,7 +71,6 @@ namespace RingSport.Level
         public string LevelName => levelName;
         public Location Location => location;
         public LocationConfig LocationConfig => locationConfig;
-        public GameObject StartScenePrefab => startScenePrefab;
         public int MaxObstacles => maxObstacles;
         public float MinObstacleSpacing => minObstacleSpacing;
         public float MaxObstacleSpacing => maxObstacleSpacing;

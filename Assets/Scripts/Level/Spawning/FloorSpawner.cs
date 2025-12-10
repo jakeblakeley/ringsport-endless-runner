@@ -142,7 +142,8 @@ namespace RingSport.Level.Spawning
 
                 // Offset spawn position by half tile length so tiles are edge-to-edge
                 // Note: Using floorTileLength for visual offset, floorTileSpacing for actual spacing
-                float spawnZ = context.PlayerPosition.z + (nextFloorSpawnZ - context.VirtualDistance) + (floorTileLength / 2f);
+                // Anchor to world origin (0,0,0) - first floor edge starts at Z=0
+                float spawnZ = (nextFloorSpawnZ - context.VirtualDistance) + (floorTileLength / 2f);
                 Vector3 spawnPosition = new Vector3(0f, 0f, spawnZ);
 
                 GameObject floorTile = null;

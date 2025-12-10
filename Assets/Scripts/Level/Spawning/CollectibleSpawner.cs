@@ -238,8 +238,8 @@ namespace RingSport.Level.Spawning
         {
             float xPosition = lane * 3f;
 
-            // Spawn at player position + offset
-            float spawnZ = context.PlayerPosition.z + (nextCollectibleSpawnZ - context.VirtualDistance);
+            // Anchor to world origin (0,0,0) for grid alignment
+            float spawnZ = nextCollectibleSpawnZ - context.VirtualDistance;
             Vector3 spawnPosition = new Vector3(xPosition, spawnHeight, spawnZ);
 
             // Randomly choose between regular and mega collectible
@@ -379,8 +379,8 @@ namespace RingSport.Level.Spawning
                 // X position: same lane as obstacle
                 float xPosition = obstacle.lane * 3f;
 
-                // Calculate world position
-                float spawnZ = context.PlayerPosition.z + (spawnVirtualZ - context.VirtualDistance);
+                // Calculate world position - anchor to world origin (0,0,0) for grid alignment
+                float spawnZ = spawnVirtualZ - context.VirtualDistance;
                 Vector3 spawnPosition = new Vector3(xPosition, spawnHeight, spawnZ);
 
                 // Randomly choose between regular and mega collectible

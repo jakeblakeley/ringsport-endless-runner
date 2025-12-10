@@ -16,6 +16,7 @@ MonoBehaviour:
   mainFloorPrefab: {fileID: 1462051254498222346, guid: e104286d6fe3d4ff7993306ec6595b2e, type: 3}
   sideFloorPrefab: {fileID: 1462051254498222346, guid: 5ad2ae2e6438a451682bcceed35ef26d, type: 3}
   finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 44683ea439a6341d39827a153f18c8cb, type: 3}
+  startScenePrefab: {fileID: 6597666518565425093, guid: c5f4376fc6bab441aa80f3a5e9dd161b, type: 3}
   sceneryPrefabs:
   - {fileID: 8489945017951798651, guid: 343cfa8f68aea44b9a66e58c2d5b9b2b, type: 3}
   - {fileID: 3331292244305782605, guid: 871d817582967485c92a690160bd0b8c, type: 3}

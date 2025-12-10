@@ -184,12 +184,17 @@ namespace RingSport.Level
             obstacleSpawner.Initialize();
             collectibleSpawner.Initialize();
 
-            // Spawn start scene if configured
-            if (currentConfig.StartScenePrefab != null)
+            // Update spawn context with virtualDistance = 0 and spawn initial floors immediately
+            // This ensures floors spawn at exact grid positions before any distance accumulates
+            spawnContext.Update(virtualDistance, player.position, currentConfig);
+            floorSpawner.SpawnFloor();
+
+            // Spawn start scene if configured in location
+            if (currentConfig.LocationConfig?.StartScenePrefab != null)
             {
-                GameObject startScene = Object.Instantiate(currentConfig.StartScenePrefab, Vector3.zero, Quaternion.identity);
+                GameObject startScene = Object.Instantiate(currentConfig.LocationConfig.StartScenePrefab, Vector3.zero, Quaternion.identity);
                 despawnManager.RegisterStartScene(startScene);
-                Debug.Log($"Start scene instantiated at origin: {currentConfig.StartScenePrefab.name}");
+                Debug.Log($"Start scene instantiated at origin: {currentConfig.LocationConfig.StartScenePrefab.name}");
             }
         }
 
