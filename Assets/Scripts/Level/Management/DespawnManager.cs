@@ -13,6 +13,7 @@ namespace RingSport.Level
         private List<GameObject> activeCollectibles = new List<GameObject>();
         private List<GameObject> activeFloorTiles = new List<GameObject>();
         private List<GameObject> activeScenery = new List<GameObject>();
+        private GameObject activeStartScene;
 
         private float despawnDistance;
         private float endGameDespawnDistance;
@@ -68,6 +69,19 @@ namespace RingSport.Level
         }
 
         /// <summary>
+        /// Register the start scene (only one per level, uses Destroy instead of pooling)
+        /// </summary>
+        public void RegisterStartScene(GameObject startScene)
+        {
+            // Destroy any existing start scene first
+            if (activeStartScene != null)
+            {
+                Object.Destroy(activeStartScene);
+            }
+            activeStartScene = startScene;
+        }
+
+        /// <summary>
         /// Despawn objects behind the player
         /// </summary>
         public void DespawnBehindPlayer(Vector3 playerPosition)
@@ -115,6 +129,13 @@ namespace RingSport.Level
                     ObjectPooler.Instance.ReturnToPool(activeScenery[i]);
                     activeScenery.RemoveAt(i);
                 }
+            }
+
+            // Despawn start scene (uses Destroy, not pooling)
+            if (activeStartScene != null && activeStartScene.transform.position.z < despawnZ)
+            {
+                Object.Destroy(activeStartScene);
+                activeStartScene = null;
             }
         }
 
@@ -194,6 +215,13 @@ namespace RingSport.Level
             activeCollectibles.Clear();
             activeFloorTiles.Clear();
             activeScenery.Clear();
+
+            // Destroy start scene if it exists
+            if (activeStartScene != null)
+            {
+                Object.Destroy(activeStartScene);
+                activeStartScene = null;
+            }
         }
 
         /// <summary>

@@ -17,6 +17,7 @@ MonoBehaviour:
   levelName: Ring 1 - Leg 1
   location: 1
   locationConfig: {fileID: 11400000, guid: b4c9e701cacec4e67b8cf8cf8005d262, type: 2}
+  startScenePrefab: {fileID: 6597666518565425093, guid: c5f4376fc6bab441aa80f3a5e9dd161b, type: 3}
   maxObstacles: 30
   minObstacleSpacing: 11
   maxObstacleSpacing: 18

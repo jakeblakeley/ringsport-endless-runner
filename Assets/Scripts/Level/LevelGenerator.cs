@@ -183,6 +183,14 @@ namespace RingSport.Level
             floorSpawner.Initialize();
             obstacleSpawner.Initialize();
             collectibleSpawner.Initialize();
+
+            // Spawn start scene if configured
+            if (currentConfig.StartScenePrefab != null)
+            {
+                GameObject startScene = Object.Instantiate(currentConfig.StartScenePrefab, Vector3.zero, Quaternion.identity);
+                despawnManager.RegisterStartScene(startScene);
+                Debug.Log($"Start scene instantiated at origin: {currentConfig.StartScenePrefab.name}");
+            }
         }
 
         /// <summary>
