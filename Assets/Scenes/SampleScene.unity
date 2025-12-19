@@ -3273,6 +3273,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Core.GameManager
   currentState: 0
   countdownDuration: 3
+  gameplayMusic: {fileID: 0}
+  gameOverSound: {fileID: 8300000, guid: 2deebe6507ea24d62bec3d6fe821ea53, type: 3}
+  musicVolume: 0.5
+  sfxVolume: 1
 --- !u!4 &1338864902
 Transform:
   m_ObjectHideFlags: 0
@@ -3857,6 +3861,9 @@ MonoBehaviour:
   maxSprintDuration: 5
   sprintDrainRate: 1
   sprintRefillRate: 1
+  jumpSound: {fileID: 8300000, guid: 41ab31282588f475bbed74c48680e2b4, type: 3}
+  footstepSound: {fileID: 8300000, guid: d02c46108ab854219843fd9935842f3f, type: 3}
+  footstepInterval: 0.3
 --- !u!143 &1473303863
 CharacterController:
   m_ObjectHideFlags: 0
@@ -4328,6 +4335,18 @@ MonoBehaviour:
   maxLevels: 9
   endGameWarningTime: 5
   maxRetries: 3
+  levelCompleteSounds:
+  - {fileID: 8300000, guid: 8ad60b1c22aa143d7975cf26fbfdbfd8, type: 3}
+  - {fileID: 8300000, guid: 91598561d60274c609614aecc990bd7f, type: 3}
+  - {fileID: 8300000, guid: df6fa74fc458d4eada31bf6505c5e326, type: 3}
+  - {fileID: 8300000, guid: 7f2c8bb3ee67b49a49d67f38c3466e7e, type: 3}
+  - {fileID: 8300000, guid: 1431c52cd82ba4357be9e8ec92a09298, type: 3}
+  - {fileID: 8300000, guid: 7a167fa0d0944460ea23e4f14185de16, type: 3}
+  - {fileID: 8300000, guid: 814bfbdf25cc64396846a560a5b2e475, type: 3}
+  - {fileID: 8300000, guid: 3abd1bed79b30490c866dc8df42ceaf9, type: 3}
+  - {fileID: 8300000, guid: d64599dc1d3994bc198d5674bc737abf, type: 3}
+  - {fileID: 8300000, guid: 47470ec4cebd248e799ff87a39dc3a3e, type: 3}
+  sfxVolume: 1
 --- !u!1 &1550134029
 GameObject:
   m_ObjectHideFlags: 0

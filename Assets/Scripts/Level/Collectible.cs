@@ -7,6 +7,8 @@ namespace RingSport.Level
     {
         [SerializeField] private int pointValue = 10;
         [SerializeField] private ParticleSystem collectVFX;
+        [SerializeField] private AudioClip collectSound;
+        [SerializeField] private float sfxVolume = 1.0f;
 
         private bool isCollected = false;
         private MeshRenderer meshRenderer;
@@ -68,9 +70,12 @@ namespace RingSport.Level
                 collectVFX.Play();
             }
 
-            // Return to pool immediately (or after short delay for VFX)
-            float delay = collectVFX != null ? 0.5f : 0f;
-            Invoke(nameof(ReturnToPool), delay);
+            // Play collect sound (uses PlayClipAtPoint so sound continues after object is pooled)
+            if (collectSound != null)
+                AudioSource.PlayClipAtPoint(collectSound, transform.position, sfxVolume);
+
+            // Return to pool immediately
+            ReturnToPool();
         }
 
         private void ReturnToPool()

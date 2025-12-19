@@ -18,6 +18,12 @@ namespace RingSport.Core
         [Header("Retry Settings")]
         [SerializeField] private int maxRetries = 3;
 
+        [Header("Audio Settings")]
+        [SerializeField] private AudioClip[] levelCompleteSounds;
+        [SerializeField] private float sfxVolume = 1.0f;
+
+        private AudioSource sfxAudioSource;
+
         private int currentLevel = 1;
         private float levelTimer = 0f;
         private float distanceTraveled = 0f;
@@ -42,6 +48,11 @@ namespace RingSport.Core
 
             Instance = this;
             Debug.Log($"[LevelManager] Initialized. Initial retries: {retriesRemaining}");
+
+            // Setup audio source
+            sfxAudioSource = gameObject.AddComponent<AudioSource>();
+            sfxAudioSource.playOnAwake = false;
+            sfxAudioSource.volume = sfxVolume;
         }
 
         private void Update()
@@ -87,6 +98,13 @@ namespace RingSport.Core
 
         public void EndLevel()
         {
+            // Play random level complete sound
+            if (levelCompleteSounds != null && levelCompleteSounds.Length > 0 && sfxAudioSource != null)
+            {
+                AudioClip randomClip = levelCompleteSounds[Random.Range(0, levelCompleteSounds.Length)];
+                sfxAudioSource.PlayOneShot(randomClip);
+            }
+
             // Finalize the score for this level (updates best score if this attempt was better)
             ScoreManager.Instance?.FinalizeLevelScore();
 

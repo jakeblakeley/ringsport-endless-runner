@@ -43,6 +43,15 @@ namespace RingSport.Player
         // Stamina system for sprint management
         private PlayerStaminaSystem staminaSystem;
 
+        [Header("Audio Settings")]
+        [SerializeField] private AudioClip jumpSound;
+        [SerializeField] private AudioClip footstepSound;
+        [SerializeField] private float footstepInterval = 0.3f;
+
+        private AudioSource sfxAudioSource;
+        private AudioSource footstepAudioSource;
+        private float footstepTimer = 0f;
+
         // Cached manager references for performance
         private GameManager gameManager;
         private UIManager uiManager;
@@ -65,6 +74,13 @@ namespace RingSport.Player
 
             // Initialize stamina system
             staminaSystem = new PlayerStaminaSystem(maxSprintDuration, sprintDrainRate, sprintRefillRate);
+
+            // Setup audio sources
+            sfxAudioSource = gameObject.AddComponent<AudioSource>();
+            sfxAudioSource.playOnAwake = false;
+
+            footstepAudioSource = gameObject.AddComponent<AudioSource>();
+            footstepAudioSource.playOnAwake = false;
 
             if (playerInput == null)
             {
@@ -168,6 +184,7 @@ namespace RingSport.Player
             HandleGroundCheck();
             HandleLaneMovement();
             HandleGravity();
+            HandleFootsteps();
             staminaSystem.Update(Time.deltaTime); // Delegate to stamina system
 
             // Only move in X (lanes) and Y (jump/gravity), not Z
@@ -246,6 +263,27 @@ namespace RingSport.Player
             velocity.y += gravity * Time.deltaTime;
         }
 
+        private void HandleFootsteps()
+        {
+            // Only play footsteps when grounded and game is active
+            if (!isGrounded || footstepSound == null || footstepAudioSource == null)
+            {
+                footstepTimer = 0f;
+                return;
+            }
+
+            footstepTimer += Time.deltaTime;
+
+            // Adjust footstep rate based on sprint state (faster footsteps when sprinting)
+            float currentInterval = staminaSystem.IsSprinting ? footstepInterval * 0.6f : footstepInterval;
+
+            if (footstepTimer >= currentInterval)
+            {
+                footstepAudioSource.PlayOneShot(footstepSound);
+                footstepTimer = 0f;
+            }
+        }
+
         private void OnJump(InputAction.CallbackContext context)
         {
             Debug.Log($"Jump pressed! isGrounded: {isGrounded}, velocity.y: {velocity.y}");
@@ -254,6 +292,10 @@ namespace RingSport.Player
             {
                 velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
                 Debug.Log($"Jumping! New velocity.y: {velocity.y}");
+
+                // Play jump sound
+                if (jumpSound != null && sfxAudioSource != null)
+                    sfxAudioSource.PlayOneShot(jumpSound);
             }
         }
 
@@ -265,6 +307,10 @@ namespace RingSport.Player
             {
                 velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
                 Debug.Log($"Mobile jumping! New velocity.y: {velocity.y}");
+
+                // Play jump sound
+                if (jumpSound != null && sfxAudioSource != null)
+                    sfxAudioSource.PlayOneShot(jumpSound);
             }
         }
 

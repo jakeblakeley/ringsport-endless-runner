@@ -24,6 +24,15 @@ namespace RingSport.Core
 
         public GameState CurrentState => currentState;
 
+        [Header("Audio Settings")]
+        [SerializeField] private AudioClip gameplayMusic;
+        [SerializeField] private AudioClip gameOverSound;
+        [SerializeField] private float musicVolume = 0.5f;
+        [SerializeField] private float sfxVolume = 1.0f;
+
+        private AudioSource musicAudioSource;
+        private AudioSource sfxAudioSource;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -33,6 +42,17 @@ namespace RingSport.Core
             }
 
             Instance = this;
+
+            // Setup audio sources
+            musicAudioSource = gameObject.AddComponent<AudioSource>();
+            musicAudioSource.playOnAwake = false;
+            musicAudioSource.loop = true;
+            musicAudioSource.volume = musicVolume;
+
+            sfxAudioSource = gameObject.AddComponent<AudioSource>();
+            sfxAudioSource.playOnAwake = false;
+            sfxAudioSource.volume = sfxVolume;
+
             DontDestroyOnLoad(gameObject);
         }
 
@@ -67,6 +87,10 @@ namespace RingSport.Core
             Time.timeScale = 1f;
             UIManager.Instance?.ShowHomeScreen();
             CameraStateMachine.Instance?.SetState(CameraStateType.Start);
+
+            // Stop music when returning home
+            if (musicAudioSource != null && musicAudioSource.isPlaying)
+                musicAudioSource.Stop();
         }
 
         private void HandlePlayingState()
@@ -83,6 +107,13 @@ namespace RingSport.Core
             LevelManager.Instance?.StartLevel();
             CameraStateMachine.Instance?.SetState(CameraStateType.Gameplay);
             UIManager.Instance?.StartCountdown(countdownDuration, OnCountdownComplete);
+
+            // Start gameplay music
+            if (gameplayMusic != null && musicAudioSource != null)
+            {
+                musicAudioSource.clip = gameplayMusic;
+                musicAudioSource.Play();
+            }
         }
 
         private void OnCountdownComplete()
@@ -98,12 +129,23 @@ namespace RingSport.Core
             player?.ResetPosition();
 
             CameraStateMachine.Instance?.SetState(CameraStateType.Start);
+
+            // Stop gameplay music on level complete
+            if (musicAudioSource != null)
+                musicAudioSource.Stop();
         }
 
         private void HandleGameOverState()
         {
             Time.timeScale = 0f;
             UIManager.Instance?.ShowGameOver();
+
+            // Stop music and play game over sound
+            if (musicAudioSource != null)
+                musicAudioSource.Stop();
+
+            if (gameOverSound != null && sfxAudioSource != null)
+                sfxAudioSource.PlayOneShot(gameOverSound);
         }
 
         public void StartGame()
