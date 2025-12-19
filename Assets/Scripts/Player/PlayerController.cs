@@ -45,12 +45,13 @@ namespace RingSport.Player
 
         [Header("Audio Settings")]
         [SerializeField] private AudioClip jumpSound;
-        [SerializeField] private AudioClip footstepSound;
-        [SerializeField] private float footstepInterval = 0.3f;
+        [SerializeField] private AudioClip footstepLoop;
+        [SerializeField] [Range(0f, 1f)] private float footstepVolume = 0.5f;
+        [SerializeField] private float baseFootstepPitch = 1.0f;
+        [SerializeField] private float sprintPitchMultiplier = 1.3f;
 
         private AudioSource sfxAudioSource;
         private AudioSource footstepAudioSource;
-        private float footstepTimer = 0f;
 
         // Cached manager references for performance
         private GameManager gameManager;
@@ -81,6 +82,9 @@ namespace RingSport.Player
 
             footstepAudioSource = gameObject.AddComponent<AudioSource>();
             footstepAudioSource.playOnAwake = false;
+            footstepAudioSource.loop = true;
+            footstepAudioSource.clip = footstepLoop;
+            footstepAudioSource.volume = footstepVolume;
 
             if (playerInput == null)
             {
@@ -178,13 +182,15 @@ namespace RingSport.Player
 
         private void Update()
         {
+            // Handle footsteps regardless of game state (so it can stop when not playing)
+            HandleFootsteps();
+
             if (gameManager?.CurrentState != GameState.Playing || isMovementPaused)
                 return;
 
             HandleGroundCheck();
             HandleLaneMovement();
             HandleGravity();
-            HandleFootsteps();
             staminaSystem.Update(Time.deltaTime); // Delegate to stamina system
 
             // Only move in X (lanes) and Y (jump/gravity), not Z
@@ -265,22 +271,32 @@ namespace RingSport.Player
 
         private void HandleFootsteps()
         {
-            // Only play footsteps when grounded and game is active
-            if (!isGrounded || footstepSound == null || footstepAudioSource == null)
-            {
-                footstepTimer = 0f;
+            if (footstepAudioSource == null || footstepLoop == null)
                 return;
-            }
 
-            footstepTimer += Time.deltaTime;
+            // Determine if footsteps should play
+            bool shouldPlay = gameManager?.CurrentState == GameState.Playing &&
+                              !isMovementPaused &&
+                              isGrounded;
 
-            // Adjust footstep rate based on sprint state (faster footsteps when sprinting)
-            float currentInterval = staminaSystem.IsSprinting ? footstepInterval * 0.6f : footstepInterval;
-
-            if (footstepTimer >= currentInterval)
+            if (shouldPlay)
             {
-                footstepAudioSource.PlayOneShot(footstepSound);
-                footstepTimer = 0f;
+                // Calculate pitch based on level speed multiplier and sprint state
+                float levelSpeedMultiplier = LevelGenerator.Instance?.GetCurrentConfig()?.SpeedMultiplier ?? 1f;
+                float sprintMultiplier = staminaSystem.IsSprinting ? sprintPitchMultiplier : 1f;
+                float targetPitch = baseFootstepPitch * levelSpeedMultiplier * sprintMultiplier;
+
+                footstepAudioSource.pitch = targetPitch;
+
+                // Start playing if not already
+                if (!footstepAudioSource.isPlaying)
+                    footstepAudioSource.Play();
+            }
+            else
+            {
+                // Stop playing if currently playing
+                if (footstepAudioSource.isPlaying)
+                    footstepAudioSource.Stop();
             }
         }
 
@@ -382,6 +398,10 @@ namespace RingSport.Player
                 sprintAction.performed -= OnSprintStarted;
                 sprintAction.canceled -= OnSprintCanceled;
             }
+
+            // Stop footsteps immediately
+            if (footstepAudioSource != null && footstepAudioSource.isPlaying)
+                footstepAudioSource.Stop();
         }
 
         public void ResumeMovement()

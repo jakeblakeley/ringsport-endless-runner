@@ -25,12 +25,13 @@ namespace RingSport.Core
         public GameState CurrentState => currentState;
 
         [Header("Audio Settings")]
-        [SerializeField] private AudioClip gameplayMusic;
         [SerializeField] private AudioClip gameOverSound;
-        [SerializeField] private float musicVolume = 0.5f;
-        [SerializeField] private float sfxVolume = 1.0f;
+        [SerializeField] [Range(0f, 1f)] private float musicVolume = 0.5f;
+        [SerializeField] [Range(0f, 1f)] private float ambientVolume = 0.3f;
+        [SerializeField] [Range(0f, 1f)] private float sfxVolume = 1.0f;
 
         private AudioSource musicAudioSource;
+        private AudioSource ambientAudioSource;
         private AudioSource sfxAudioSource;
 
         private void Awake()
@@ -48,6 +49,11 @@ namespace RingSport.Core
             musicAudioSource.playOnAwake = false;
             musicAudioSource.loop = true;
             musicAudioSource.volume = musicVolume;
+
+            ambientAudioSource = gameObject.AddComponent<AudioSource>();
+            ambientAudioSource.playOnAwake = false;
+            ambientAudioSource.loop = true;
+            ambientAudioSource.volume = ambientVolume;
 
             sfxAudioSource = gameObject.AddComponent<AudioSource>();
             sfxAudioSource.playOnAwake = false;
@@ -88,9 +94,8 @@ namespace RingSport.Core
             UIManager.Instance?.ShowHomeScreen();
             CameraStateMachine.Instance?.SetState(CameraStateType.Start);
 
-            // Stop music when returning home
-            if (musicAudioSource != null && musicAudioSource.isPlaying)
-                musicAudioSource.Stop();
+            // Stop location audio when returning home
+            StopLocationAudio();
         }
 
         private void HandlePlayingState()
@@ -108,12 +113,7 @@ namespace RingSport.Core
             CameraStateMachine.Instance?.SetState(CameraStateType.Gameplay);
             UIManager.Instance?.StartCountdown(countdownDuration, OnCountdownComplete);
 
-            // Start gameplay music
-            if (gameplayMusic != null && musicAudioSource != null)
-            {
-                musicAudioSource.clip = gameplayMusic;
-                musicAudioSource.Play();
-            }
+            // Note: Location audio is started by LevelManager.StartLevel() after level is generated
         }
 
         private void OnCountdownComplete()
@@ -130,9 +130,8 @@ namespace RingSport.Core
 
             CameraStateMachine.Instance?.SetState(CameraStateType.Start);
 
-            // Stop gameplay music on level complete
-            if (musicAudioSource != null)
-                musicAudioSource.Stop();
+            // Stop location audio on level complete
+            StopLocationAudio();
         }
 
         private void HandleGameOverState()
@@ -140,9 +139,8 @@ namespace RingSport.Core
             Time.timeScale = 0f;
             UIManager.Instance?.ShowGameOver();
 
-            // Stop music and play game over sound
-            if (musicAudioSource != null)
-                musicAudioSource.Stop();
+            // Stop location audio and play game over sound
+            StopLocationAudio();
 
             if (gameOverSound != null && sfxAudioSource != null)
                 sfxAudioSource.PlayOneShot(gameOverSound);
@@ -184,6 +182,44 @@ namespace RingSport.Core
             }
 
             SetState(GameState.GameOver);
+        }
+
+        /// <summary>
+        /// Play location-specific music and ambient sounds
+        /// </summary>
+        public void PlayLocationAudio(AudioClip music, AudioClip ambient)
+        {
+            if (music != null && musicAudioSource != null)
+            {
+                musicAudioSource.clip = music;
+                musicAudioSource.volume = musicVolume;
+                musicAudioSource.Play();
+                Debug.Log($"Playing music: {music.name} at volume {musicVolume}");
+            }
+
+            if (ambient != null && ambientAudioSource != null)
+            {
+                ambientAudioSource.clip = ambient;
+                ambientAudioSource.volume = ambientVolume;
+                ambientAudioSource.Play();
+                Debug.Log($"Playing ambient: {ambient.name} at volume {ambientVolume}");
+            }
+            else if (ambient == null)
+            {
+                Debug.Log("No ambient sound assigned for this location");
+            }
+        }
+
+        /// <summary>
+        /// Stop all location audio (music and ambient)
+        /// </summary>
+        public void StopLocationAudio()
+        {
+            if (musicAudioSource != null && musicAudioSource.isPlaying)
+                musicAudioSource.Stop();
+
+            if (ambientAudioSource != null && ambientAudioSource.isPlaying)
+                ambientAudioSource.Stop();
         }
     }
 }

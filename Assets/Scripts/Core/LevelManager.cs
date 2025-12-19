@@ -93,6 +93,16 @@ namespace RingSport.Core
             if (currentLevelConfig == null)
             {
                 Debug.LogError("Failed to get level config!");
+                return;
+            }
+
+            // Start location-specific audio (music and ambient)
+            if (currentLevelConfig.LocationConfig != null)
+            {
+                GameManager.Instance?.PlayLocationAudio(
+                    currentLevelConfig.LocationConfig.Music,
+                    currentLevelConfig.LocationConfig.AmbientSound
+                );
             }
         }
 
@@ -155,6 +165,12 @@ namespace RingSport.Core
         {
             ScoreManager.Instance?.AddScore(points);
             UIManager.Instance?.UpdateScore(ScoreManager.Instance?.CurrentScore ?? 0);
+        }
+
+        public void PlayCollectSound(AudioClip clip)
+        {
+            if (clip != null && sfxAudioSource != null)
+                sfxAudioSource.PlayOneShot(clip, sfxVolume);
         }
 
         public void AddDistance(float distance)

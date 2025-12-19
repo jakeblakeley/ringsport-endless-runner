@@ -8,7 +8,6 @@ namespace RingSport.Level
         [SerializeField] private int pointValue = 10;
         [SerializeField] private ParticleSystem collectVFX;
         [SerializeField] private AudioClip collectSound;
-        [SerializeField] private float sfxVolume = 1.0f;
 
         private bool isCollected = false;
         private MeshRenderer meshRenderer;
@@ -61,8 +60,9 @@ namespace RingSport.Level
             if (meshRenderer != null)
                 meshRenderer.enabled = false;
 
-            // Add points to score
+            // Add points to score and play sound
             LevelManager.Instance?.AddScore(pointValue);
+            LevelManager.Instance?.PlayCollectSound(collectSound);
 
             // Play VFX if assigned
             if (collectVFX != null)
@@ -70,12 +70,9 @@ namespace RingSport.Level
                 collectVFX.Play();
             }
 
-            // Play collect sound (uses PlayClipAtPoint so sound continues after object is pooled)
-            if (collectSound != null)
-                AudioSource.PlayClipAtPoint(collectSound, transform.position, sfxVolume);
-
-            // Return to pool immediately
-            ReturnToPool();
+            // Return to pool immediately (or after short delay for VFX)
+            float delay = collectVFX != null ? 0.5f : 0f;
+            Invoke(nameof(ReturnToPool), delay);
         }
 
         private void ReturnToPool()

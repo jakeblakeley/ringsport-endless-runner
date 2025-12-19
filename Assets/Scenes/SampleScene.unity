@@ -3273,9 +3273,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Core.GameManager
   currentState: 0
   countdownDuration: 3
-  gameplayMusic: {fileID: 0}
   gameOverSound: {fileID: 8300000, guid: 2deebe6507ea24d62bec3d6fe821ea53, type: 3}
   musicVolume: 0.5
+  ambientVolume: 1
   sfxVolume: 1
 --- !u!4 &1338864902
 Transform:
@@ -3862,8 +3862,8 @@ MonoBehaviour:
   sprintDrainRate: 1
   sprintRefillRate: 1
   jumpSound: {fileID: 8300000, guid: 41ab31282588f475bbed74c48680e2b4, type: 3}
-  footstepSound: {fileID: 8300000, guid: d02c46108ab854219843fd9935842f3f, type: 3}
-  footstepInterval: 0.3
+  footstepSound: {fileID: 8300000, guid: 0f34c72d67e474428b666dd6e9b11993, type: 3}
+  footstepInterval: 0.1
 --- !u!143 &1473303863
 CharacterController:
   m_ObjectHideFlags: 0

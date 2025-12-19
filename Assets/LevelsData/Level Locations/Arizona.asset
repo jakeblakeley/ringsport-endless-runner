@@ -27,3 +27,5 @@ MonoBehaviour:
   maxSceneryPerFloor: 5
   sceneryMinDistance: 1.5
   sceneryPoolSize: 30
+  music: {fileID: 0}
+  ambientSound: {fileID: 8300000, guid: 5bd05a8c06cd54dda98f0040d032518d, type: 3}

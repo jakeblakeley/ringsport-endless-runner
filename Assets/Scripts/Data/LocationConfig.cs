@@ -38,6 +38,13 @@ namespace RingSport.Level
         [Tooltip("Pool size per scenery prefab type")]
         [SerializeField] [Range(10, 100)] private int sceneryPoolSize = 30;
 
+        [Header("Audio")]
+        [Tooltip("Background music for this location")]
+        [SerializeField] private AudioClip music;
+
+        [Tooltip("Ambient sound loop for this location (e.g., wind, birds, city noise)")]
+        [SerializeField] private AudioClip ambientSound;
+
         public Location Location => location;
         public GameObject MainFloorPrefab => mainFloorPrefab;
         public GameObject SideFloorPrefab => sideFloorPrefab;
@@ -48,5 +55,7 @@ namespace RingSport.Level
         public int MaxSceneryPerFloor => maxSceneryPerFloor;
         public float SceneryMinDistance => sceneryMinDistance;
         public int SceneryPoolSize => sceneryPoolSize;
+        public AudioClip Music => music;
+        public AudioClip AmbientSound => ambientSound;
     }
 }
