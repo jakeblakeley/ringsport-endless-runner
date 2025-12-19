@@ -142,14 +142,14 @@ namespace RingSport.UI
                     int maxLevels = LevelManager.Instance?.MaxLevels ?? 9;
                     int nextLevel = level + 1;
 
-                    if (nextLevel <= maxLevels)
-                    {
-                        rewardLevelText.text = $"{nextLevel}/{maxLevels}";
-                    }
-                    else
-                    {
-                        rewardLevelText.text = "All Levels Complete!";
-                    }
+                    // if (nextLevel <= maxLevels)
+                    // {
+                    //     rewardLevelText.text = $"{nextLevel}/{maxLevels}";
+                    // }
+                    // else
+                    // {
+                    //     rewardLevelText.text = "All Levels Complete!";
+                    // }
                 }
 
                 if (rewardScoreText != null)
@@ -182,7 +182,7 @@ namespace RingSport.UI
                     Debug.Log($"[UIManager] RewardScreen - Total: {totalScore}, High: {highScore}, IsNew: {isNewHighScore}");
 
                     if (rewardTotalScoreText != null)
-                        rewardTotalScoreText.text = $"Total Score: {totalScore}";
+                        rewardTotalScoreText.text = $"Total: {totalScore}";
 
                     if (rewardHighScoreText != null)
                         rewardHighScoreText.text = $"High Score: {highScore}";
