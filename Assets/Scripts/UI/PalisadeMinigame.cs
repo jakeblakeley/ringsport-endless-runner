@@ -14,6 +14,7 @@ namespace RingSport.UI
         [Header("UI Elements")]
         [SerializeField] private GameObject minigamePanel;
         [SerializeField] private Image progressBar;
+        [SerializeField] private RectTransform progressBarRect;
         [SerializeField] private TextMeshProUGUI timerText;
         [SerializeField] private TextMeshProUGUI instructionText;
 
@@ -174,7 +175,7 @@ namespace RingSport.UI
             // Update timer UI
             if (timerText != null)
             {
-                timerText.text = $"Time: {Mathf.Max(0f, timeRemaining):F1}s";
+                timerText.text = $"{Mathf.Max(0f, timeRemaining):F1}s";
             }
 
             // Check for timeout
@@ -221,7 +222,7 @@ namespace RingSport.UI
             UpdateProgressBar();
 
             if (instructionText != null)
-                instructionText.text = "Tap SPRINT to climb!";
+                instructionText.text = "TAP!";
             else
                 Debug.LogWarning("instructionText is null!");
 
@@ -279,9 +280,10 @@ namespace RingSport.UI
             float progressPercent = requiredTaps > 0 ? (float)currentTaps / requiredTaps : 1f;
             float currentFillAmount = Mathf.Lerp(startFillAmount, 1f, progressPercent);
 
-            if (progressBar != null)
+            if (progressBarRect != null)
             {
-                progressBar.fillAmount = currentFillAmount;
+                // Scale width using anchorMax for 9-slice compatibility
+                progressBarRect.anchorMax = new Vector2(currentFillAmount, progressBarRect.anchorMax.y);
                 Debug.Log($"Progress bar updated: {currentFillAmount:F2} (taps: {currentTaps}/{requiredTaps})");
             }
         }

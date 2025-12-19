@@ -26,6 +26,7 @@ namespace RingSport.UI
         [SerializeField] private TextMeshProUGUI scoreText;
         [SerializeField] private TextMeshProUGUI levelText;
         [SerializeField] private Image sprintBarFill;
+        [SerializeField] private RectTransform sprintBarFillRect;
         [SerializeField] private Color sprintBarNormalColor = new Color(0.29f, 0.56f, 0.89f, 1f); // Blue
         [SerializeField] private Color sprintBarExhaustedColor = new Color(0.91f, 0.30f, 0.24f, 1f); // Red
 
@@ -126,6 +127,7 @@ namespace RingSport.UI
                 gameHUD.SetActive(true);
                 UpdateScore(0);
                 UpdateLevel(LevelManager.Instance?.CurrentLevel ?? 1);
+                UpdateSprintBar(1f, false); // Reset sprint bar to full
             }
         }
 
@@ -280,9 +282,14 @@ namespace RingSport.UI
 
         public void UpdateSprintBar(float fillAmount, bool isExhausted)
         {
+            if (sprintBarFillRect != null)
+            {
+                // Scale width using anchorMax for 9-slice compatibility
+                sprintBarFillRect.anchorMax = new Vector2(fillAmount, sprintBarFillRect.anchorMax.y);
+            }
+
             if (sprintBarFill != null)
             {
-                sprintBarFill.fillAmount = fillAmount;
                 sprintBarFill.color = isExhausted ? sprintBarExhaustedColor : sprintBarNormalColor;
             }
         }
