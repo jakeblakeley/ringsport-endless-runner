@@ -96,6 +96,9 @@ namespace RingSport.Core
 
             // Stop location audio when returning home
             StopLocationAudio();
+
+            // Load first level's location and start scene for home screen visuals
+            LevelGenerator.Instance?.LoadHomeScene();
         }
 
         private void HandlePlayingState()

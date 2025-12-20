@@ -254,6 +254,77 @@ namespace RingSport.Level
             return virtualDistance;
         }
 
+        /// <summary>
+        /// Load the first level's location for the home screen
+        /// Spawns initial floors and start scene without starting gameplay
+        /// </summary>
+        public void LoadHomeScene()
+        {
+            // Clear any previous level content
+            ObjectPooler.Instance?.ClearAllPools();
+
+            // Get the first level's config
+            if (levelConfigs == null || levelConfigs.Length == 0)
+            {
+                Debug.LogWarning("No level configs available for home scene");
+                return;
+            }
+
+            currentConfig = levelConfigs[0];
+
+            if (currentConfig == null)
+            {
+                Debug.LogError("First LevelConfig is null! Make sure LevelConfigs array is assigned in inspector.");
+                return;
+            }
+
+            Debug.Log($"Loading home scene with location: {currentConfig.Location}");
+
+            // Set floor prefabs from location config
+            if (currentConfig.LocationConfig != null)
+            {
+                floorSpawner.SetMainFloorPrefab(currentConfig.LocationConfig.MainFloorPrefab);
+                floorSpawner.SetSideFloorPrefab(currentConfig.LocationConfig.SideFloorPrefab);
+                floorSpawner.SetFinishLineFloorPrefab(null); // No finish line for home screen
+                floorSpawner.ConfigureScenery(currentConfig.LocationConfig);
+            }
+            else
+            {
+                floorSpawner.SetMainFloorPrefab(null);
+                floorSpawner.SetSideFloorPrefab(null);
+                floorSpawner.SetFinishLineFloorPrefab(null);
+                floorSpawner.ConfigureScenery(null);
+                Debug.LogWarning("First level has no LocationConfig - home scene may look empty");
+            }
+
+            // Reset virtual distance and ending flag
+            virtualDistance = 0f;
+            isLevelEnding = false;
+
+            // Reset all systems
+            obstacleTracker.Clear();
+            recoveryZoneManager.Reset();
+            despawnManager.Clear();
+            floorSpawner.Initialize();
+            obstacleSpawner.Initialize();
+            collectibleSpawner.Initialize();
+
+            // Update spawn context and spawn initial floors
+            if (player != null)
+            {
+                spawnContext.Update(virtualDistance, player.position, currentConfig);
+                floorSpawner.SpawnFloor();
+            }
+
+            // Spawn start scene if configured
+            if (currentConfig.LocationConfig?.StartScenePrefab != null)
+            {
+                GameObject startScene = Object.Instantiate(currentConfig.LocationConfig.StartScenePrefab, Vector3.zero, Quaternion.identity);
+                despawnManager.RegisterStartScene(startScene);
+                Debug.Log($"Home scene: Start scene instantiated at origin: {currentConfig.LocationConfig.StartScenePrefab.name}");
+            }
+        }
+
         // Debug methods for inspector visibility
         #if UNITY_EDITOR
         [ContextMenu("Debug: Print System Stats")]
