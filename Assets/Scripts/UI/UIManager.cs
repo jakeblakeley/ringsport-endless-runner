@@ -121,6 +121,7 @@ namespace RingSport.UI
 
         public void ShowGameHUD()
         {
+            Debug.Log("[UIManager] ShowGameHUD called");
             HideAllScreens();
             if (gameHUD != null)
             {
@@ -128,6 +129,19 @@ namespace RingSport.UI
                 UpdateScore(0);
                 UpdateLevel(LevelManager.Instance?.CurrentLevel ?? 1);
                 UpdateSprintBar(1f, false); // Reset sprint bar to full
+            }
+        }
+
+        public void HideGameHUD()
+        {
+            if (gameHUD != null)
+            {
+                Debug.Log($"[UIManager] HideGameHUD - hiding {gameHUD.name}, currently active: {gameHUD.activeSelf}");
+                gameHUD.SetActive(false);
+            }
+            else
+            {
+                Debug.LogError("[UIManager] HideGameHUD called but gameHUD is NULL!");
             }
         }
 
@@ -335,6 +349,23 @@ namespace RingSport.UI
             countdownCoroutine = StartCoroutine(CountdownRoutine(duration, onComplete));
         }
 
+        /// <summary>
+        /// Stops any running countdown without invoking the callback
+        /// </summary>
+        public void StopCountdown()
+        {
+            Debug.Log("[UIManager] StopCountdown called");
+            if (countdownCoroutine != null)
+            {
+                Debug.Log("[UIManager] Stopping active countdown coroutine");
+                StopCoroutine(countdownCoroutine);
+                countdownCoroutine = null;
+            }
+
+            if (countdownPanel != null)
+                countdownPanel.SetActive(false);
+        }
+
         private IEnumerator CountdownRoutine(float totalDuration, Action onComplete)
         {
             countdownPanel.SetActive(true);
@@ -364,21 +395,35 @@ namespace RingSport.UI
 
         private void OnStartButtonClicked()
         {
+            Debug.Log($"[UIManager] OnStartButtonClicked called. Current state: {GameManager.Instance?.CurrentState}");
+
+            // Only start game if we're on the home screen
+            var currentState = GameManager.Instance?.CurrentState;
+            if (currentState != GameState.Home)
+            {
+                Debug.Log($"[UIManager] OnStartButtonClicked BLOCKED - not in Home state (current: {currentState})");
+                return;
+            }
+
+            Debug.Log("[UIManager] OnStartButtonClicked - calling StartGame (resets progress)");
             GameManager.Instance?.StartGame();
         }
 
         private void OnNextLevelButtonClicked()
         {
+            Debug.Log("[UIManager] OnNextLevelButtonClicked - calling NextLevel");
             LevelManager.Instance?.NextLevel();
         }
 
         private void OnReturnHomeButtonClicked()
         {
+            Debug.Log("[UIManager] OnReturnHomeButtonClicked");
             GameManager.Instance?.ReturnToHome();
         }
 
         private void OnRetryButtonClicked()
         {
+            Debug.Log("[UIManager] OnRetryButtonClicked");
             GameManager.Instance?.RestartLevel();
         }
     }

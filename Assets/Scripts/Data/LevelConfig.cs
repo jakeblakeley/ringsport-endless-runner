@@ -17,6 +17,10 @@ namespace RingSport.Level
         [Tooltip("Location configuration defining floor prefabs for this location")]
         [SerializeField] private LocationConfig locationConfig;
 
+        [Header("Mini Level Settings")]
+        [Tooltip("The mini level type to play after completing this level")]
+        [SerializeField] private MiniLevelType miniLevelType = MiniLevelType.PositionsSimonSays;
+
         [Header("Obstacle Settings")]
         [SerializeField] private int maxObstacles = 20;
         [SerializeField] private float minObstacleSpacing = 10f;
@@ -71,6 +75,7 @@ namespace RingSport.Level
         public string LevelName => levelName;
         public Location Location => location;
         public LocationConfig LocationConfig => locationConfig;
+        public MiniLevelType MiniLevelType => miniLevelType;
         public int MaxObstacles => maxObstacles;
         public float MinObstacleSpacing => minObstacleSpacing;
         public float MaxObstacleSpacing => maxObstacleSpacing;

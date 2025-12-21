@@ -9,6 +9,7 @@ namespace RingSport.Core
     {
         Home,
         Playing,
+        MiniLevel,
         LevelComplete,
         GameOver
     }
@@ -79,6 +80,9 @@ namespace RingSport.Core
                 case GameState.Playing:
                     HandlePlayingState();
                     break;
+                case GameState.MiniLevel:
+                    HandleMiniLevelState();
+                    break;
                 case GameState.LevelComplete:
                     HandleLevelCompleteState();
                     break;
@@ -124,6 +128,36 @@ namespace RingSport.Core
             Time.timeScale = 1f;
         }
 
+        private void HandleMiniLevelState()
+        {
+            Time.timeScale = 0f;
+
+            // Hide the game HUD and stop any running countdown
+            UIManager.Instance?.HideGameHUD();
+            UIManager.Instance?.StopCountdown();
+
+            var player = Object.FindAnyObjectByType<PlayerController>();
+            player?.ResetPosition();
+
+            CameraStateMachine.Instance?.SetState(CameraStateType.Start);
+
+            // Stop location audio during mini level
+            StopLocationAudio();
+
+            // Get current level config to determine mini level type
+            LevelConfig currentConfig = LevelGenerator.Instance?.GetCurrentConfig();
+            if (currentConfig != null)
+            {
+                MiniLevelManager.Instance?.StartMiniLevel(currentConfig.MiniLevelType);
+            }
+            else
+            {
+                Debug.LogError("No current level config found for mini level!");
+                // Fallback: skip directly to level complete
+                SetState(GameState.LevelComplete);
+            }
+        }
+
         private void HandleLevelCompleteState()
         {
             Time.timeScale = 0f;
@@ -135,6 +169,30 @@ namespace RingSport.Core
 
             // Stop location audio on level complete
             StopLocationAudio();
+
+            // Show reward screen
+            int level = LevelManager.Instance?.CurrentLevel ?? 1;
+            int levelScore = ScoreManager.Instance?.CurrentScore ?? 0;
+            int maxLevels = LevelManager.Instance?.MaxLevels ?? 9;
+
+            Debug.Log($"[GameManager] HandleLevelCompleteState - Level: {level}, LevelScore: {levelScore}");
+
+            string nextLevelName = "";
+            string nextLevelLocation = "";
+
+            if (level < maxLevels)
+            {
+                int nextLevelNumber = level + 1;
+                LevelConfig nextLevelConfig = LevelGenerator.Instance?.GetLevelConfig(nextLevelNumber);
+
+                if (nextLevelConfig != null)
+                {
+                    nextLevelName = nextLevelConfig.LevelName;
+                    nextLevelLocation = nextLevelConfig.Location.ToString();
+                }
+            }
+
+            UIManager.Instance?.ShowRewardScreen(level, levelScore, nextLevelName, nextLevelLocation);
         }
 
         private void HandleGameOverState()
@@ -151,6 +209,14 @@ namespace RingSport.Core
 
         public void StartGame()
         {
+            // Only allow starting game from Home state
+            if (currentState != GameState.Home)
+            {
+                Debug.Log($"[GameManager] StartGame BLOCKED - not in Home state (current: {currentState})");
+                return;
+            }
+
+            Debug.Log("[GameManager] StartGame called - this resets progress!");
             LevelManager.Instance?.ResetProgress();
             SetState(GameState.Playing);
         }
@@ -172,6 +238,14 @@ namespace RingSport.Core
         }
 
         public void CompleteLevel()
+        {
+            SetState(GameState.LevelComplete);
+        }
+
+        /// <summary>
+        /// Called when mini level is complete, transitions to LevelComplete state
+        /// </summary>
+        public void CompleteMiniLevel()
         {
             SetState(GameState.LevelComplete);
         }

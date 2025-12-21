@@ -115,34 +115,11 @@ namespace RingSport.Core
                 sfxAudioSource.PlayOneShot(randomClip);
             }
 
-            // Finalize the score for this level (updates best score if this attempt was better)
-            ScoreManager.Instance?.FinalizeLevelScore();
+            // Note: Score finalization is deferred to MiniLevelManager.CompleteMiniLevel()
+            // This allows any bonus points from mini levels to be included
 
-            int levelScore = ScoreManager.Instance?.CurrentScore ?? 0;
-
-            // Get next level information if not at final level
-            string nextLevelName = "";
-            string nextLevelLocation = "";
-
-            if (currentLevel < maxLevels)
-            {
-                int nextLevelNumber = currentLevel + 1;
-                LevelConfig nextLevelConfig = LevelGenerator.Instance?.GetLevelConfig(nextLevelNumber);
-
-                if (nextLevelConfig != null)
-                {
-                    nextLevelName = nextLevelConfig.LevelName;
-                    nextLevelLocation = nextLevelConfig.Location.ToString();
-                }
-
-                GameManager.Instance?.CompleteLevel();
-                UIManager.Instance?.ShowRewardScreen(currentLevel, levelScore, nextLevelName, nextLevelLocation);
-            }
-            else
-            {
-                // All levels completed
-                UIManager.Instance?.ShowRewardScreen(currentLevel, levelScore, nextLevelName, nextLevelLocation);
-            }
+            // Trigger mini level state (mini level will then transition to LevelComplete)
+            GameManager.Instance?.SetState(GameState.MiniLevel);
         }
 
         /// <summary>
@@ -180,6 +157,7 @@ namespace RingSport.Core
 
         public void NextLevel()
         {
+            Debug.Log($"[LevelManager] NextLevel called. Current level: {currentLevel}, Max levels: {maxLevels}");
             if (currentLevel < maxLevels)
             {
                 currentLevel++;
@@ -199,6 +177,9 @@ namespace RingSport.Core
 
         public void ResetProgress()
         {
+            Debug.Log("[LevelManager] ResetProgress called - resetting to level 1. Stack trace:");
+            Debug.Log(System.Environment.StackTrace);
+
             // Reset scores via ScoreManager (handles high score save if applicable)
             ScoreManager.Instance?.ResetForNewRun();
 
