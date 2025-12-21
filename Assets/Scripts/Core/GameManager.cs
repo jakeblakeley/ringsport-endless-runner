@@ -118,6 +118,8 @@ namespace RingSport.Core
 
             LevelManager.Instance?.StartLevel();
             CameraStateMachine.Instance?.SetState(CameraStateType.Gameplay);
+
+            Debug.Log($"[GameManager] HandlePlayingState - About to start countdown. UIManager exists: {UIManager.Instance != null}");
             UIManager.Instance?.StartCountdown(countdownDuration, OnCountdownComplete);
 
             // Note: Location audio is started by LevelManager.StartLevel() after level is generated

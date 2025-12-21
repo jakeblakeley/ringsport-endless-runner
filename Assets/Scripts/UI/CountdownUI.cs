@@ -22,10 +22,8 @@ namespace RingSport.UI
         private Coroutine countdownCoroutine;
         private Action onComplete;
 
-        private void Awake()
-        {
-            Hide();
-        }
+        // Note: Removed Awake() that called Hide() - this was interfering with UIManager's
+        // countdown system which directly manages this panel's active state.
 
         private void OnDisable()
         {

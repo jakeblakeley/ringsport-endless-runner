@@ -4,7 +4,6 @@ using TMPro;
 using RingSport.Level;
 using RingSport.UI;
 using System;
-using System.Collections;
 
 namespace RingSport.Core
 {
@@ -42,17 +41,13 @@ namespace RingSport.Core
         [SerializeField] private TextMeshProUGUI instructionText;
         [SerializeField] private Button startButton;
 
-        [Header("Countdown (Built-in)")]
-        [SerializeField] private GameObject countdownPanel;
-        [SerializeField] private TextMeshProUGUI countdownText;
+        [Header("Countdown Settings")]
         [SerializeField] private float countdownDuration = 3f;
-        [SerializeField] private string[] countdownNumbers = { "3", "2", "1" };
 
         private MiniLevelType currentMiniLevelType;
         private MiniLevelBase currentMiniLevelGame;
         private MiniLevelBase[] miniLevelGames;
         private bool isMiniLevelActive = false;
-        private Coroutine countdownCoroutine;
 
         public MiniLevelType CurrentMiniLevelType => currentMiniLevelType;
         public bool IsMiniLevelActive => isMiniLevelActive;
@@ -67,7 +62,6 @@ namespace RingSport.Core
 
             Instance = this;
             HideStartPanel();
-            HideCountdownPanel();
         }
 
         private void Start()
@@ -84,17 +78,6 @@ namespace RingSport.Core
         {
             if (startPanel != null)
                 startPanel.SetActive(false);
-        }
-
-        private void HideCountdownPanel()
-        {
-            if (countdownCoroutine != null)
-            {
-                StopCoroutine(countdownCoroutine);
-                countdownCoroutine = null;
-            }
-            if (countdownPanel != null)
-                countdownPanel.SetActive(false);
         }
 
         /// <summary>
@@ -135,49 +118,8 @@ namespace RingSport.Core
             // Hide start panel
             HideStartPanel();
 
-            // Stop UIManager's countdown if running (to prevent interference)
-            UIManager.Instance?.StopCountdown();
-
-            // Start built-in countdown
-            if (countdownCoroutine != null)
-                StopCoroutine(countdownCoroutine);
-
-            countdownCoroutine = StartCoroutine(CountdownRoutine());
-        }
-
-        private IEnumerator CountdownRoutine()
-        {
-            // Ensure game HUD is hidden during countdown
-            UIManager.Instance?.HideGameHUD();
-
-            // Show countdown panel
-            if (countdownPanel != null)
-                countdownPanel.SetActive(true);
-
-            float timePerNumber = countdownDuration / countdownNumbers.Length;
-            Debug.Log($"[MiniLevelManager] Countdown starting - {countdownNumbers.Length} numbers, {timePerNumber}s each");
-
-            for (int i = 0; i < countdownNumbers.Length; i++)
-            {
-                if (countdownText != null)
-                    countdownText.text = countdownNumbers[i];
-
-                float elapsed = 0f;
-                while (elapsed < timePerNumber)
-                {
-                    elapsed += Time.unscaledDeltaTime;
-                    yield return null;
-                }
-            }
-
-            Debug.Log("[MiniLevelManager] Countdown complete");
-            countdownCoroutine = null;
-            HideCountdownPanel();
-
-            // Ensure game HUD stays hidden during mini level
-            UIManager.Instance?.HideGameHUD();
-
-            OnCountdownComplete();
+            // Use UIManager's shared countdown
+            UIManager.Instance?.StartCountdown(countdownDuration, OnCountdownComplete);
         }
 
         private void OnCountdownComplete()
@@ -229,7 +171,7 @@ namespace RingSport.Core
 
             // Hide all mini level UI
             HideStartPanel();
-            HideCountdownPanel();
+            UIManager.Instance?.StopCountdown();
 
             currentMiniLevelGame = null;
 
@@ -255,7 +197,7 @@ namespace RingSport.Core
             isMiniLevelActive = false;
             currentMiniLevelGame = null;
             HideStartPanel();
-            HideCountdownPanel();
+            UIManager.Instance?.StopCountdown();
         }
 
         /// <summary>

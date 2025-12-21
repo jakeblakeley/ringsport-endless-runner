@@ -334,6 +334,8 @@ namespace RingSport.UI
 
         public void StartCountdown(float duration, Action onComplete)
         {
+            Debug.Log($"[UIManager] StartCountdown called. Duration: {duration}, Panel: {(countdownPanel != null ? countdownPanel.name : "NULL")}, Text: {(countdownText != null ? countdownText.name : "NULL")}");
+
             if (countdownPanel == null || countdownText == null)
             {
                 Debug.LogWarning("Countdown UI not assigned, skipping countdown");
@@ -343,9 +345,11 @@ namespace RingSport.UI
 
             if (countdownCoroutine != null)
             {
+                Debug.Log("[UIManager] Stopping existing countdown coroutine");
                 StopCoroutine(countdownCoroutine);
             }
 
+            Debug.Log("[UIManager] Starting countdown coroutine");
             countdownCoroutine = StartCoroutine(CountdownRoutine(duration, onComplete));
         }
 
@@ -368,7 +372,9 @@ namespace RingSport.UI
 
         private IEnumerator CountdownRoutine(float totalDuration, Action onComplete)
         {
+            Debug.Log($"[UIManager] CountdownRoutine started. Panel active before: {countdownPanel.activeSelf}, Parent active: {countdownPanel.transform.parent?.gameObject.activeInHierarchy ?? true}");
             countdownPanel.SetActive(true);
+            Debug.Log($"[UIManager] CountdownRoutine - Panel active after SetActive(true): {countdownPanel.activeSelf}, activeInHierarchy: {countdownPanel.activeInHierarchy}");
 
             float timePerNumber = totalDuration / countdownNumbers.Length;
 
