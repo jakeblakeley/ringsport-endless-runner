@@ -85,6 +85,13 @@ namespace RingSport.Core
         /// </summary>
         public void StartMiniLevel(MiniLevelType type)
         {
+            // If already in an active mini-level, reset it first
+            if (isMiniLevelActive && currentMiniLevelGame != null)
+            {
+                Debug.Log("[MiniLevelManager] Restarting mini-level - stopping current game first");
+                currentMiniLevelGame.StopGame();
+            }
+
             currentMiniLevelType = type;
             isMiniLevelActive = true;
 

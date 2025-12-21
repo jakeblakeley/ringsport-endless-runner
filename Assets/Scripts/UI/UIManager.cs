@@ -95,7 +95,7 @@ namespace RingSport.UI
                 homeButton.onClick.AddListener(OnReturnHomeButtonClicked);
         }
 
-        private void HideAllScreens()
+        public void HideAllScreens()
         {
             if (homeScreen != null) homeScreen.SetActive(false);
             if (gameHUD != null) gameHUD.SetActive(false);
@@ -285,13 +285,13 @@ namespace RingSport.UI
         public void UpdateScore(int score)
         {
             if (scoreText != null)
-                scoreText.text = $"Score: {score}";
+                scoreText.text = $"{score}";
         }
 
         public void UpdateLevel(int level)
         {
             if (levelText != null)
-                levelText.text = $"Level: {level}";
+                levelText.text = $"lvl {level}";
         }
 
         public void UpdateSprintBar(float fillAmount, bool isExhausted)
@@ -429,8 +429,20 @@ namespace RingSport.UI
 
         private void OnRetryButtonClicked()
         {
-            Debug.Log("[UIManager] OnRetryButtonClicked");
-            GameManager.Instance?.RestartLevel();
+            bool inMiniLevelContext = GameManager.Instance?.IsInMiniLevelContext ?? false;
+            Debug.Log($"[UIManager] OnRetryButtonClicked - IsInMiniLevelContext: {inMiniLevelContext}");
+
+            // Check if we're retrying from a mini-level failure
+            if (inMiniLevelContext)
+            {
+                Debug.Log("[UIManager] Retrying mini-level only");
+                GameManager.Instance?.RestartMiniLevel();
+            }
+            else
+            {
+                Debug.Log("[UIManager] Retrying full level");
+                GameManager.Instance?.RestartLevel();
+            }
         }
     }
 }

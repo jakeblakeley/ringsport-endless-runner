@@ -20,10 +20,13 @@ namespace RingSport.Core
 
         [SerializeField] private GameState currentState = GameState.Home;
 
+        private bool isInMiniLevelContext = false;
+
         [Header("Countdown Settings")]
         [SerializeField] private float countdownDuration = 3f;
 
         public GameState CurrentState => currentState;
+        public bool IsInMiniLevelContext => isInMiniLevelContext;
 
         [Header("Audio Settings")]
         [SerializeField] private AudioClip gameOverSound;
@@ -108,6 +111,7 @@ namespace RingSport.Core
         private void HandlePlayingState()
         {
             Time.timeScale = 0f;
+            isInMiniLevelContext = false;
             UIManager.Instance?.ShowGameHUD();
 
             // Reset any paused states from previous game over (e.g., palisade minigame failure)
@@ -133,9 +137,12 @@ namespace RingSport.Core
         private void HandleMiniLevelState()
         {
             Time.timeScale = 0f;
+            isInMiniLevelContext = true;
 
-            // Hide the game HUD and stop any running countdown
-            UIManager.Instance?.HideGameHUD();
+            // Hide all UI screens (including game over screen if retrying)
+            UIManager.Instance?.HideAllScreens();
+
+            // Stop any running countdown
             UIManager.Instance?.StopCountdown();
 
             var player = Object.FindAnyObjectByType<PlayerController>();
@@ -200,6 +207,7 @@ namespace RingSport.Core
         private void HandleGameOverState()
         {
             Time.timeScale = 0f;
+            Debug.Log($"[GameManager] HandleGameOverState - isInMiniLevelContext: {isInMiniLevelContext}");
             UIManager.Instance?.ShowGameOver();
 
             // Stop location audio and play game over sound
@@ -225,6 +233,7 @@ namespace RingSport.Core
 
         public void RestartLevel()
         {
+            Debug.Log("[GameManager] RestartLevel called");
             // Finalize score from the failed attempt before restarting
             ScoreManager.Instance?.FinalizeLevelScore();
             SetState(GameState.Playing);
@@ -261,6 +270,33 @@ namespace RingSport.Core
             }
 
             SetState(GameState.GameOver);
+        }
+
+        /// <summary>
+        /// Called when player fails a mini-level. Consumes a retry and shows game over.
+        /// </summary>
+        public void TriggerMiniLevelGameOver()
+        {
+            Debug.Log($"[GameManager] TriggerMiniLevelGameOver called - isInMiniLevelContext before: {isInMiniLevelContext}");
+
+            // Consume a retry when the player fails mini-level
+            if (LevelManager.Instance != null)
+            {
+                LevelManager.Instance.UseRetry();
+            }
+
+            // Keep the mini-level context flag so retry knows to restart mini-level
+            SetState(GameState.GameOver);
+        }
+
+        /// <summary>
+        /// Restarts the current mini-level (does not restart the running section)
+        /// </summary>
+        public void RestartMiniLevel()
+        {
+            Debug.Log("[GameManager] RestartMiniLevel called");
+            // Does NOT finalize score - player keeps their running section score
+            SetState(GameState.MiniLevel);
         }
 
         /// <summary>
