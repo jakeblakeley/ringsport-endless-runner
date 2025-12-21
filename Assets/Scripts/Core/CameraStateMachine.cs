@@ -7,7 +7,8 @@ namespace RingSport.Core
     {
         Start,
         Gameplay,
-        Bite
+        Bite,
+        MiniLevel
     }
 
     [System.Serializable]
@@ -50,6 +51,15 @@ namespace RingSport.Core
         [SerializeField] private CameraStateData biteState = new CameraStateData
         {
             stateName = "Bite State",
+            cameraLocalPosition = new Vector3(0f, 4f, 6f),
+            cameraLocalRotation = new Vector3(35f, 0f, 0f),
+            parentRotation = Vector3.zero,
+            transitionDuration = 0.5f
+        };
+
+        [SerializeField] private CameraStateData miniLevelState = new CameraStateData
+        {
+            stateName = "Mini Level State",
             cameraLocalPosition = new Vector3(0f, 4f, 6f),
             cameraLocalRotation = new Vector3(35f, 0f, 0f),
             parentRotation = Vector3.zero,
@@ -102,6 +112,7 @@ namespace RingSport.Core
                 CameraStateType.Start => startState,
                 CameraStateType.Gameplay => gameplayState,
                 CameraStateType.Bite => biteState,
+                CameraStateType.MiniLevel => miniLevelState,
                 _ => startState
             };
         }

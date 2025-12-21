@@ -125,6 +125,9 @@ namespace RingSport.Core
             // Hide start panel
             HideStartPanel();
 
+            // Call prepare hook on the mini level (for camera setup, etc.)
+            currentMiniLevelGame?.OnPrepareGame();
+
             // Use UIManager's shared countdown
             UIManager.Instance?.StartCountdown(countdownDuration, OnCountdownComplete);
         }

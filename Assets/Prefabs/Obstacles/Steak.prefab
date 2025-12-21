@@ -12,10 +12,10 @@ GameObject:
   - component: {fileID: 1185538204252555201}
   - component: {fileID: 766504287578057103}
   - component: {fileID: 3179069766797789073}
-  - component: {fileID: 1569191493958458239}
-  - component: {fileID: -699487935147426659}
+  - component: {fileID: -3448687903923848687}
+  - component: {fileID: -4056593948498189634}
   m_Layer: 0
-  m_Name: Pylon
+  m_Name: Steak
   m_TagString: Obstacle
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -31,7 +31,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1.5, z: 1}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -113,7 +113,7 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1569191493958458239
+--- !u!114 &-3448687903923848687
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -122,20 +122,33 @@ MonoBehaviour:
   m_GameObject: {fileID: 8386552170060634674}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6c84915303bd24bbe9c1492e9d4a82ac, type: 3}
+  m_Script: {fileID: 11500000, guid: 5b6d790476095436ca9bfe191caf8977, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.Obstacle
-  obstacleType: 0
-  jumpHeightThreshold: 1.5
---- !u!114 &-699487935147426659
-MonoBehaviour:
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.FoodRefusalFallingObject
+--- !u!54 &-4056593948498189634
+Rigidbody:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8386552170060634674}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f92761b0e9ef74b5189be54ab9997f10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.ScrollableObject
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 1
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0

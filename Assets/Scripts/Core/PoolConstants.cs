@@ -12,6 +12,9 @@ namespace RingSport.Core
         public const string ObstaclePylon = "ObstaclePylon";
         public const string ObstacleBroadJump = "ObstacleBroadJump";
 
+        // Mini-level specific pool tags
+        public const string FoodRefusalSteak = "FoodRefusalSteak";
+
         // Collectible pool tags
         public const string Collectible = "Collectible";
         public const string MegaCollectible = "MegaCollectible";

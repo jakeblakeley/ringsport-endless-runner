@@ -17,6 +17,15 @@ namespace RingSport.UI
         public abstract MiniLevelType MiniLevelType { get; }
 
         /// <summary>
+        /// Called when user clicks start button, before countdown begins.
+        /// Override to set up camera, UI, etc.
+        /// </summary>
+        public virtual void OnPrepareGame()
+        {
+            // Default: do nothing
+        }
+
+        /// <summary>
         /// Called when this mini level should start (after countdown)
         /// </summary>
         public abstract void StartGame();

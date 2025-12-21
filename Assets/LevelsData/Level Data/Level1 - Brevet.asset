@@ -13,11 +13,11 @@ MonoBehaviour:
   m_Name: Level1 - Brevet
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelConfig
   levelNumber: 1
-  levelDuration: 15
+  levelDuration: 8
   levelName: Brevet
   location: 0
   locationConfig: {fileID: 11400000, guid: 7252f75e62b7b4004bbcea2cdc15ffc3, type: 2}
-  startScenePrefab: {fileID: 6597666518565425093, guid: c5f4376fc6bab441aa80f3a5e9dd161b, type: 3}
+  miniLevelType: 4
   maxObstacles: 30
   minObstacleSpacing: 12
   maxObstacleSpacing: 20

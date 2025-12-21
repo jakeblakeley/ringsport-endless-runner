@@ -18,11 +18,13 @@ namespace RingSport.Core
         private int currentLevel = 1;           // Current level being played
         private int highScore = 0;              // Best total score ever (persisted via PlayerPrefs)
         private bool achievedNewHighScore = false; // Track if a new high score was achieved this run
+        private int miniLevelScore = 0;         // Score earned specifically during current mini-level
 
         // Public properties for read-only access
         public int CurrentScore => currentScore;
         public int TotalScore => CalculateTotalScore();
         public int HighScore => highScore;
+        public int MiniLevelScore => miniLevelScore;
 
         private void Awake()
         {
@@ -45,6 +47,39 @@ namespace RingSport.Core
         {
             currentScore += points;
             Debug.Log($"[ScoreManager] Added {points} points. Level {currentLevel} current score: {currentScore}, Total run score: {TotalScore}");
+        }
+
+        /// <summary>
+        /// Starts tracking score specifically for a mini-level.
+        /// Call at the start of a mini-level.
+        /// </summary>
+        public void StartMiniLevelScoring()
+        {
+            miniLevelScore = 0;
+            Debug.Log("[ScoreManager] Mini-level scoring started");
+        }
+
+        /// <summary>
+        /// Adds points to mini-level score AND current score.
+        /// Use during mini-level gameplay.
+        /// </summary>
+        public void AddMiniLevelScore(int points)
+        {
+            miniLevelScore += points;
+            currentScore += points;
+            Debug.Log($"[ScoreManager] Added {points} mini-level points. Mini-level: {miniLevelScore}, Level total: {currentScore}");
+        }
+
+        /// <summary>
+        /// Resets only the mini-level score (for game over within mini-level).
+        /// Subtracts mini-level score from current score.
+        /// </summary>
+        public void ResetMiniLevelScore()
+        {
+            currentScore -= miniLevelScore;
+            currentScore = Mathf.Max(0, currentScore);
+            Debug.Log($"[ScoreManager] Mini-level score reset. Removed {miniLevelScore} points. Level score now: {currentScore}");
+            miniLevelScore = 0;
         }
 
         /// <summary>

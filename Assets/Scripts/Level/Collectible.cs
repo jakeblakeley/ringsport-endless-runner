@@ -34,6 +34,10 @@ namespace RingSport.Level
 
         private void OnTriggerEnter(Collider other)
         {
+            // Skip if component is disabled (e.g., during mini-levels that handle collection differently)
+            if (!enabled)
+                return;
+
             Debug.Log($"Collectible triggered by: {other.name}, tag: {other.tag}");
 
             // Check if player collided with collectible

@@ -44,6 +44,10 @@ namespace RingSport.Level
 
         private void OnTriggerEnter(Collider other)
         {
+            // Skip if component is disabled (e.g., during mini-levels that reuse obstacle prefabs)
+            if (!enabled)
+                return;
+
             // Prevent multiple triggers
             if (hasBeenTriggered)
                 return;

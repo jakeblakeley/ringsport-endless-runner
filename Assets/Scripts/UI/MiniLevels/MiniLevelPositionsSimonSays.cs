@@ -179,7 +179,7 @@ namespace RingSport.UI
             SetButtonsInteractable(false);
 
             // Initial pause before showing
-            UpdateText("Watch carefully...");
+            UpdateText("Watch carefully");
             yield return new WaitForSecondsRealtime(1f);
 
             for (int i = 0; i < currentSequence.Count; i++)

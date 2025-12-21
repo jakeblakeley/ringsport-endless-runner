@@ -185,17 +185,26 @@ namespace RingSport.Player
             // Handle footsteps regardless of game state (so it can stop when not playing)
             HandleFootsteps();
 
-            if (gameManager?.CurrentState != GameState.Playing || isMovementPaused)
+            // Allow movement during Playing and MiniLevel states
+            bool isValidState = gameManager?.CurrentState == GameState.Playing ||
+                               gameManager?.CurrentState == GameState.MiniLevel;
+
+            if (!isValidState || isMovementPaused)
                 return;
 
+            // Use unscaled delta time during mini-levels (TimeScale may be 0)
+            float deltaTime = gameManager?.CurrentState == GameState.MiniLevel
+                ? Time.unscaledDeltaTime
+                : Time.deltaTime;
+
             HandleGroundCheck();
-            HandleLaneMovement();
-            HandleGravity();
-            staminaSystem.Update(Time.deltaTime); // Delegate to stamina system
+            HandleLaneMovement(deltaTime);
+            HandleGravity(deltaTime);
+            staminaSystem.Update(deltaTime); // Delegate to stamina system
 
             // Only move in X (lanes) and Y (jump/gravity), not Z
             Vector3 movement = new Vector3(velocity.x, velocity.y, 0f);
-            characterController.Move(movement * Time.deltaTime);
+            characterController.Move(movement * deltaTime);
 
             // Reset X velocity after moving
             velocity.x = 0f;
@@ -217,7 +226,7 @@ namespace RingSport.Player
             }
         }
 
-        private void HandleLaneMovement()
+        private void HandleLaneMovement(float deltaTime)
         {
             // Read input from keyboard/gamepad
             Vector2 moveInput = moveAction.ReadValue<Vector2>();
@@ -233,30 +242,30 @@ namespace RingSport.Player
             }
 
             // Discrete lane switching with cooldown
-            if (Time.time - lastInputTime > inputCooldown)
+            if (Time.unscaledTime - lastInputTime > inputCooldown)
             {
                 if (moveInput.x > 0.5f && currentLane < 1)
                 {
                     currentLane++;
                     targetLaneX = currentLane * laneDistance;
-                    lastInputTime = Time.time;
+                    lastInputTime = Time.unscaledTime;
                 }
                 else if (moveInput.x < -0.5f && currentLane > -1)
                 {
                     currentLane--;
                     targetLaneX = currentLane * laneDistance;
-                    lastInputTime = Time.time;
+                    lastInputTime = Time.unscaledTime;
                 }
             }
 
             // Smooth lane transition
             float currentX = transform.position.x;
-            float newX = Mathf.Lerp(currentX, targetLaneX, laneChangeSpeed * Time.deltaTime);
+            float newX = Mathf.Lerp(currentX, targetLaneX, laneChangeSpeed * deltaTime);
 
             // Prevent division by zero/very small deltaTime which can cause NaN
-            if (Time.deltaTime > 0.0001f)
+            if (deltaTime > 0.0001f)
             {
-                velocity.x = (newX - currentX) / Time.deltaTime;
+                velocity.x = (newX - currentX) / deltaTime;
             }
             else
             {
@@ -264,9 +273,9 @@ namespace RingSport.Player
             }
         }
 
-        private void HandleGravity()
+        private void HandleGravity(float deltaTime)
         {
-            velocity.y += gravity * Time.deltaTime;
+            velocity.y += gravity * deltaTime;
         }
 
         private void HandleFootsteps()
