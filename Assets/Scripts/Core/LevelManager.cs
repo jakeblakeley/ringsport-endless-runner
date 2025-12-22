@@ -31,12 +31,14 @@ namespace RingSport.Core
         private bool hasCalledLevelEnding = false; // Track if we've already called OnLevelEnding
         private bool hasReachedFinishLine = false; // Track if player has reached finish line
         private int retriesRemaining = 3;
+        private float partialRetries = 0f; // Track partial lives (0.5 increments)
 
         public int CurrentLevel => currentLevel;
         public int MaxLevels => maxLevels;
         public float LevelProgress => currentLevelConfig != null ? Mathf.Clamp01(levelTimer / currentLevelConfig.LevelDuration) : 0f;
         public float DistanceTraveled => distanceTraveled;
         public int RetriesRemaining => retriesRemaining;
+        public float TotalRetries => retriesRemaining + partialRetries;
 
         private void Awake()
         {
@@ -96,6 +98,12 @@ namespace RingSport.Core
                 return;
             }
 
+            // Update HUD with level name now that config is loaded
+            string levelName = !string.IsNullOrEmpty(currentLevelConfig.LevelName)
+                ? currentLevelConfig.LevelName
+                : $"Level {currentLevel}";
+            UIManager.Instance?.UpdateLevel(levelName);
+
             // Start location-specific audio (music and ambient)
             if (currentLevelConfig.LocationConfig != null)
             {
@@ -141,7 +149,7 @@ namespace RingSport.Core
         public void AddScore(int points)
         {
             ScoreManager.Instance?.AddScore(points);
-            UIManager.Instance?.UpdateScore(ScoreManager.Instance?.CurrentScore ?? 0);
+            UIManager.Instance?.UpdateScore(ScoreManager.Instance?.DisplayScore ?? 0);
         }
 
         public void PlayCollectSound(AudioClip clip)
@@ -188,6 +196,7 @@ namespace RingSport.Core
             distanceTraveled = 0f;
             currentLevelConfig = null;
             retriesRemaining = maxRetries;
+            partialRetries = 0f;
             Debug.Log($"[LevelManager] Progress reset. Retries reset to {retriesRemaining}");
         }
 
@@ -197,6 +206,9 @@ namespace RingSport.Core
             {
                 retriesRemaining--;
                 Debug.Log($"[LevelManager] Death occurred. Retry consumed. Retries remaining: {retriesRemaining}");
+
+                // Update lives UI
+                UIManager.Instance?.UpdateLives(TotalRetries);
 
                 // If this was the last retry, save high score before showing game over
                 if (retriesRemaining == 0)
@@ -211,6 +223,25 @@ namespace RingSport.Core
             Debug.Log("[LevelManager] Death occurred but out of retries!");
             ScoreManager.Instance?.CheckAndSaveHighScore();
             return false;
+        }
+
+        /// <summary>
+        /// Add a partial retry (e.g., 0.5 from life pickup). Converts to full retry when >= 1.0
+        /// </summary>
+        public void AddPartialRetry(float amount)
+        {
+            partialRetries += amount;
+
+            // Convert to full retry when we have enough
+            while (partialRetries >= 1f)
+            {
+                partialRetries -= 1f;
+                retriesRemaining++;
+                Debug.Log($"[LevelManager] Gained a full retry! Retries: {retriesRemaining}");
+            }
+
+            Debug.Log($"[LevelManager] Added {amount} partial retry. Total: {TotalRetries}");
+            UIManager.Instance?.UpdateLives(TotalRetries);
         }
 
         public float GetLevelDuration()

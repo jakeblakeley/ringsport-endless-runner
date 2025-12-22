@@ -17,7 +17,7 @@ MonoBehaviour:
   levelName: Ring 3 Finale
   location: 3
   locationConfig: {fileID: 11400000, guid: cf0713b2ba640424dabef93c14a455ff, type: 2}
-  startScenePrefab: {fileID: 6597666518565425093, guid: c5f4376fc6bab441aa80f3a5e9dd161b, type: 3}
+  miniLevelType: 3
   maxObstacles: 40
   minObstacleSpacing: 5
   maxObstacleSpacing: 11

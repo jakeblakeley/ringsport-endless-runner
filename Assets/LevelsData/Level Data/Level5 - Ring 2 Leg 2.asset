@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LevelConfig
   levelNumber: 5
   levelDuration: 90
-  levelName: Ring 2 Leg 2
+  levelName: Ring 2 -1
   location: 0
   locationConfig: {fileID: 11400000, guid: 7252f75e62b7b4004bbcea2cdc15ffc3, type: 2}
-  startScenePrefab: {fileID: 6597666518565425093, guid: c5f4376fc6bab441aa80f3a5e9dd161b, type: 3}
+  miniLevelType: 1
   maxObstacles: 40
   minObstacleSpacing: 8
   maxObstacleSpacing: 14

@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 using RingSport.Core;
 using RingSport.Player;
+using RingSport.Level;
 using System;
 using System.Collections;
 
@@ -25,6 +26,7 @@ namespace RingSport.UI
         [Header("Game HUD")]
         [SerializeField] private TextMeshProUGUI scoreText;
         [SerializeField] private TextMeshProUGUI levelText;
+        [SerializeField] private TextMeshProUGUI livesText;
         [SerializeField] private Image sprintBarFill;
         [SerializeField] private RectTransform sprintBarFillRect;
         [SerializeField] private Color sprintBarNormalColor = new Color(0.29f, 0.56f, 0.89f, 1f); // Blue
@@ -47,6 +49,7 @@ namespace RingSport.UI
         [SerializeField] private TextMeshProUGUI gameOverText;
         [SerializeField] private TextMeshProUGUI gameOverTotalScoreText;
         [SerializeField] private TextMeshProUGUI gameOverHighScoreText;
+        [SerializeField] private TextMeshProUGUI gameOverLivesText;
         [SerializeField] private GameObject gameOverNewHighScoreIndicator;
         [SerializeField] private Button homeButton;
 
@@ -126,8 +129,16 @@ namespace RingSport.UI
             if (gameHUD != null)
             {
                 gameHUD.SetActive(true);
-                UpdateScore(0);
-                UpdateLevel(LevelManager.Instance?.CurrentLevel ?? 1);
+                UpdateScore(ScoreManager.Instance?.DisplayScore ?? 0);
+
+                // Get level name from config, fallback to "Level X" format
+                var levelConfig = LevelGenerator.Instance?.GetCurrentConfig();
+                string levelName = !string.IsNullOrEmpty(levelConfig?.LevelName)
+                    ? levelConfig.LevelName
+                    : $"Level {LevelManager.Instance?.CurrentLevel ?? 1}";
+                UpdateLevel(levelName);
+
+                UpdateLives(LevelManager.Instance?.TotalRetries ?? 3f);
                 UpdateSprintBar(1f, false); // Reset sprint bar to full
             }
         }
@@ -168,8 +179,9 @@ namespace RingSport.UI
                     // }
                 }
 
+                // Hide level score - only show total
                 if (rewardScoreText != null)
-                    rewardScoreText.text = $"Level Score: {score}";
+                    rewardScoreText.gameObject.SetActive(false);
 
                 // Display next level information
                 if (nextLevelNameText != null)
@@ -198,7 +210,7 @@ namespace RingSport.UI
                     Debug.Log($"[UIManager] RewardScreen - Total: {totalScore}, High: {highScore}, IsNew: {isNewHighScore}");
 
                     if (rewardTotalScoreText != null)
-                        rewardTotalScoreText.text = $"Total: {totalScore}";
+                        rewardTotalScoreText.text = $"{totalScore}";
 
                     if (rewardHighScoreText != null)
                         rewardHighScoreText.text = $"High Score: {highScore}";
@@ -224,17 +236,33 @@ namespace RingSport.UI
             {
                 gameOverScreen.SetActive(true);
 
-                // Check if player has retries remaining (retry was already consumed in TriggerGameOver)
-                bool hasRetries = LevelManager.Instance != null && LevelManager.Instance.RetriesRemaining > 0;
+                // Check if player has retries remaining (use floored TotalRetries)
+                int flooredRetries = LevelManager.Instance != null
+                    ? Mathf.FloorToInt(LevelManager.Instance.TotalRetries)
+                    : 0;
+                bool hasRetries = flooredRetries > 0;
+
+                // Update lives text on game over screen
+                if (gameOverLivesText != null && LevelManager.Instance != null)
+                {
+                    float lives = LevelManager.Instance.TotalRetries;
+                    if (lives == Mathf.Floor(lives))
+                        gameOverLivesText.text = $"{(int)lives}";
+                    else
+                        gameOverLivesText.text = $"{lives:F1}";
+                }
 
                 if (hasRetries)
                 {
-                    // Player still has retries - show retry button and hide game over text
+                    // Player still has retries - show retry button and "Try Again" text
                     if (retryButton != null)
                         retryButton.gameObject.SetActive(true);
 
                     if (gameOverText != null)
-                        gameOverText.gameObject.SetActive(false);
+                    {
+                        gameOverText.gameObject.SetActive(true);
+                        gameOverText.text = "Try Again";
+                    }
 
                     UpdateRetryButtonText();
                 }
@@ -247,6 +275,7 @@ namespace RingSport.UI
                     if (gameOverText != null)
                     {
                         gameOverText.gameObject.SetActive(true);
+                        gameOverText.text = "Game Over";
                     }
 
                     Debug.Log("[UIManager] Out of retries - showing Game Over message");
@@ -262,7 +291,7 @@ namespace RingSport.UI
                     Debug.Log($"[UIManager] GameOverScreen - Total: {totalScore}, High: {highScore}, IsNew: {isNewHighScore}, HasRetries: {hasRetries}");
 
                     if (gameOverTotalScoreText != null)
-                        gameOverTotalScoreText.text = $"Total Score: {totalScore}";
+                        gameOverTotalScoreText.text = $"{totalScore}";
 
                     if (gameOverHighScoreText != null)
                         gameOverHighScoreText.text = $"High Score: {highScore}";
@@ -288,10 +317,21 @@ namespace RingSport.UI
                 scoreText.text = $"{score}";
         }
 
-        public void UpdateLevel(int level)
+        public void UpdateLevel(string levelName)
         {
             if (levelText != null)
-                levelText.text = $"lvl {level}";
+                levelText.text = levelName;
+        }
+
+        public void UpdateLives(float lives)
+        {
+            if (livesText != null)
+            {
+                if (lives == Mathf.Floor(lives))
+                    livesText.text = $"{(int)lives}"; // No decimal for whole numbers
+                else
+                    livesText.text = $"{lives:F1}"; // Show one decimal place
+            }
         }
 
         public void UpdateSprintBar(float fillAmount, bool isExhausted)
@@ -312,9 +352,10 @@ namespace RingSport.UI
         {
             if (retryButtonText != null && LevelManager.Instance != null)
             {
-                int retriesLeft = LevelManager.Instance.RetriesRemaining;
-                retryButtonText.text = $"Retry ({retriesLeft} left)";
-                Debug.Log($"[UIManager] Retry button text updated: Retry ({retriesLeft} left)");
+                // Floor the total retries to show whole number (e.g., 4.5 -> 4)
+                int retriesLeft = Mathf.FloorToInt(LevelManager.Instance.TotalRetries);
+                retryButtonText.text = $"Retry ({retriesLeft})";
+                Debug.Log($"[UIManager] Retry button text updated: Retry ({retriesLeft})");
             }
         }
 

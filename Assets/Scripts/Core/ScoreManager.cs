@@ -26,6 +26,12 @@ namespace RingSport.Core
         public int HighScore => highScore;
         public int MiniLevelScore => miniLevelScore;
 
+        /// <summary>
+        /// Returns the running total for display during gameplay.
+        /// Includes previous levels' best scores + current level's active score.
+        /// </summary>
+        public int DisplayScore => CalculateDisplayScore();
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -135,6 +141,27 @@ namespace RingSport.Core
             {
                 total += levelBestScores[i];
             }
+            return total;
+        }
+
+        /// <summary>
+        /// Calculates display score for HUD during gameplay.
+        /// Sum of previous levels' best scores + current level's active score.
+        /// </summary>
+        private int CalculateDisplayScore()
+        {
+            int total = 0;
+            int currentLevelIndex = currentLevel - 1;
+
+            // Add best scores from all previous levels
+            for (int i = 0; i < currentLevelIndex && i < MAX_LEVELS; i++)
+            {
+                total += levelBestScores[i];
+            }
+
+            // Add current level's active score
+            total += currentScore;
+
             return total;
         }
 

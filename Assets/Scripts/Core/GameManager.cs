@@ -112,7 +112,6 @@ namespace RingSport.Core
         {
             Time.timeScale = 0f;
             isInMiniLevelContext = false;
-            UIManager.Instance?.ShowGameHUD();
 
             // Reset any paused states from previous game over (e.g., palisade minigame failure)
             LevelScroller.Instance?.Resume();
@@ -120,8 +119,12 @@ namespace RingSport.Core
             player?.ResetPosition();
             player?.ResumeMovement();
 
+            // Start level first (resets score) before showing HUD
             LevelManager.Instance?.StartLevel();
             CameraStateMachine.Instance?.SetState(CameraStateType.Gameplay);
+
+            // Show HUD after score is reset
+            UIManager.Instance?.ShowGameHUD();
 
             Debug.Log($"[GameManager] HandlePlayingState - About to start countdown. UIManager exists: {UIManager.Instance != null}");
             UIManager.Instance?.StartCountdown(countdownDuration, OnCountdownComplete);
@@ -138,6 +141,10 @@ namespace RingSport.Core
         {
             Time.timeScale = 0f;
             isInMiniLevelContext = true;
+
+            // Finalize the main level score before mini-level starts
+            // This ensures the running section score is saved even if player fails mini-level
+            ScoreManager.Instance?.FinalizeLevelScore();
 
             // Hide all UI screens (including game over screen if retrying)
             UIManager.Instance?.HideAllScreens();
