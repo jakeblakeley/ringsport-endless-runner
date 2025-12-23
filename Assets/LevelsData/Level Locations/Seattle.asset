@@ -18,11 +18,17 @@ MonoBehaviour:
   finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 44683ea439a6341d39827a153f18c8cb, type: 3}
   startScenePrefab: {fileID: 6597666518565425093, guid: c5f4376fc6bab441aa80f3a5e9dd161b, type: 3}
   sceneryPrefabs:
-  - {fileID: 8489945017951798651, guid: 343cfa8f68aea44b9a66e58c2d5b9b2b, type: 3}
-  - {fileID: 3331292244305782605, guid: 871d817582967485c92a690160bd0b8c, type: 3}
-  - {fileID: 7959957112906387362, guid: 9c87fb69122a44ce095879a44c40c6ee, type: 3}
-  - {fileID: 8957011775704472474, guid: ce856465627fc4dd28fca72d6673388a, type: 3}
-  - {fileID: 5411888475498954246, guid: 620aae177997e41f89ce877cded0fc29, type: 3}
+  - {fileID: 4492788140253398761, guid: b00a69ef2acea4945a83fa13de760647, type: 3}
+  - {fileID: 1583897355313174661, guid: 8506f40dab88e405593d2bef6f9546b2, type: 3}
+  - {fileID: 8260131909806661715, guid: d0283f82eea204f12a3928cdfe395449, type: 3}
+  - {fileID: 2846711779635017092, guid: 5897709c40fb641d684d602609d3ef4d, type: 3}
+  - {fileID: 3279313934634932801, guid: 7b0b3fa799dc04548a301be6b44f576b, type: 3}
+  - {fileID: 7862533027457598171, guid: 3d2ecc139b3134818980db6075e99ce7, type: 3}
+  - {fileID: 6576654555075860125, guid: c5f93acbb7b20429ba6e4cef93ded478, type: 3}
+  - {fileID: 7251943758774493481, guid: 5bd9d7ac246af411fb8eac6697fcf476, type: 3}
+  - {fileID: 6509933743064751742, guid: f6116005328aa4d7fb95e84ecf6777a2, type: 3}
+  - {fileID: 906591600361499829, guid: f632dc264a46a48b9b1ba5a4c1c21f11, type: 3}
+  - {fileID: 1487672732027152291, guid: da42aa724958b42a4a84968a2ad088b1, type: 3}
   minSceneryPerFloor: 1
   maxSceneryPerFloor: 5
   sceneryMinDistance: 1.5

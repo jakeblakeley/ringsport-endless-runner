@@ -1012,6 +1012,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!33 &309095766
 MeshFilter:
@@ -1476,14 +1477,14 @@ Light:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   m_Enabled: 1
-  serializedVersion: 11
+  serializedVersion: 12
   m_Type: 1
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_Intensity: 2
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
-  m_CookieSize: 10
+  m_CookieSize2D: {x: 10, y: 10}
   m_Shadows:
     m_Type: 2
     m_Resolution: -1
@@ -6239,6 +6240,7 @@ GameObject:
   - component: {fileID: 1536131756}
   - component: {fileID: 1536131755}
   - component: {fileID: 1536131754}
+  - component: {fileID: 1536131757}
   m_Layer: 0
   m_Name: Level
   m_TagString: Untagged
@@ -6364,6 +6366,24 @@ MonoBehaviour:
   - {fileID: 8300000, guid: d64599dc1d3994bc198d5674bc737abf, type: 3}
   - {fileID: 8300000, guid: 47470ec4cebd248e799ff87a39dc3a3e, type: 3}
   sfxVolume: 1
+--- !u!114 &1536131757
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1536131751}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4ca46c4de97a34856a5e2359746a66de, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.ArcEffectController
+  playerTransform: {fileID: 1473303864}
+  enableEffect: 1
+  useFixedYPosition: 0
+  fixedYPosition: 0
+  arcStrength: 15
+  arcDistance: 100
 --- !u!1 &1550134029
 GameObject:
   m_ObjectHideFlags: 0

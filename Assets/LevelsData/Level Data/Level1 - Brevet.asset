@@ -15,8 +15,8 @@ MonoBehaviour:
   levelNumber: 1
   levelDuration: 30
   levelName: Brevet
-  location: 0
-  locationConfig: {fileID: 11400000, guid: 7252f75e62b7b4004bbcea2cdc15ffc3, type: 2}
+  location: 1
+  locationConfig: {fileID: 11400000, guid: b4c9e701cacec4e67b8cf8cf8005d262, type: 2}
   miniLevelType: 4
   maxObstacles: 30
   minObstacleSpacing: 12
