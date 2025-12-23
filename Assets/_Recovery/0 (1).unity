@@ -15,9 +15,9 @@ RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 10
   m_Fog: 1
-  m_FogColor: {r: 0.53960484, g: 0.799732, b: 0.8113208, a: 1}
+  m_FogColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   m_FogMode: 3
-  m_FogDensity: 0.04
+  m_FogDensity: 0.02
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
   m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 2
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 2100000, guid: 4dfd11b20db5b45c5a3ae55bae6f81de, type: 2}
+  m_SkyboxMaterial: {fileID: -876546973899608171, guid: 3d532bc2d70158948859b7839127e562, type: 3}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -1109,13 +1109,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.2588191, y: 0, z: 0, w: 0.9659258}
+  m_LocalRotation: {x: 0.30070576, y: 0, z: 0, w: 0.953717}
   m_LocalPosition: {x: 0, y: 4, z: -5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1407882909}
-  m_LocalEulerAnglesHint: {x: 30, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 35, y: 0, z: 0}
 --- !u!114 &330585547
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1175,9 +1175,9 @@ MonoBehaviour:
   cameraRig: {fileID: 1407882909}
   startState:
     stateName: Start State
-    cameraLocalPosition: {x: -2, y: 2, z: -4}
+    cameraLocalPosition: {x: -2, y: 2, z: -5}
     cameraLocalRotation: {x: 15, y: 0, z: 0}
-    parentRotation: {x: 0, y: -60, z: 0}
+    parentRotation: {x: 0, y: -90, z: 0}
     transitionDuration: 1.5
     easingCurve:
       serializedVersion: 2
@@ -1205,7 +1205,7 @@ MonoBehaviour:
       m_RotationOrder: 4
   gameplayState:
     stateName: Gameplay State
-    cameraLocalPosition: {x: 0, y: 4, z: -5}
+    cameraLocalPosition: {x: 0, y: 4, z: -4}
     cameraLocalRotation: {x: 35, y: 0, z: 0}
     parentRotation: {x: 0, y: 0, z: 0}
     transitionDuration: 0.5
@@ -5904,10 +5904,10 @@ CharacterController:
   m_Enabled: 1
   serializedVersion: 3
   m_Height: 2
-  m_Radius: 0.65
+  m_Radius: 0.5
   m_SlopeLimit: 45
-  m_StepOffset: 0.4
-  m_SkinWidth: 0.1
+  m_StepOffset: 0.3
+  m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!4 &1473303864

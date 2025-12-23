@@ -13,7 +13,6 @@ GameObject:
   - component: {fileID: 5291406924880613791}
   - component: {fileID: 2248185024530465742}
   - component: {fileID: 8710062963971660466}
-  - component: {fileID: 1322570813659291459}
   m_Layer: 0
   m_Name: Arizona Floor Finish Line
   m_TagString: Floor
@@ -91,6 +90,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!114 &2248185024530465742
 MonoBehaviour:
@@ -116,24 +116,3 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 01dcfeaaf43a24b559880d8a40a98d5c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.FinishLineFloor
---- !u!65 &1322570813659291459
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1462051254498222346}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 10, y: 10, z: 10}
-  m_Center: {x: 0, y: 5, z: 0}
