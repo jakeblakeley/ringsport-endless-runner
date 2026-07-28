@@ -36,6 +36,7 @@ namespace RingSport.Player
 
         private Vector3 velocity;
         private bool isGrounded;
+        private bool isJumpEnabled = true;
         private float targetLaneX = 0f;
         private int currentLane = 0; // -1 = left, 0 = center, 1 = right
         private bool isMovementPaused = false;
@@ -332,6 +333,7 @@ namespace RingSport.Player
                 isRunning ? levelSpeedMultiplier : 1f,
                 Time.unscaledDeltaTime);
             playerAnimator.SetGrounded(isGrounded);
+            playerAnimator.SetVerticalVelocity(velocity.y);
         }
 
         private void HandleFootsteps()
@@ -377,7 +379,7 @@ namespace RingSport.Player
 
         private void TryJump()
         {
-            if (!isGrounded)
+            if (!isGrounded || !isJumpEnabled)
                 return;
 
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
@@ -432,11 +434,18 @@ namespace RingSport.Player
         {
         }
 
+        /// <summary>Mini-levels can disable jumping (e.g. Food Refusal is dodge-only).</summary>
+        public void SetJumpEnabled(bool enabled)
+        {
+            isJumpEnabled = enabled;
+        }
+
         public void ResetPosition()
         {
             currentLane = 0;
             targetLaneX = 0f;
             velocity = Vector3.zero;
+            isJumpEnabled = true;
 
             // Disable CharacterController to allow direct position change
             characterController.enabled = false;

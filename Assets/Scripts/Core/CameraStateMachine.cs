@@ -67,6 +67,8 @@ namespace RingSport.Core
         };
 
         private CameraStateType currentState;
+        private float currentDistanceScale = 1f;
+        private float currentHeightOffset = 0f;
         private Coroutine transitionCoroutine;
 
         public CameraStateType CurrentState => currentState;
@@ -91,18 +93,52 @@ namespace RingSport.Core
 
         public void SetState(CameraStateType newState)
         {
-            if (currentState == newState)
+            SetState(newState, 1f, 0f, null);
+        }
+
+        public void SetState(CameraStateType newState, float distanceScale)
+        {
+            SetState(newState, distanceScale, 0f, null);
+        }
+
+        /// <summary>
+        /// distanceScale scales the camera's offset from its rig (0.5 = twice as
+        /// close); heightOffset raises/lowers it after scaling; lookAtWorldPoint,
+        /// when given, aims the camera at that point instead of the state's
+        /// authored rotation (used by Simon Says for its low, close framing).
+        /// </summary>
+        public void SetState(CameraStateType newState, float distanceScale, float heightOffset, Vector3? lookAtWorldPoint)
+        {
+            if (currentState == newState &&
+                Mathf.Approximately(currentDistanceScale, distanceScale) &&
+                Mathf.Approximately(currentHeightOffset, heightOffset))
                 return;
 
             currentState = newState;
+            currentDistanceScale = distanceScale;
+            currentHeightOffset = heightOffset;
             CameraStateData targetState = GetStateData(newState);
+
+            Vector3 targetPos = targetState.cameraLocalPosition * distanceScale + Vector3.up * heightOffset;
+            Quaternion targetRot;
+            if (lookAtWorldPoint.HasValue)
+            {
+                Vector3 focusLocal = transform.parent != null
+                    ? transform.parent.InverseTransformPoint(lookAtWorldPoint.Value)
+                    : lookAtWorldPoint.Value;
+                targetRot = Quaternion.LookRotation(focusLocal - targetPos, Vector3.up);
+            }
+            else
+            {
+                targetRot = Quaternion.Euler(targetState.cameraLocalRotation);
+            }
 
             if (transitionCoroutine != null)
             {
                 StopCoroutine(transitionCoroutine);
             }
 
-            transitionCoroutine = StartCoroutine(TransitionToState(targetState));
+            transitionCoroutine = StartCoroutine(TransitionToState(targetState, targetPos, targetRot));
         }
 
         private CameraStateData GetStateData(CameraStateType stateType)
@@ -128,7 +164,7 @@ namespace RingSport.Core
             }
         }
 
-        private IEnumerator TransitionToState(CameraStateData targetState)
+        private IEnumerator TransitionToState(CameraStateData targetState, Vector3 targetPos, Quaternion targetRot)
         {
             float elapsed = 0f;
 
@@ -137,8 +173,6 @@ namespace RingSport.Core
             Quaternion startRot = transform.localRotation;
             Quaternion startParentRot = cameraRig != null ? cameraRig.localRotation : Quaternion.identity;
 
-            // Target values
-            Quaternion targetRot = Quaternion.Euler(targetState.cameraLocalRotation);
             Quaternion targetParentRot = Quaternion.Euler(targetState.parentRotation);
 
             while (elapsed < targetState.transitionDuration)
@@ -147,7 +181,7 @@ namespace RingSport.Core
                 float normalizedTime = elapsed / targetState.transitionDuration;
                 float t = targetState.easingCurve.Evaluate(normalizedTime);
 
-                transform.localPosition = Vector3.Lerp(startPos, targetState.cameraLocalPosition, t);
+                transform.localPosition = Vector3.Lerp(startPos, targetPos, t);
                 transform.localRotation = Quaternion.Slerp(startRot, targetRot, t);
 
                 if (cameraRig != null)
@@ -159,7 +193,12 @@ namespace RingSport.Core
             }
 
             // Snap to final values
-            ApplyStateImmediate(targetState);
+            transform.localPosition = targetPos;
+            transform.localRotation = targetRot;
+            if (cameraRig != null)
+            {
+                cameraRig.localRotation = targetParentRot;
+            }
             transitionCoroutine = null;
         }
     }

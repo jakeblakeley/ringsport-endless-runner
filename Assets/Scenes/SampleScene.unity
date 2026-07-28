@@ -2472,6 +2472,9 @@ MonoBehaviour:
   correctFeedbackTime: 0.3
   roundTransitionTime: 1
   sequenceLengths: 030000000400000005000000
+  cameraDistanceScale: 0.5
+  cameraHeightOffset: -1.2
+  cameraFocusHeight: -0.5
 --- !u!1 &744715060
 GameObject:
   m_ObjectHideFlags: 0
@@ -8762,7 +8765,15 @@ PrefabInstance:
       objectReference: {fileID: 1812892444}
     - target: {fileID: 5002363387524724947, guid: 2e0529c7222854964892449570717587, type: 3}
       propertyPath: dodgeTiltAngle
-      value: 20
+      value: 15
+      objectReference: {fileID: 0}
+    - target: {fileID: 5002363387524724947, guid: 2e0529c7222854964892449570717587, type: 3}
+      propertyPath: dodgeTurnAngle
+      value: 50
+      objectReference: {fileID: 0}
+    - target: {fileID: 5002363387524724947, guid: 2e0529c7222854964892449570717587, type: 3}
+      propertyPath: dodgeHopPitchAngle
+      value: 8
       objectReference: {fileID: 0}
     - target: {fileID: 6763137185193338098, guid: 2e0529c7222854964892449570717587, type: 3}
       propertyPath: m_LocalPosition.x

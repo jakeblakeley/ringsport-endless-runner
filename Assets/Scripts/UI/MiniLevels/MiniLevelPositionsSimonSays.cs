@@ -37,6 +37,14 @@ namespace RingSport.UI
         [Header("Round Configuration")]
         [SerializeField] private int[] sequenceLengths = { 3, 4, 5 };
 
+        [Header("Camera Framing")]
+        [Tooltip("Scale on the mini-level camera's distance from its rig - 0.5 = twice as close.")]
+        [SerializeField] private float cameraDistanceScale = 0.5f;
+        [Tooltip("Lowers the camera after scaling; the look-at keeps the dog centered.")]
+        [SerializeField] private float cameraHeightOffset = -1.2f;
+        [Tooltip("Aim point height relative to the player pivot (pivot sits ~1m above the ground; -0.5 aims at the dog's chest).")]
+        [SerializeField] private float cameraFocusHeight = -0.5f;
+
         private readonly string[] positions = { "Sit", "Down", "Stand" };
 
         private GamePhase currentPhase = GamePhase.Idle;
@@ -63,6 +71,22 @@ namespace RingSport.UI
 
             if (standButton != null)
                 standButton.onClick.AddListener(() => OnPositionButtonClicked("Stand"));
+        }
+
+        public override void OnPrepareGame()
+        {
+            Debug.Log("[MiniLevelPositionsSimonSays] Preparing game - setting camera to MiniLevel state (close + low)");
+            player = Object.FindAnyObjectByType<PlayerController>();
+
+            // Same straight-on framing as Food Refusal but closer and lower,
+            // aimed at the dog so it stays centered
+            Vector3? focus = player != null
+                ? player.transform.position + Vector3.up * cameraFocusHeight
+                : (Vector3?)null;
+            CameraStateMachine.Instance?.SetState(CameraStateType.MiniLevel, cameraDistanceScale, cameraHeightOffset, focus);
+
+            // Dog turns around to face the mini-level camera
+            player?.Animations?.SetFacing(true);
         }
 
         public override void StartGame()
@@ -98,6 +122,8 @@ namespace RingSport.UI
 
             currentPhase = GamePhase.Idle;
             SetDogPose("Stand");
+            // The dog's camera-facing is NOT reset here - on failure it stays
+            // toward the camera for the retry; success turns it back explicitly
             HidePanel();
         }
 
@@ -183,6 +209,10 @@ namespace RingSport.UI
             Debug.Log("[MiniLevelPositionsSimonSays] All rounds complete!");
             UpdateText("Well Done!");
             SetDogPose("Stand");
+
+            // Success - turn back away from the camera before the next level
+            player?.Animations?.SetFacing(false);
+
             yield return new WaitForSecondsRealtime(1f);
 
             HidePanel();

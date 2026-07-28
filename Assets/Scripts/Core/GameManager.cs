@@ -21,6 +21,7 @@ namespace RingSport.Core
         [SerializeField] private GameState currentState = GameState.Home;
 
         private bool isInMiniLevelContext = false;
+        private GameState previousState;
 
         [Header("Countdown Settings")]
         [SerializeField] private float countdownDuration = 3f;
@@ -89,6 +90,7 @@ namespace RingSport.Core
 
         public void SetState(GameState newState)
         {
+            previousState = currentState;
             currentState = newState;
 
             switch (newState)
@@ -117,6 +119,7 @@ namespace RingSport.Core
             debugMiniLevelOverride = null;
 #endif
             Time.timeScale = 1f;
+            Object.FindAnyObjectByType<PlayerController>()?.Animations?.SetFacing(false);
             UIManager.Instance?.ShowHomeScreen();
             CameraStateMachine.Instance?.SetState(CameraStateType.Start);
 
@@ -140,6 +143,9 @@ namespace RingSport.Core
             var player = Object.FindAnyObjectByType<PlayerController>();
             player?.ResetPosition();
             player?.ResumeMovement();
+            // Running levels always face forward (facing persists through resets
+            // so mini-level retries can keep the dog toward the camera)
+            player?.Animations?.SetFacing(false);
 
             // Start level first (resets score) before showing HUD
             LevelManager.Instance?.StartLevel();
@@ -177,7 +183,13 @@ namespace RingSport.Core
             var player = Object.FindAnyObjectByType<PlayerController>();
             player?.ResetPosition();
 
-            CameraStateMachine.Instance?.SetState(CameraStateType.Start);
+            // On a mini-level retry (coming from game over) the mini-level camera
+            // and the dog's camera-facing are already in place - the camera move,
+            // turn-around and start panel only appear on the first entry; the
+            // retry click stands in for the start click
+            bool isRetry = previousState == GameState.GameOver;
+            if (!isRetry)
+                CameraStateMachine.Instance?.SetState(CameraStateType.Start);
 
             // Stop location audio during mini level
             StopLocationAudio();
@@ -185,7 +197,7 @@ namespace RingSport.Core
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (debugMiniLevelOverride.HasValue)
             {
-                MiniLevelManager.Instance?.StartMiniLevel(debugMiniLevelOverride.Value);
+                MiniLevelManager.Instance?.StartMiniLevel(debugMiniLevelOverride.Value, isRetry);
                 return;
             }
 #endif
@@ -194,7 +206,7 @@ namespace RingSport.Core
             LevelConfig currentConfig = LevelGenerator.Instance?.GetCurrentConfig();
             if (currentConfig != null)
             {
-                MiniLevelManager.Instance?.StartMiniLevel(currentConfig.MiniLevelType);
+                MiniLevelManager.Instance?.StartMiniLevel(currentConfig.MiniLevelType, isRetry);
             }
             else
             {

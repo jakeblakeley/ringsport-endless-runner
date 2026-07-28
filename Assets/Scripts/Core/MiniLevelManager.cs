@@ -81,9 +81,11 @@ namespace RingSport.Core
         }
 
         /// <summary>
-        /// Starts a mini level of the specified type
+        /// Starts a mini level of the specified type. When skipStartPanel is true
+        /// (retry after a failure) the instructions panel is skipped and the
+        /// countdown begins immediately - the retry click stands in for Start.
         /// </summary>
-        public void StartMiniLevel(MiniLevelType type)
+        public void StartMiniLevel(MiniLevelType type, bool skipStartPanel = false)
         {
             // If already in an active mini-level, reset it first
             if (isMiniLevelActive && currentMiniLevelGame != null)
@@ -98,10 +100,17 @@ namespace RingSport.Core
             // Find the game script for this type
             currentMiniLevelGame = GetMiniLevelGame(type);
 
-            Debug.Log($"[MiniLevelManager] Starting mini level: {type}");
+            Debug.Log($"[MiniLevelManager] Starting mini level: {type} (skipStartPanel: {skipStartPanel})");
 
             // Ensure game HUD is hidden during mini level
             UIManager.Instance?.HideGameHUD();
+
+            if (skipStartPanel)
+            {
+                HideStartPanel();
+                BeginMiniLevel();
+                return;
+            }
 
             // Set title and instructions from mini level config
             if (titleText != null)
@@ -125,6 +134,11 @@ namespace RingSport.Core
             // Hide start panel
             HideStartPanel();
 
+            BeginMiniLevel();
+        }
+
+        private void BeginMiniLevel()
+        {
             // Call prepare hook on the mini level (for camera setup, etc.)
             currentMiniLevelGame?.OnPrepareGame();
 

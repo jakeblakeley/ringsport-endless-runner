@@ -20,7 +20,7 @@ namespace RingSport.Editor
     public static class DogPlayerSetup
     {
         // Bump to make the auto-run rebuild the controller after changing this script
-        private const int SetupVersion = 10;
+        private const int SetupVersion = 13;
         private const string VersionPrefKey = "RingSport.DogPlayerSetup.Version";
 
         private const string DogName = "Dog Model";
@@ -572,11 +572,28 @@ namespace RingSport.Editor
             var so = new SerializedObject(playerAnimator);
             so.FindProperty("animator").objectReferenceValue = animator;
 
-            // One-time migration: the tilt default moved 12 -> 20; update only if
-            // the serialized value is still the old default (respect user tweaks)
+            // One-time migrations from stale defaults (respect user tweaks).
+            // v13 rebalance: the envelope math previously capped weights at ~0.4
+            // (Mathf.SmoothStep misuse); with the fixed curves reaching 1.0 the
+            // angles come DOWN so the on-screen result stays near what was tuned
             var tiltProp = so.FindProperty("dodgeTiltAngle");
-            if (tiltProp != null && Mathf.Approximately(tiltProp.floatValue, 12f))
-                tiltProp.floatValue = 20f;
+            if (tiltProp != null && (Mathf.Approximately(tiltProp.floatValue, 12f) ||
+                                     Mathf.Approximately(tiltProp.floatValue, 20f) ||
+                                     Mathf.Approximately(tiltProp.floatValue, 28f)))
+                tiltProp.floatValue = 15f;
+
+            var hopPitchProp = so.FindProperty("dodgeHopPitchAngle");
+            if (hopPitchProp != null && Mathf.Approximately(hopPitchProp.floatValue, 18f))
+                hopPitchProp.floatValue = 8f;
+
+            // Changing a [SerializeField] C# default does NOT reach a scene
+            // instance that's already open - domain reload restores the live
+            // value - so the turn angle must be written explicitly (stale
+            // defaults 60/90 -> 50; a hand-tweaked value is left alone)
+            var turnProp = so.FindProperty("dodgeTurnAngle");
+            if (turnProp != null && (Mathf.Approximately(turnProp.floatValue, 60f) ||
+                                     Mathf.Approximately(turnProp.floatValue, 90f)))
+                turnProp.floatValue = 50f;
 
             so.ApplyModifiedPropertiesWithoutUndo();
         }

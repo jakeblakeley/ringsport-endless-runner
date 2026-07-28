@@ -61,6 +61,10 @@ namespace RingSport.UI
         {
             Debug.Log("[MiniLevelFoodRefusal] Preparing game - setting camera to MiniLevel state");
             CameraStateMachine.Instance?.SetState(CameraStateType.MiniLevel);
+
+            // Dog turns around to face the straight-on mini-level camera
+            playerController = Object.FindAnyObjectByType<PlayerController>();
+            playerController?.Animations?.SetFacing(true);
         }
 
         public override void StartGame()
@@ -85,6 +89,8 @@ namespace RingSport.UI
             {
                 playerZPosition = playerController.transform.position.z;
                 playerController.ResumeMovement();
+                // Dodge-only mini game - no jumping over the steaks
+                playerController.SetJumpEnabled(false);
                 Debug.Log($"[MiniLevelFoodRefusal] Player found at Z={playerZPosition}");
             }
             else
@@ -106,6 +112,11 @@ namespace RingSport.UI
             Debug.Log("[MiniLevelFoodRefusal] Stopping game...");
 
             isGameRunning = false;
+
+            // Reinstate jumping now that the dodge-only game is over. The dog's
+            // camera-facing is NOT reset here - on failure it stays toward the
+            // camera for the retry; success turns it back explicitly.
+            playerController?.SetJumpEnabled(true);
 
             // Reset timeScale back to 0 for mini-level state
             Time.timeScale = 0f;
@@ -176,6 +187,10 @@ namespace RingSport.UI
                 Debug.Log("[MiniLevelFoodRefusal] Player survived all steaks!");
                 isGameRunning = false;
                 HidePanel();
+
+                // Success - turn back away from the camera before the next level
+                playerController?.Animations?.SetFacing(false);
+
                 CompleteGame();
             }
         }
