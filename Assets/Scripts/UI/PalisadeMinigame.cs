@@ -203,6 +203,9 @@ namespace RingSport.UI
             player?.PauseMovement();
             Debug.Log("Game paused");
 
+            // Dog grabs the palisade and hangs on while the player taps
+            player?.Animations?.SetClambering(true);
+
             // Subscribe to input BEFORE showing UI
             SubscribeToInput();
 
@@ -286,6 +289,9 @@ namespace RingSport.UI
                 progressBarRect.anchorMax = new Vector2(currentFillAmount, progressBarRect.anchorMax.y);
                 Debug.Log($"Progress bar updated: {currentFillAmount:F2} (taps: {currentTaps}/{requiredTaps})");
             }
+
+            // Dog's pull-up tracks the same fill the bar shows
+            player?.Animations?.SetClamberProgress(currentFillAmount);
         }
 
         private void HandleSuccess()
@@ -344,6 +350,9 @@ namespace RingSport.UI
             // Hide UI
             if (minigamePanel != null)
                 minigamePanel.SetActive(false);
+
+            // Drop off the palisade before the death animation takes over
+            player?.Animations?.SetClambering(false);
 
             // Trigger game over
             GameManager.Instance?.TriggerGameOver();

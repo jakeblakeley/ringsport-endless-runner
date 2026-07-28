@@ -215,6 +215,10 @@ namespace RingSport.Core
         {
             Time.timeScale = 0f;
             Debug.Log($"[GameManager] HandleGameOverState - isInMiniLevelContext: {isInMiniLevelContext}");
+
+            var player = Object.FindAnyObjectByType<PlayerController>();
+            player?.PlayDeathAnimation();
+
             UIManager.Instance?.ShowGameOver();
 
             // Stop location audio and play game over sound

@@ -31,6 +31,7 @@ namespace RingSport.Player
         private InputAction jumpAction;
         private InputAction sprintAction;
         private MobileInputHandler mobileInputHandler;
+        private PlayerAnimator playerAnimator;
 
         private Vector3 velocity;
         private bool isGrounded;
@@ -59,11 +60,13 @@ namespace RingSport.Player
 
         public float ForwardSpeed => staminaSystem.IsSprinting ? forwardSpeed * sprintMultiplier : forwardSpeed;
         public bool IsGrounded => isGrounded;
+        public PlayerAnimator Animations => playerAnimator;
 
         private void Awake()
         {
             characterController = GetComponent<CharacterController>();
             playerInput = GetComponent<PlayerInput>();
+            playerAnimator = GetComponentInChildren<PlayerAnimator>(true);
 
             // Get or add MobileInputHandler
             mobileInputHandler = GetComponent<MobileInputHandler>();
@@ -185,6 +188,9 @@ namespace RingSport.Player
             // Handle footsteps regardless of game state (so it can stop when not playing)
             HandleFootsteps();
 
+            // Drive animation in every state (idle at home, death pose on game over, etc.)
+            UpdateAnimation();
+
             // Allow movement during Playing and MiniLevel states
             bool isValidState = gameManager?.CurrentState == GameState.Playing ||
                                gameManager?.CurrentState == GameState.MiniLevel;
@@ -278,6 +284,38 @@ namespace RingSport.Player
             velocity.y += gravity * deltaTime;
         }
 
+        private void UpdateAnimation()
+        {
+            if (playerAnimator == null)
+                return;
+
+            // Time.timeScale is 0 during the pre-run countdown; don't run in place
+            // while the world is frozen.
+            bool isRunning = gameManager?.CurrentState == GameState.Playing &&
+                             !isMovementPaused &&
+                             Time.timeScale > 0f;
+
+            // Signed -1..1 lean while chasing the target lane, matching the lerp
+            // in HandleLaneMovement: full deflection on a lane switch, easing out
+            // as the player converges on the lane.
+            float strafe = laneDistance > 0f
+                ? Mathf.Clamp((targetLaneX - transform.position.x) / laneDistance, -1f, 1f)
+                : 0f;
+
+            // Sprint is a distinct gait tier in the blend tree, not a faster run
+            float moveSpeed = staminaSystem.IsSprinting ? 2f : 1f;
+
+            // Scale the cycle with level speed so feet stay in sync with the ground
+            float levelSpeedMultiplier = LevelGenerator.Instance?.GetCurrentConfig()?.SpeedMultiplier ?? 1f;
+
+            playerAnimator.UpdateLocomotion(
+                isRunning ? moveSpeed : 0f,
+                isRunning ? strafe : 0f,
+                levelSpeedMultiplier,
+                Time.unscaledDeltaTime);
+            playerAnimator.SetGrounded(isGrounded);
+        }
+
         private void HandleFootsteps()
         {
             if (footstepAudioSource == null || footstepLoop == null)
@@ -311,32 +349,27 @@ namespace RingSport.Player
 
         private void OnJump(InputAction.CallbackContext context)
         {
-            Debug.Log($"Jump pressed! isGrounded: {isGrounded}, velocity.y: {velocity.y}");
-
-            if (isGrounded)
-            {
-                velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
-                Debug.Log($"Jumping! New velocity.y: {velocity.y}");
-
-                // Play jump sound
-                if (jumpSound != null && sfxAudioSource != null)
-                    sfxAudioSource.PlayOneShot(jumpSound);
-            }
+            TryJump();
         }
 
         private void OnMobileJump()
         {
-            Debug.Log($"Mobile jump triggered! isGrounded: {isGrounded}, velocity.y: {velocity.y}");
+            TryJump();
+        }
 
-            if (isGrounded)
-            {
-                velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
-                Debug.Log($"Mobile jumping! New velocity.y: {velocity.y}");
+        private void TryJump()
+        {
+            if (!isGrounded)
+                return;
 
-                // Play jump sound
-                if (jumpSound != null && sfxAudioSource != null)
-                    sfxAudioSource.PlayOneShot(jumpSound);
-            }
+            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            Debug.Log($"Jumping! New velocity.y: {velocity.y}");
+
+            playerAnimator?.TriggerJump();
+
+            // Play jump sound
+            if (jumpSound != null && sfxAudioSource != null)
+                sfxAudioSource.PlayOneShot(jumpSound);
         }
 
         private void OnMobileSprint()
@@ -394,6 +427,15 @@ namespace RingSport.Player
 
             // Reset stamina system
             staminaSystem.Reset();
+
+            // Clear death/clamber pose from the previous attempt
+            playerAnimator?.ResetToLocomotion();
+        }
+
+        /// <summary>Called by GameManager when the player fails a level.</summary>
+        public void PlayDeathAnimation()
+        {
+            playerAnimator?.TriggerDeath();
         }
 
         public void PauseMovement()
@@ -433,6 +475,10 @@ namespace RingSport.Player
             float elapsed = 0f;
 
             Vector3 startPosition = transform.position;
+
+            // Clamber is done - leap over the top of the palisade
+            playerAnimator?.SetClambering(false);
+            playerAnimator?.TriggerVault();
 
             // Calculate arc height: distance from current player position to top of obstacle + clearance
             float clearanceHeight = 0.5f; // Small clearance above obstacle
