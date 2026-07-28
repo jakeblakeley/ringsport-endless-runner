@@ -32,6 +32,7 @@ namespace RingSport.Player
         private InputAction sprintAction;
         private MobileInputHandler mobileInputHandler;
         private PlayerAnimator playerAnimator;
+        private PlayerRagdoll playerRagdoll;
 
         private Vector3 velocity;
         private bool isGrounded;
@@ -67,6 +68,7 @@ namespace RingSport.Player
             characterController = GetComponent<CharacterController>();
             playerInput = GetComponent<PlayerInput>();
             playerAnimator = GetComponentInChildren<PlayerAnimator>(true);
+            playerRagdoll = GetComponentInChildren<PlayerRagdoll>(true);
 
             // Get or add MobileInputHandler
             mobileInputHandler = GetComponent<MobileInputHandler>();
@@ -255,12 +257,14 @@ namespace RingSport.Player
                     currentLane++;
                     targetLaneX = currentLane * laneDistance;
                     lastInputTime = Time.unscaledTime;
+                    NotifyLaneChange(toRight: true);
                 }
                 else if (moveInput.x < -0.5f && currentLane > -1)
                 {
                     currentLane--;
                     targetLaneX = currentLane * laneDistance;
                     lastInputTime = Time.unscaledTime;
+                    NotifyLaneChange(toRight: false);
                 }
             }
 
@@ -284,9 +288,21 @@ namespace RingSport.Player
             velocity.y += gravity * deltaTime;
         }
 
+        private void NotifyLaneChange(bool toRight)
+        {
+            // During normal runs the locomotion strafe lean covers lane changes;
+            // in mini-levels (dodging steaks) play a discrete sideways dodge.
+            if (gameManager?.CurrentState == GameState.MiniLevel)
+                playerAnimator?.TriggerDodge(toRight);
+        }
+
         private void UpdateAnimation()
         {
             if (playerAnimator == null)
+                return;
+
+            // The animated model is hidden while the death ragdoll owns the body
+            if (playerRagdoll != null && playerRagdoll.IsActive)
                 return;
 
             // Time.timeScale is 0 during the pre-run countdown; don't run in place
@@ -302,16 +318,18 @@ namespace RingSport.Player
                 ? Mathf.Clamp((targetLaneX - transform.position.x) / laneDistance, -1f, 1f)
                 : 0f;
 
-            // Sprint is a distinct gait tier in the blend tree, not a faster run
-            float moveSpeed = staminaSystem.IsSprinting ? 2f : 1f;
+            // Sprint is a distinct gait tier in the blend tree, not a faster run.
+            // Mini-levels stay at idle; lane changes there play the dodge states
+            // (see NotifyLaneChange) instead of the locomotion blend.
+            float moveSpeed = isRunning ? (staminaSystem.IsSprinting ? 2f : 1f) : 0f;
 
             // Scale the cycle with level speed so feet stay in sync with the ground
             float levelSpeedMultiplier = LevelGenerator.Instance?.GetCurrentConfig()?.SpeedMultiplier ?? 1f;
 
             playerAnimator.UpdateLocomotion(
-                isRunning ? moveSpeed : 0f,
+                moveSpeed,
                 isRunning ? strafe : 0f,
-                levelSpeedMultiplier,
+                isRunning ? levelSpeedMultiplier : 1f,
                 Time.unscaledDeltaTime);
             playerAnimator.SetGrounded(isGrounded);
         }
@@ -429,13 +447,21 @@ namespace RingSport.Player
             staminaSystem.Reset();
 
             // Clear death/clamber pose from the previous attempt
+            playerRagdoll?.Clear();
             playerAnimator?.ResetToLocomotion();
         }
 
         /// <summary>Called by GameManager when the player fails a level.</summary>
         public void PlayDeathAnimation()
         {
-            playerAnimator?.TriggerDeath();
+            if (playerRagdoll != null && playerRagdoll.HasRagdoll)
+            {
+                playerRagdoll.ActivateRagdoll();
+            }
+            else
+            {
+                playerAnimator?.TriggerDeath();
+            }
         }
 
         public void PauseMovement()

@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 using RingSport.Level;
 using RingSport.Core;
+using RingSport.Player;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -44,6 +45,7 @@ namespace RingSport.UI
         private int playerInputIndex = 0;
         private Coroutine gameCoroutine;
         private bool isProcessingInput = false;
+        private PlayerController player;
 
         private void Start()
         {
@@ -73,6 +75,9 @@ namespace RingSport.UI
             playerInputIndex = 0;
             isProcessingInput = false;
 
+            player = Object.FindAnyObjectByType<PlayerController>();
+            SetDogPose("Stand");
+
             // Show panel
             ShowPanel();
             SetButtonsInteractable(false);
@@ -92,7 +97,29 @@ namespace RingSport.UI
             }
 
             currentPhase = GamePhase.Idle;
+            SetDogPose("Stand");
             HidePanel();
+        }
+
+        /// <summary>Has the dog perform a named position (Sit / Down / Stand).</summary>
+        private void SetDogPose(string position)
+        {
+            var animations = player?.Animations;
+            if (animations == null)
+                return;
+
+            switch (position)
+            {
+                case "Sit":
+                    animations.SetPose(DogPose.Sit);
+                    break;
+                case "Down":
+                    animations.SetPose(DogPose.Down);
+                    break;
+                default:
+                    animations.SetPose(DogPose.Stand);
+                    break;
+            }
         }
 
         private void ShowPanel()
@@ -147,6 +174,7 @@ namespace RingSport.UI
                 if (currentRound < sequenceLengths.Length - 1)
                 {
                     UpdateText("Correct!");
+                    SetDogPose("Stand");
                     yield return new WaitForSecondsRealtime(roundTransitionTime);
                 }
             }
@@ -154,6 +182,7 @@ namespace RingSport.UI
             // All rounds complete - success!
             Debug.Log("[MiniLevelPositionsSimonSays] All rounds complete!");
             UpdateText("Well Done!");
+            SetDogPose("Stand");
             yield return new WaitForSecondsRealtime(1f);
 
             HidePanel();
@@ -184,8 +213,9 @@ namespace RingSport.UI
 
             for (int i = 0; i < currentSequence.Count; i++)
             {
-                // Show the position
+                // Show the position - the dog demonstrates it
                 UpdateText(currentSequence[i]);
+                SetDogPose(currentSequence[i]);
 
                 // Wait for display time
                 yield return new WaitForSecondsRealtime(positionDisplayTime);
@@ -198,8 +228,9 @@ namespace RingSport.UI
                 }
             }
 
-            // Brief pause before input phase
+            // Brief pause before input phase - dog back to neutral
             UpdateText("Your turn!");
+            SetDogPose("Stand");
             yield return new WaitForSecondsRealtime(0.5f);
         }
 
@@ -246,8 +277,9 @@ namespace RingSport.UI
         {
             isProcessingInput = true;
 
-            // Show feedback
+            // Show feedback - the dog performs the commanded position
             UpdateText(position);
+            SetDogPose(position);
             yield return new WaitForSecondsRealtime(correctFeedbackTime);
 
             playerInputIndex++;

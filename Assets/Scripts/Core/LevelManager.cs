@@ -183,6 +183,19 @@ namespace RingSport.Core
             }
         }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        /// <summary>
+        /// Debug menu: start a fresh run directly at the given level.
+        /// </summary>
+        public void DebugStartAtLevel(int level)
+        {
+            ResetProgress();
+            currentLevel = Mathf.Clamp(level, 1, maxLevels);
+            Debug.Log($"[LevelManager] DEBUG: jumping to level {currentLevel}");
+            GameManager.Instance?.SetState(GameState.Playing);
+        }
+#endif
+
         public void ResetProgress()
         {
             Debug.Log("[LevelManager] ResetProgress called - resetting to level 1. Stack trace:");

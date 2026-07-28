@@ -38,6 +38,22 @@ namespace RingSport.Core
         private AudioSource ambientAudioSource;
         private AudioSource sfxAudioSource;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // When set, HandleMiniLevelState launches this mini level instead of the
+        // current level config's. Persists across retries so the game over ->
+        // retry flow restarts the same mini level; cleared on Home/Playing.
+        private MiniLevelType? debugMiniLevelOverride;
+
+        /// <summary>
+        /// Debug menu: jump straight into a specific mini level.
+        /// </summary>
+        public void DebugStartMiniLevel(MiniLevelType type)
+        {
+            debugMiniLevelOverride = type;
+            SetState(GameState.MiniLevel);
+        }
+#endif
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -97,6 +113,9 @@ namespace RingSport.Core
 
         private void HandleHomeState()
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            debugMiniLevelOverride = null;
+#endif
             Time.timeScale = 1f;
             UIManager.Instance?.ShowHomeScreen();
             CameraStateMachine.Instance?.SetState(CameraStateType.Start);
@@ -110,6 +129,9 @@ namespace RingSport.Core
 
         private void HandlePlayingState()
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            debugMiniLevelOverride = null;
+#endif
             Time.timeScale = 0f;
             isInMiniLevelContext = false;
 
@@ -159,6 +181,14 @@ namespace RingSport.Core
 
             // Stop location audio during mini level
             StopLocationAudio();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (debugMiniLevelOverride.HasValue)
+            {
+                MiniLevelManager.Instance?.StartMiniLevel(debugMiniLevelOverride.Value);
+                return;
+            }
+#endif
 
             // Get current level config to determine mini level type
             LevelConfig currentConfig = LevelGenerator.Instance?.GetCurrentConfig();
@@ -213,7 +243,10 @@ namespace RingSport.Core
 
         private void HandleGameOverState()
         {
-            Time.timeScale = 0f;
+            // Keep time running so the death ragdoll can simulate; gameplay is
+            // already frozen by state checks (LevelScroller, PlayerController,
+            // spawners all gate on GameState.Playing).
+            Time.timeScale = 1f;
             Debug.Log($"[GameManager] HandleGameOverState - isInMiniLevelContext: {isInMiniLevelContext}");
 
             var player = Object.FindAnyObjectByType<PlayerController>();

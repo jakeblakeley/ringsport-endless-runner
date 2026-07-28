@@ -8760,6 +8760,10 @@ PrefabInstance:
       propertyPath: m_UIInputModule
       value: 
       objectReference: {fileID: 1812892444}
+    - target: {fileID: 5002363387524724947, guid: 2e0529c7222854964892449570717587, type: 3}
+      propertyPath: dodgeTiltAngle
+      value: 20
+      objectReference: {fileID: 0}
     - target: {fileID: 6763137185193338098, guid: 2e0529c7222854964892449570717587, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0

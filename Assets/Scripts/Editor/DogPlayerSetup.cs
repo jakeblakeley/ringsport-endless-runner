@@ -20,15 +20,16 @@ namespace RingSport.Editor
     public static class DogPlayerSetup
     {
         // Bump to make the auto-run rebuild the controller after changing this script
-        private const int SetupVersion = 2;
+        private const int SetupVersion = 10;
         private const string VersionPrefKey = "RingSport.DogPlayerSetup.Version";
 
         private const string DogName = "Dog Model";
         private const string ControllerPath = "Assets/Animations/Player/DogPlayer.controller";
         private const string DashLoopPath = "Assets/Animations/Player/WL_Dash_Loop.anim";
+        private const string DodgeHopPath = "Assets/Animations/Player/WL_DodgeHop.anim";
+        private const float DodgeHopHeightScale = 0.5f;
         private const string FallbackMaterialPath = "Assets/Materials/DogPlayer.mat";
         private const string PlayerPrefabPath = "Assets/Prefabs/Player.prefab";
-        private const string AutoRunFailedKey = "DogPlayerSetup_AutoRunFailed";
 
         // Malbers Animal Controller (lite) asset GUIDs
         private const string ModelGuid = "08e48789449aae64095cc114539cb217";      // Wolf Lite v2.fbx
@@ -44,6 +45,9 @@ namespace RingSport.Editor
         private const string JumpForwardGuid = "7ce4f711dd11df041898390c845db393"; // WL_Jump_Forward.anim
         private const string DashFbxGuid = "af25c5ee9aa180643a14d1acb874c030";    // WL_Dash.fbx
         private const string DeathGuid = "69e70d70d4cea1442bdbe47dc487a263";      // WL_Death1.anim
+        private const string RagdollPrefabGuid = "1866b9e9949480b40a71eecb4ea69e03"; // Wolf Lite Ragdoll.prefab
+        private const string SleepFbxGuid = "558c52fb80d72814bbd94a05998c957f";   // WL_Sleep.FBX (sit/lie pose clips)
+        private const string JumpInPlaceBakedGuid = "50050480bda5ca24abe00af5c60ffcf6"; // WL_Jump_InPlace_Baked.anim (Y-rise baked into pose)
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()
@@ -53,27 +57,34 @@ namespace RingSport.Editor
 
         private static void TryAutoRun()
         {
-            if (EditorApplication.isPlayingOrWillChangePlaymode)
-                return;
-
-            // Still importing/compiling - check again on the next editor tick
-            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            // Never touch assets or the scene mid-play, but keep waiting - a
+            // domain reload only happens on compile, so if we give up here the
+            // rebuild would silently never run after the play session ends.
+            if (EditorApplication.isPlayingOrWillChangePlaymode ||
+                EditorApplication.isCompiling ||
+                EditorApplication.isUpdating)
             {
                 EditorApplication.delayCall += TryAutoRun;
                 return;
             }
-
-            if (SessionState.GetBool(AutoRunFailedKey, false))
-                return;
 
             var player = FindPlayer();
             if (player == null)
                 return;
 
             bool dogMissing = player.transform.Find(DogName) == null;
+            var controllerAsset = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
+            // The version is also stamped into the controller itself (as the
+            // default of an unused int parameter), so staleness detection works
+            // even if EditorPrefs didn't persist
+            var versionParam = controllerAsset == null
+                ? null
+                : controllerAsset.parameters.FirstOrDefault(p => p.name == "SetupVersion");
             bool controllerStale =
+                controllerAsset == null ||
                 EditorPrefs.GetInt(VersionPrefKey, 0) < SetupVersion ||
-                AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath) == null;
+                versionParam == null ||
+                versionParam.defaultInt < SetupVersion;
 
             if (!dogMissing && !controllerStale)
                 return;
@@ -84,14 +95,23 @@ namespace RingSport.Editor
             }
             catch (System.Exception e)
             {
-                SessionState.SetBool(AutoRunFailedKey, true);
-                Debug.LogError($"[DogPlayerSetup] Auto-setup failed: {e}");
+                // Most likely cause: play mode was entered mid-run. Re-queue so
+                // the setup retries once the editor is idle again; a genuinely
+                // persistent error will keep logging rather than silently stall.
+                Debug.LogError($"[DogPlayerSetup] Auto-setup failed (will retry when the editor is idle): {e}");
+                EditorApplication.delayCall += TryAutoRun;
             }
         }
 
         [MenuItem("Tools/RingSport/Setup Dog Player")]
         public static void Run()
         {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                Debug.LogWarning("[DogPlayerSetup] Cannot run during play mode - exit play mode first (the auto-run will then apply it).");
+                return;
+            }
+
             var player = FindPlayer();
             if (player == null)
             {
@@ -111,14 +131,21 @@ namespace RingSport.Editor
 
             RemoveSphereVisual(player);
             WirePlayerAnimator(player, animator);
+            WirePlayerRagdoll(player, animator.gameObject);
             AssetDatabase.SaveAssets();
             SavePlayerPrefab(player);
 
-            EditorSceneManager.MarkSceneDirty(player.scene);
-            if (!sceneWasDirty)
-                EditorSceneManager.SaveScene(player.scene);
-            else
-                Debug.Log("[DogPlayerSetup] Scene had unsaved changes - dog added but scene NOT auto-saved. Save it when ready.");
+            // Play mode can begin while this runs; the asset work above is safe,
+            // but scene operations would throw - skip them, they're a no-op on
+            // idempotent re-runs anyway
+            if (!EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                EditorSceneManager.MarkSceneDirty(player.scene);
+                if (!sceneWasDirty)
+                    EditorSceneManager.SaveScene(player.scene);
+                else
+                    Debug.Log("[DogPlayerSetup] Scene had unsaved changes - dog added but scene NOT auto-saved. Save it when ready.");
+            }
 
             EditorPrefs.SetInt(VersionPrefKey, SetupVersion);
             Debug.Log($"[DogPlayerSetup] Done (v{SetupVersion}). Dog model under '{player.name}', controller at {ControllerPath}, prefab at {PlayerPrefabPath}.");
@@ -127,6 +154,42 @@ namespace RingSport.Editor
         private static GameObject FindPlayer()
         {
             return Object.FindAnyObjectByType<PlayerController>(FindObjectsInactive.Include)?.gameObject;
+        }
+
+        private static AnimatorState AddOneShotState(AnimatorStateMachine sm, string name, Motion motion, Vector3 position)
+        {
+            var state = sm.AddState(name, position);
+            state.motion = motion;
+            state.speed = 1.8f;
+            return state;
+        }
+
+        private static void AddPoseTransition(AnimatorState from, AnimatorState to, AnimatorConditionMode mode, float threshold)
+        {
+            var transition = from.AddTransition(to);
+            transition.hasExitTime = false;
+            transition.hasFixedDuration = true;
+            transition.duration = 0.15f;
+            transition.AddCondition(mode, threshold, "Pose");
+        }
+
+        private static void AddDodgeTransition(AnimatorState from, AnimatorState to, string trigger, float offset)
+        {
+            var transition = from.AddTransition(to);
+            transition.hasExitTime = false;
+            transition.hasFixedDuration = true;
+            transition.duration = 0.04f;
+            transition.offset = offset;
+            transition.AddCondition(AnimatorConditionMode.If, 0f, trigger);
+        }
+
+        private static void AddClipEndTransition(AnimatorState from, AnimatorState to)
+        {
+            var transition = from.AddTransition(to);
+            transition.hasExitTime = true;
+            transition.exitTime = 0.9f;
+            transition.hasFixedDuration = true;
+            transition.duration = 0.1f;
         }
 
         private static AnimatorController BuildAnimatorController()
@@ -144,6 +207,13 @@ namespace RingSport.Editor
                 ["vault"] = LoadClip(JumpForwardGuid),
                 ["clamber"] = LoadClip(LedgeGrabFbxGuid, "WL_LedgeGrab"),
                 ["death"] = LoadClip(DeathGuid),
+                ["sitEnter"] = LoadClip(SleepFbxGuid, "WL_Idle to Sit"),
+                ["sit"] = LoadClip(SleepFbxGuid, "WL_Sit"),
+                ["sitToLie"] = LoadClip(SleepFbxGuid, "WL_Sit to Lie"),
+                ["lie"] = LoadClip(SleepFbxGuid, "WL_Lie01"),
+                ["lieToSit"] = LoadClip(SleepFbxGuid, "WL_Lie to Sit"),
+                ["sitExit"] = LoadClip(SleepFbxGuid, "WL_Sit to Idle"),
+                ["dodgeHop"] = LoadClip(JumpInPlaceBakedGuid),
             };
 
             var missing = clips.Where(kv => kv.Value == null).Select(kv => kv.Key).ToList();
@@ -220,6 +290,11 @@ namespace RingSport.Editor
             controller.AddParameter("Vault", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("Clamber", AnimatorControllerParameterType.Bool);
             controller.AddParameter("Die", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Pose", AnimatorControllerParameterType.Int);
+            controller.AddParameter("DodgeLeft", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("DodgeRight", AnimatorControllerParameterType.Trigger);
+            // Version stamp read by TryAutoRun's staleness check; not used by gameplay
+            controller.AddParameter(new AnimatorControllerParameter { name = "SetupVersion", type = AnimatorControllerParameterType.Int, defaultInt = SetupVersion });
 
             var sm = baseStateMachine;
 
@@ -270,9 +345,10 @@ namespace RingSport.Editor
             toJump.duration = 0.08f;
             toJump.AddCondition(AnimatorConditionMode.If, 0f, "Jump");
 
+            // Exit time tuned to the ~0.42s air time of the 1.12m jump
             var jumpLand = jump.AddTransition(locomotion);
             jumpLand.hasExitTime = true;
-            jumpLand.exitTime = 0.5f;
+            jumpLand.exitTime = 0.4f;
             jumpLand.hasFixedDuration = true;
             jumpLand.duration = 0.2f;
             jumpLand.AddCondition(AnimatorConditionMode.If, 0f, "Grounded");
@@ -330,6 +406,60 @@ namespace RingSport.Editor
             anyToClamber.duration = 0.1f;
             anyToClamber.canTransitionToSelf = false;
             anyToClamber.AddCondition(AnimatorConditionMode.If, 0f, "Clamber");
+
+            // --- Simon Says poses: Pose 0 = stand, 1 = sit, 2 = down/lie.
+            // Routed through the authored transition clips; a two-step change
+            // (stand<->down) chains through Sit automatically. ---
+            var sitEnter = AddOneShotState(sm, "Sit Enter", clips["sitEnter"], new Vector3(0f, 220f));
+            var sit = sm.AddState("Sit", new Vector3(0f, 320f));
+            sit.motion = clips["sit"];
+            var sitToLie = AddOneShotState(sm, "Sit To Lie", clips["sitToLie"], new Vector3(0f, 420f));
+            var lie = sm.AddState("Lie", new Vector3(0f, 520f));
+            lie.motion = clips["lie"];
+            var lieToSit = AddOneShotState(sm, "Lie To Sit", clips["lieToSit"], new Vector3(-160f, 420f));
+            var sitExit = AddOneShotState(sm, "Sit Exit", clips["sitExit"], new Vector3(-160f, 220f));
+
+            AddPoseTransition(locomotion, sitEnter, AnimatorConditionMode.Greater, 0f);
+            AddClipEndTransition(sitEnter, sit);
+            AddPoseTransition(sit, sitToLie, AnimatorConditionMode.Equals, 2f);
+            AddClipEndTransition(sitToLie, lie);
+            AddPoseTransition(lie, lieToSit, AnimatorConditionMode.Less, 2f);
+            AddClipEndTransition(lieToSit, sit);
+            AddPoseTransition(sit, sitExit, AnimatorConditionMode.Equals, 0f);
+            AddClipEndTransition(sitExit, locomotion);
+
+            // --- Mini-level lane dodges: a quick hop using the Baked in-place
+            // jump - the vertical rise is baked into the pose so the dog really
+            // leaves the ground, while the code-driven lane lerp supplies the
+            // sideways motion. The state starts at the clip's measured takeoff
+            // moment so the hop is airborne the instant the lane change begins. ---
+            float originalRise = MeasureHopRise(clips["dodgeHop"]);
+            var dodgeHop = CreateScaledHopClip(clips["dodgeHop"], DodgeHopHeightScale, DodgeHopPath);
+            float scaledRise = MeasureHopRise(dodgeHop);
+            if (originalRise > 0.05f && scaledRise > originalRise * (DodgeHopHeightScale + 0.25f))
+                Debug.LogWarning($"[DogPlayerSetup] Dodge hop scaling had little effect ({originalRise:F2}m -> {scaledRise:F2}m) - check which curve carries the rise.");
+            else
+                Debug.Log($"[DogPlayerSetup] Dodge hop height scaled {originalRise:F2}m -> {scaledRise:F2}m ({DodgeHopHeightScale:P0}).");
+
+            float dodgeOffset = FindTakeoffNormalizedTime(dodgeHop);
+            Debug.Log($"[DogPlayerSetup] Dodge hop takeoff measured at {dodgeOffset:P0}; dodge states start there.");
+
+            var dodgeLeft = sm.AddState("Dodge Left", new Vector3(560f, 620f));
+            dodgeLeft.motion = dodgeHop;
+            dodgeLeft.speed = 3.2f;
+            var dodgeRight = sm.AddState("Dodge Right", new Vector3(280f, 620f));
+            dodgeRight.motion = dodgeHop;
+            dodgeRight.speed = 3.2f;
+
+            // Trigger transitions first so chained dodges beat the clip-end exit
+            AddDodgeTransition(locomotion, dodgeLeft, "DodgeLeft", dodgeOffset);
+            AddDodgeTransition(locomotion, dodgeRight, "DodgeRight", dodgeOffset);
+            AddDodgeTransition(dodgeLeft, dodgeLeft, "DodgeLeft", dodgeOffset);
+            AddDodgeTransition(dodgeLeft, dodgeRight, "DodgeRight", dodgeOffset);
+            AddDodgeTransition(dodgeRight, dodgeRight, "DodgeRight", dodgeOffset);
+            AddDodgeTransition(dodgeRight, dodgeLeft, "DodgeLeft", dodgeOffset);
+            AddClipEndTransition(dodgeLeft, locomotion);
+            AddClipEndTransition(dodgeRight, locomotion);
 
             EditorUtility.SetDirty(controller);
             return controller;
@@ -441,7 +571,49 @@ namespace RingSport.Editor
 
             var so = new SerializedObject(playerAnimator);
             so.FindProperty("animator").objectReferenceValue = animator;
+
+            // One-time migration: the tilt default moved 12 -> 20; update only if
+            // the serialized value is still the old default (respect user tweaks)
+            var tiltProp = so.FindProperty("dodgeTiltAngle");
+            if (tiltProp != null && Mathf.Approximately(tiltProp.floatValue, 12f))
+                tiltProp.floatValue = 20f;
+
             so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void WirePlayerRagdoll(GameObject player, GameObject dogModel)
+        {
+            var ragdollPath = AssetDatabase.GUIDToAssetPath(RagdollPrefabGuid);
+            var ragdollPrefab = string.IsNullOrEmpty(ragdollPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(ragdollPath);
+            if (ragdollPrefab == null)
+            {
+                Debug.LogWarning("[DogPlayerSetup] Wolf Lite Ragdoll.prefab not found - death falls back to the WL_Death1 animation.");
+                return;
+            }
+
+            var playerRagdoll = player.GetComponent<PlayerRagdoll>();
+            bool added = playerRagdoll == null;
+            if (added)
+                playerRagdoll = player.AddComponent<PlayerRagdoll>();
+
+            var so = new SerializedObject(playerRagdoll);
+            so.FindProperty("ragdollPrefab").objectReferenceValue = ragdollPrefab;
+            so.FindProperty("dogModel").objectReferenceValue = dogModel;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            // Push the added component into the Player prefab asset so it isn't
+            // just a scene-instance override.
+            if (added && PrefabUtility.IsPartOfPrefabInstance(player) && PrefabUtility.IsAddedComponentOverride(playerRagdoll))
+            {
+                try
+                {
+                    PrefabUtility.ApplyAddedComponent(playerRagdoll, PlayerPrefabPath, InteractionMode.AutomatedAction);
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning($"[DogPlayerSetup] Could not apply PlayerRagdoll to the prefab (left as scene override): {e.Message}");
+                }
+            }
         }
 
         private static void SavePlayerPrefab(GameObject player)
@@ -479,6 +651,141 @@ namespace RingSport.Editor
                 start.y = 0f;
                 end.y = 0f;
                 return Vector3.Distance(start, end);
+            }
+            finally
+            {
+                Object.DestroyImmediate(temp);
+            }
+        }
+
+        /// <summary>
+        /// Samples the clip's pelvis height to find where the (pose-baked) jump
+        /// actually leaves the ground: the first time it rises meaningfully above
+        /// its starting height, past the crouch dip. Returns a normalized time.
+        /// </summary>
+        private static float FindTakeoffNormalizedTime(AnimationClip clip)
+        {
+            var modelPath = AssetDatabase.GUIDToAssetPath(ModelGuid);
+            var modelPrefab = string.IsNullOrEmpty(modelPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            if (modelPrefab == null || clip == null)
+                return 0f;
+
+            var temp = Object.Instantiate(modelPrefab);
+            temp.hideFlags = HideFlags.HideAndDontSave;
+            try
+            {
+                var pelvis = temp.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == "Pelvis") ?? temp.transform;
+
+                const int samples = 60;
+                var heights = new float[samples + 1];
+                for (int i = 0; i <= samples; i++)
+                {
+                    clip.SampleAnimation(temp, clip.length * i / samples);
+                    heights[i] = pelvis.position.y;
+                }
+
+                float standing = heights[0];
+                float peak = heights.Max();
+                if (peak - standing < 0.05f)
+                    return 0f;
+
+                // The crouch dips below standing height; takeoff is the first
+                // sample clearly above it on the way to the peak
+                float threshold = standing + 0.15f * (peak - standing);
+                for (int i = 0; i <= samples; i++)
+                {
+                    if (heights[i] >= threshold)
+                        return Mathf.Max(0f, (float)i / samples - 0.04f);
+                }
+
+                return 0f;
+            }
+            finally
+            {
+                Object.DestroyImmediate(temp);
+            }
+        }
+
+        /// <summary>
+        /// Copy of the hop clip with its vertical rise scaled around the standing
+        /// baseline. The Y motion lives in the clip's curves (pose-baked), so
+        /// halving the hop height means editing the curves, not the state speed.
+        /// </summary>
+        private static AnimationClip CreateScaledHopClip(AnimationClip source, float heightScale, string path)
+        {
+            AssetDatabase.DeleteAsset(path);
+
+            var copy = Object.Instantiate(source);
+            copy.name = System.IO.Path.GetFileNameWithoutExtension(path);
+
+            // The vertical rise lives in whichever bone actually moves (the CG
+            // root bone for the Malbers rig, "RootT.y" for extracted root motion)
+            // - don't guess names, scale every Y curve with meaningful range
+            int scaledCurves = 0;
+            foreach (var binding in AnimationUtility.GetCurveBindings(copy))
+            {
+                bool isPositionY = binding.propertyName == "m_LocalPosition.y" || binding.propertyName == "RootT.y";
+                if (!isPositionY)
+                    continue;
+
+                var curve = AnimationUtility.GetEditorCurve(copy, binding);
+                if (curve == null || curve.keys.Length == 0)
+                    continue;
+
+                float min = curve.keys.Min(k => k.value);
+                float max = curve.keys.Max(k => k.value);
+                if (max - min < 0.1f)
+                    continue;
+
+                var keys = curve.keys;
+                float baseline = keys[0].value;
+                for (int i = 0; i < keys.Length; i++)
+                {
+                    keys[i].value = baseline + (keys[i].value - baseline) * heightScale;
+                    keys[i].inTangent *= heightScale;
+                    keys[i].outTangent *= heightScale;
+                }
+                curve.keys = keys;
+                AnimationUtility.SetEditorCurve(copy, binding, curve);
+                scaledCurves++;
+                Debug.Log($"[DogPlayerSetup] Scaled Y curve '{binding.path}/{binding.propertyName}' (range {max - min:F2}m).");
+            }
+
+            if (scaledCurves == 0)
+                Debug.LogWarning("[DogPlayerSetup] No vertical curve found to scale in the dodge hop clip - hop height unchanged.");
+
+            AssetDatabase.CreateAsset(copy, path);
+            return copy;
+        }
+
+        /// <summary>Peak pelvis rise above standing height over the clip, in meters.</summary>
+        private static float MeasureHopRise(AnimationClip clip)
+        {
+            var modelPath = AssetDatabase.GUIDToAssetPath(ModelGuid);
+            var modelPrefab = string.IsNullOrEmpty(modelPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            if (modelPrefab == null || clip == null)
+                return 0f;
+
+            var temp = Object.Instantiate(modelPrefab);
+            temp.hideFlags = HideFlags.HideAndDontSave;
+            try
+            {
+                var pelvis = temp.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == "Pelvis") ?? temp.transform;
+
+                const int samples = 40;
+                float standing = 0f;
+                float peak = float.MinValue;
+                for (int i = 0; i <= samples; i++)
+                {
+                    clip.SampleAnimation(temp, clip.length * i / samples);
+                    float height = pelvis.position.y;
+                    if (i == 0)
+                        standing = height;
+                    if (height > peak)
+                        peak = height;
+                }
+
+                return Mathf.Max(0f, peak - standing);
             }
             finally
             {
