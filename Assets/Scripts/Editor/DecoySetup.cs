@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using TMPro;
 using RingSport.Level;
 using RingSport.UI;
 
@@ -29,7 +30,7 @@ namespace RingSport.Editor
     public static class DecoySetup
     {
         // Bump to make the auto-run rebuild after changing this script
-        private const int SetupVersion = 7;
+        private const int SetupVersion = 10;
         private const string VersionPrefKey = "RingSport.DecoySetup.Version";
 
         private const string ControllerPath = "Assets/Animations/Decoy/DecoyHuman.controller";
@@ -53,6 +54,7 @@ namespace RingSport.Editor
         private const string Death1FbxGuid = "999623ad073529442bb47e8a89aa6144";    // H_Death1.fbx
         private const string Death2AnimGuid = "a832e322c5cac594cb7c1db28b77e43c";   // H_Death2.anim
         private const string Death3FbxGuid = "29208826ca7505c468328e97add03b59";    // H_Death3.fbx
+        private const string BarlowBoldFontGuid = "099dce98fb9fd47cb8ff1abc60bfba4c"; // Barlow-Bold SDF.asset
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()
@@ -82,10 +84,15 @@ namespace RingSport.Editor
                 versionParam == null ||
                 versionParam.defaultInt < SetupVersion;
 
-            // Also re-run when the open scene's flee attack lost its prefab wire
+            // Also re-run when the open scene's flee attack lost a wire
             var fleeAttack = Object.FindAnyObjectByType<MiniLevelFleeAttack>(FindObjectsInactive.Include);
-            bool sceneUnwired = fleeAttack != null &&
-                new SerializedObject(fleeAttack).FindProperty("decoyPrefab")?.objectReferenceValue == null;
+            bool sceneUnwired = false;
+            if (fleeAttack != null)
+            {
+                var fleeSO = new SerializedObject(fleeAttack);
+                sceneUnwired = fleeSO.FindProperty("decoyPrefab")?.objectReferenceValue == null ||
+                               fleeSO.FindProperty("bannerFont")?.objectReferenceValue == null;
+            }
 
             if (!prefabMissing && !controllerStale && !sceneUnwired)
                 return;
@@ -436,6 +443,8 @@ namespace RingSport.Editor
             var ragdollPrefab = string.IsNullOrEmpty(ragdollPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(ragdollPath);
             if (ragdollPrefab == null)
                 Debug.LogWarning("[DecoySetup] Steve Ragdoll.prefab not found - the catch will carry the animated model instead of ragdolling.");
+            else
+                ValidateRagdollLimbs(ragdollPrefab);
 
             // Assemble fresh each run; SaveAsPrefabAsset over the same path keeps
             // the prefab GUID so scene references survive rebuilds.
@@ -479,6 +488,53 @@ namespace RingSport.Editor
             finally
             {
                 Object.DestroyImmediate(root);
+            }
+        }
+
+        /// <summary>
+        /// Ensures every DecoyLimb the pounce can target resolves to a
+        /// rigidbody on the actual ragdoll prefab (the face attack, decoy
+        /// battle etc. will pass limbs other than the flee attack's right
+        /// forearm). Logs the full resolution table; warns if a limb only
+        /// resolves through its fallback chain.
+        /// </summary>
+        private static void ValidateRagdollLimbs(GameObject ragdollPrefab)
+        {
+            var temp = Object.Instantiate(ragdollPrefab);
+            temp.hideFlags = HideFlags.HideAndDontSave;
+            try
+            {
+                var lines = new List<string>();
+                var fallbacks = new List<string>();
+                var missing = new List<string>();
+
+                foreach (DecoyLimb limb in System.Enum.GetValues(typeof(DecoyLimb)))
+                {
+                    var body = DecoyController.ResolveLimbBody(temp.transform, limb);
+                    if (body == null)
+                    {
+                        missing.Add(limb.ToString());
+                        lines.Add($"{limb} -> MISSING");
+                        continue;
+                    }
+
+                    string resolved = body.name.StartsWith("R_") ? body.name.Substring(2) : body.name;
+                    bool primary = resolved == DecoyController.PrimaryBoneName(limb);
+                    if (!primary)
+                        fallbacks.Add($"{limb} -> {body.name}");
+                    lines.Add($"{limb} -> {body.name}{(primary ? "" : " (fallback)")}");
+                }
+
+                if (missing.Count > 0)
+                    Debug.LogError($"[DecoySetup] Grab limbs with NO rigidbody on the ragdoll: {string.Join(", ", missing)}. Those pounce targets would fall back to a whole-model carry.");
+                else if (fallbacks.Count > 0)
+                    Debug.LogWarning($"[DecoySetup] Grab limbs resolving through fallbacks (no dedicated rigidbody): {string.Join(", ", fallbacks)}.");
+                else
+                    Debug.Log($"[DecoySetup] All {lines.Count} grab limbs resolve to dedicated ragdoll rigidbodies:\n{string.Join("\n", lines)}");
+            }
+            finally
+            {
+                Object.DestroyImmediate(temp);
             }
         }
 
@@ -538,18 +594,29 @@ namespace RingSport.Editor
                 return;
             }
 
+            var fontPath = AssetDatabase.GUIDToAssetPath(BarlowBoldFontGuid);
+            var bannerFont = string.IsNullOrEmpty(fontPath) ? null : AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(fontPath);
+            if (bannerFont == null)
+                Debug.LogWarning("[DecoySetup] Barlow-Bold SDF font asset not found - the chase banners will use the TMP default font.");
+
             var so = new SerializedObject(fleeAttack);
-            var prop = so.FindProperty("decoyPrefab");
-            if (prop == null)
+            var prefabProp = so.FindProperty("decoyPrefab");
+            var fontProp = so.FindProperty("bannerFont");
+            if (prefabProp == null)
             {
                 Debug.LogWarning("[DecoySetup] MiniLevelFleeAttack has no decoyPrefab field - is the script up to date?");
                 return;
             }
-            if (prop.objectReferenceValue == prefab)
+
+            bool prefabChanged = prefabProp.objectReferenceValue != prefab;
+            bool fontChanged = fontProp != null && bannerFont != null && fontProp.objectReferenceValue != bannerFont;
+            if (!prefabChanged && !fontChanged)
                 return;
 
             bool sceneWasDirty = fleeAttack.gameObject.scene.isDirty;
-            prop.objectReferenceValue = prefab;
+            prefabProp.objectReferenceValue = prefab;
+            if (fontProp != null && bannerFont != null)
+                fontProp.objectReferenceValue = bannerFont;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             if (!EditorApplication.isPlayingOrWillChangePlaymode)

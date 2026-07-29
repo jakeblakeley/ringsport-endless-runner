@@ -1,8 +1,35 @@
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace RingSport.Level
 {
+    /// <summary>
+    /// Body parts the dog's pounce can grab on the decoy ragdoll. Every value
+    /// maps to a bone with its own rigidbody on the Malbers Steve ragdoll
+    /// (validated by DecoySetup at build time), so any of them can be the
+    /// kinematic mouth pin: flee attack takes the right forearm, the face
+    /// attack will take the head, etc.
+    /// </summary>
+    public enum DecoyLimb
+    {
+        RightForearm,
+        LeftForearm,
+        RightHand,
+        LeftHand,
+        RightUpperArm,
+        LeftUpperArm,
+        Head,
+        Chest,
+        RightThigh,
+        LeftThigh,
+        RightCalf,
+        LeftCalf,
+        RightFoot,
+        LeftFoot,
+    }
+
     /// <summary>
     /// The human decoy actor: the Malbers placeholder human (Steve) with a
     /// runner-specific Animator (run / strafe-lean / fall-forward) and the
@@ -25,11 +52,15 @@ namespace RingSport.Level
         [SerializeField] private float strafeDampTime = 0.12f;
 
         [Header("Catch Ragdoll")]
-        [Tooltip("Ragdoll bone the dog's mouth grabs, by normalized name (the 'R_' rig prefix is ignored). Falls back through hand/upper arm/spine if missing.")]
-        [SerializeField] private string grabBoneName = "R Forearm";
+        [Tooltip("Limb the dog's mouth grabs when AttachToMouth is called without an explicit target (flee attack = sleeve-style right forearm).")]
+        [SerializeField] private DecoyLimb defaultGrabLimb = DecoyLimb.RightForearm;
+        [Tooltip("TESTING: each catch without an explicit target grabs a random arm/leg limb instead of the default, so every grab point gets exercised. Head/torso are excluded - they still ragdoll.")]
+        [SerializeField] private bool randomizeGrabLimb = true;
         [Tooltip("How far in front of the mouth bone the grabbed bone is pinned (along the dog model's forward).")]
         [SerializeField] private float grabForwardOffset = 0.2f;
         [SerializeField] private float grabUpOffset = 0.02f;
+        [Tooltip("Seconds over which the grabbed limb settles from where the bite lands into the mouth offset. The dog steers onto the limb during the pounce, so this only covers the last few centimeters.")]
+        [SerializeField] private float grabBlendSeconds = 0.1f;
         [Tooltip("Cap on the per-bone velocity carried over from the animation into the ragdoll (m/s).")]
         [SerializeField] private float boneVelocityClamp = 8f;
         [Tooltip("Bounciness of the ragdoll limbs against the ground.")]
@@ -56,8 +87,16 @@ namespace RingSport.Level
         private Transform mouthAnchor;
         private PhysicsMaterial bounceMaterial;
         private float modelScale = 1f;
+        private bool limbChosen;
+        private Transform pendingGrabBone;
 
         public bool IsCarried { get; private set; }
+
+        /// <summary>
+        /// The limb the catch will grab, decided when the pounce fires (so the
+        /// dog can steer its leap onto it before the bite).
+        /// </summary>
+        public DecoyLimb PendingGrabLimb { get; private set; }
 
         /// <summary>Exposed so the scene warm-up can pre-deserialize it.</summary>
         public GameObject RagdollPrefab => ragdollPrefab;
@@ -100,17 +139,51 @@ namespace RingSport.Level
             animator.SetFloat(AnimSpeedHash, animSpeed / modelScale);
         }
 
-        /// <summary>Fall-forward one-shot, fired when the dog pounces.</summary>
+        /// <summary>
+        /// Fall-forward one-shot, fired when the dog pounces. Also locks in the
+        /// grab limb so the pounce can steer toward it - the catch then grabs
+        /// the same limb.
+        /// </summary>
         public void TriggerFall()
         {
             if (animator == null || IsCarried)
                 return;
+
+            PendingGrabLimb = randomizeGrabLimb
+                ? RandomLimbPool[Random.Range(0, RandomLimbPool.Length)]
+                : defaultGrabLimb;
+            limbChosen = true;
+            pendingGrabBone = FindTrackedBone(PrimaryBoneName(PendingGrabLimb));
+            Debug.Log($"[DecoyController] Pounce target: {PendingGrabLimb}");
 
             // The fall clip carries its drop/stumble in root motion; let it own
             // the model's local travel for the topple (locomotion keeps root
             // motion off so code owns all travel while running)
             animator.applyRootMotion = true;
             animator.SetTrigger(FallHash);
+        }
+
+        /// <summary>
+        /// World position of the pending grab limb's bone on the ANIMATED model
+        /// (valid during the fall, before the ragdoll swap) - the point the
+        /// dog's pounce steers its mouth onto.
+        /// </summary>
+        public Vector3 GetGrabLimbPosition()
+        {
+            if (pendingGrabBone != null)
+                return pendingGrabBone.position;
+            Transform model = animator != null ? animator.transform : transform;
+            return model.position + Vector3.up * 0.8f * modelScale;
+        }
+
+        private Transform FindTrackedBone(string normalizedName)
+        {
+            foreach (var bone in trackedBones)
+            {
+                if (bone != null && NormalizeBoneName(bone.name) == normalizedName)
+                    return bone;
+            }
+            return null;
         }
 
         private void LateUpdate()
@@ -134,14 +207,43 @@ namespace RingSport.Level
             captureCount++;
         }
 
+        // Arms and legs only - the head and chest grabs exist for the future
+        // face attack etc., which pass their limb explicitly
+        private static readonly DecoyLimb[] RandomLimbPool =
+        {
+            DecoyLimb.RightForearm, DecoyLimb.LeftForearm,
+            DecoyLimb.RightHand, DecoyLimb.LeftHand,
+            DecoyLimb.RightUpperArm, DecoyLimb.LeftUpperArm,
+            DecoyLimb.RightThigh, DecoyLimb.LeftThigh,
+            DecoyLimb.RightCalf, DecoyLimb.LeftCalf,
+            DecoyLimb.RightFoot, DecoyLimb.LeftFoot,
+        };
+
         /// <summary>
-        /// The catch: swaps the animated model for the ragdoll mid-pose, snaps
-        /// the right forearm to the mouth bone (kinematic, parented under it -
-        /// no force path back into the dog, a sleeve-style grab), and lets
-        /// every other joint continue the fall with its animated velocity so
-        /// the body dangles and bounces off the ground during the carry.
+        /// Catch using the limb the pounce aimed at (locked in by TriggerFall),
+        /// falling back to the default/randomized choice for callers that
+        /// never pounced.
         /// </summary>
         public void AttachToMouth(Transform mouth, Vector3 carryForward, Transform playerRoot)
+        {
+            DecoyLimb limb = limbChosen
+                ? PendingGrabLimb
+                : randomizeGrabLimb
+                    ? RandomLimbPool[Random.Range(0, RandomLimbPool.Length)]
+                    : defaultGrabLimb;
+            AttachToMouth(mouth, carryForward, playerRoot, limb);
+        }
+
+        /// <summary>
+        /// The catch: swaps the animated model for the ragdoll mid-pose, snaps
+        /// the targeted limb to the mouth bone (kinematic, parented under it -
+        /// no force path back into the dog), and lets every other joint
+        /// continue the fall with its animated velocity so the body dangles
+        /// and bounces off the ground during the carry. Any DecoyLimb can be
+        /// the pin - future mini levels (face attack, decoy battle) pass their
+        /// own target.
+        /// </summary>
+        public void AttachToMouth(Transform mouth, Vector3 carryForward, Transform playerRoot, DecoyLimb limb)
         {
             if (IsCarried || mouth == null)
                 return;
@@ -160,10 +262,15 @@ namespace RingSport.Level
                 return;
             }
 
-            ragdollInstance = Instantiate(ragdollPrefab, model.position, model.rotation);
+            // Spawn under an INACTIVE holder: joints capture their physics
+            // frames the moment an active instance awakes, so the scale, pose
+            // and kinematic flags must all be final BEFORE activation. Scaling
+            // an already-awake ragdoll leaves every joint solving against
+            // stale scale-1 anchors (the "detached ragdoll" bug).
+            var spawnHolder = new GameObject("DecoyRagdollSpawn");
+            spawnHolder.SetActive(false);
+            ragdollInstance = Instantiate(ragdollPrefab, model.position, model.rotation, spawnHolder.transform);
             ragdollInstance.name = "DecoyRagdoll";
-            // The animated model is scaled up in the prefab; the ragdoll must
-            // match or the pose copy lands on a smaller skeleton
             ragdollInstance.transform.localScale = model.lossyScale;
 
             // Strip the Malbers behaviours; joints, rigidbodies and colliders stay
@@ -172,54 +279,83 @@ namespace RingSport.Level
             foreach (var anim in ragdollInstance.GetComponentsInChildren<Animator>(true))
                 anim.enabled = false;
 
+            // Gather the physics pieces NOW - the grabbed limb's subtree is
+            // reparented out of this hierarchy below, and a later
+            // GetComponentsInChildren would silently skip it (which previously
+            // left the pin dynamic: nothing actually held the body)
+            var bodies = ragdollInstance.GetComponentsInChildren<Rigidbody>(true);
+            var colliders = ragdollInstance.GetComponentsInChildren<Collider>(true);
+            var joints = ragdollInstance.GetComponentsInChildren<CharacterJoint>(true);
+
             CopyPose(model, ragdollInstance.transform);
 
-            var grabBody = FindGrabBody(ragdollInstance.transform);
+            var grabBody = ResolveLimbBody(ragdollInstance.transform, limb);
             if (grabBody == null)
             {
-                // Should never happen with the Malbers ragdoll (R_R Forearm has
-                // a rigidbody) - fall back to the whole-model carry
-                Debug.LogWarning("[DecoyController] No grab rigidbody found in the ragdoll - carrying the animated model instead.");
-                Destroy(ragdollInstance);
+                // Should never happen with the Malbers ragdoll (every DecoyLimb
+                // maps to a rigidbody) - fall back to the whole-model carry
+                Debug.LogWarning($"[DecoyController] No rigidbody found for limb {limb} in the ragdoll - carrying the animated model instead.");
+                Destroy(spawnHolder);
                 ragdollInstance = null;
                 transform.position = grabTarget;
                 transform.SetParent(mouth, true);
                 return;
             }
+            Debug.Log($"[DecoyController] Pounce grab: {limb} -> {grabBody.name}");
 
-            // Snap: rigid-translate the whole posed ragdoll so the grabbed arm
-            // lands in the mouth, keeping the mid-fall orientation for continuity
-            ragdollInstance.transform.position += grabTarget - grabBody.transform.position;
+            ConfigureBodies(bodies, colliders, joints, grabBody);
 
             // Anchor under the mouth bone; the kinematic grabbed bone is
             // parented to it so it rigidly follows the head animation.
             // Kinematic = infinite mass, so nothing the body does can push the
-            // dog around.
+            // dog around. The anchor starts at the limb's CURRENT position -
+            // the body stays exactly where the bite visually lands - and is
+            // then yanked into the mouth over grabBlendSeconds (an instant
+            // snap teleports the whole body by up to a limb's length).
             mouthAnchor = new GameObject("DecoyMouthAnchor").transform;
             mouthAnchor.position = grabBody.transform.position;
             mouthAnchor.rotation = grabBody.transform.rotation;
             mouthAnchor.SetParent(mouth, true);
 
+            // Reparenting out of the inactive holder ACTIVATES the ragdoll -
+            // physics wakes here, with final scale, pose and kinematic flags
             ragdollInstance.transform.SetParent(mouthAnchor, true);
             grabBody.transform.SetParent(mouthAnchor, true);
+            Destroy(spawnHolder);
 
-            SetupBodies(grabBody, playerRoot);
+            ReleaseBodies(bodies, colliders, grabBody, playerRoot);
+
+            StartCoroutine(BlendGrabToMouth(mouth.InverseTransformPoint(grabTarget)));
 
             // The animated model's job is done
             model.gameObject.SetActive(false);
         }
 
-        private void SetupBodies(Rigidbody grabBody, Transform playerRoot)
+        /// <summary>
+        /// Pulls the mouth anchor (and the kinematic limb pinned to it) from
+        /// where the bite landed into the mouth, in jaw-local space so it
+        /// keeps riding the head animation while it blends. The joints drag
+        /// the rest of the body along, so the whole snatch reads as motion.
+        /// </summary>
+        private IEnumerator BlendGrabToMouth(Vector3 targetLocalPosition)
         {
-            var boneLookup = BuildTrackedBoneLookup();
+            Vector3 startLocalPosition = mouthAnchor.localPosition;
+            float elapsed = 0f;
+            while (elapsed < grabBlendSeconds && mouthAnchor != null)
+            {
+                elapsed += Time.deltaTime;
+                float k = Mathf.Clamp01(elapsed / grabBlendSeconds);
+                k = k * k * (3f - 2f * k);
+                mouthAnchor.localPosition = Vector3.Lerp(startLocalPosition, targetLocalPosition, k);
+                yield return null;
+            }
+            if (mouthAnchor != null)
+                mouthAnchor.localPosition = targetLocalPosition;
+        }
 
-            // The corpse hangs beside the player's CharacterController capsule;
-            // it must never collide with it or the limbs snag on the invisible
-            // capsule (and the dog must not feel the body at all)
-            Collider[] playerColliders = playerRoot != null
-                ? playerRoot.GetComponentsInChildren<Collider>(true)
-                : System.Array.Empty<Collider>();
-
+        /// <summary>Pre-activation physics setup - flags apply when the bodies wake.</summary>
+        private void ConfigureBodies(Rigidbody[] bodies, Collider[] colliders, CharacterJoint[] joints, Rigidbody grabBody)
+        {
             if (bounceMaterial == null)
             {
                 bounceMaterial = new PhysicsMaterial("DecoyBounce")
@@ -231,23 +367,19 @@ namespace RingSport.Level
                 };
             }
 
-            foreach (var ragdollCollider in ragdollInstance.GetComponentsInChildren<Collider>(true))
-            {
+            foreach (var ragdollCollider in colliders)
                 ragdollCollider.sharedMaterial = bounceMaterial;
-                foreach (var playerCollider in playerColliders)
-                    Physics.IgnoreCollision(ragdollCollider, playerCollider, true);
-            }
 
             // Joint projection snaps drifting limbs back to their sockets - the
             // main anti-twitch (same treatment as PlayerRagdoll)
-            foreach (var joint in ragdollInstance.GetComponentsInChildren<CharacterJoint>(true))
+            foreach (var joint in joints)
             {
                 joint.enableProjection = true;
                 joint.projectionDistance = 0.05f;
                 joint.projectionAngle = 30f;
             }
 
-            foreach (var body in ragdollInstance.GetComponentsInChildren<Rigidbody>(true))
+            foreach (var body in bodies)
             {
                 if (body == grabBody)
                 {
@@ -263,6 +395,33 @@ namespace RingSport.Level
                 body.interpolation = RigidbodyInterpolation.Interpolate;
                 body.solverIterations = 8;
                 body.sleepThreshold = 0.05f;
+            }
+        }
+
+        /// <summary>
+        /// Post-activation physics setup - collision ignores and velocities
+        /// need live physics actors.
+        /// </summary>
+        private void ReleaseBodies(Rigidbody[] bodies, Collider[] colliders, Rigidbody grabBody, Transform playerRoot)
+        {
+            // The body hangs beside the player's CharacterController capsule;
+            // it must never collide with it or the limbs snag on the invisible
+            // capsule (and the dog must not feel the body at all)
+            Collider[] playerColliders = playerRoot != null
+                ? playerRoot.GetComponentsInChildren<Collider>(true)
+                : System.Array.Empty<Collider>();
+
+            foreach (var ragdollCollider in colliders)
+            {
+                foreach (var playerCollider in playerColliders)
+                    Physics.IgnoreCollision(ragdollCollider, playerCollider, true);
+            }
+
+            var boneLookup = BuildTrackedBoneLookup();
+            foreach (var body in bodies)
+            {
+                if (body == grabBody)
+                    continue;
 
                 // Gradual handover: each limb keeps the velocity it had in the
                 // fall animation instead of popping to a dead stop
@@ -331,18 +490,45 @@ namespace RingSport.Level
             }
         }
 
+        // Normalized bone names per limb, most-specific first. Every chain
+        // additionally falls back to the spine (appended in ResolveLimbBody)
+        // so a trimmed-down ragdoll variant still yields SOME pin.
+        private static readonly Dictionary<DecoyLimb, string[]> LimbBoneChains = new Dictionary<DecoyLimb, string[]>
+        {
+            [DecoyLimb.RightForearm] = new[] { "R Forearm", "R Hand", "R UpperArm" },
+            [DecoyLimb.LeftForearm] = new[] { "L Forearm", "L Hand", "L UpperArm" },
+            [DecoyLimb.RightHand] = new[] { "R Hand", "R Forearm", "R UpperArm" },
+            [DecoyLimb.LeftHand] = new[] { "L Hand", "L Forearm", "L UpperArm" },
+            [DecoyLimb.RightUpperArm] = new[] { "R UpperArm", "R Forearm" },
+            [DecoyLimb.LeftUpperArm] = new[] { "L UpperArm", "L Forearm" },
+            [DecoyLimb.Head] = new[] { "Head", "Neck" },
+            [DecoyLimb.Chest] = new[] { "Spine2", "Spine1", "CG" },
+            [DecoyLimb.RightThigh] = new[] { "R Thigh", "R Calf" },
+            [DecoyLimb.LeftThigh] = new[] { "L Thigh", "L Calf" },
+            [DecoyLimb.RightCalf] = new[] { "R Calf", "R Thigh", "R Foot" },
+            [DecoyLimb.LeftCalf] = new[] { "L Calf", "L Thigh", "L Foot" },
+            [DecoyLimb.RightFoot] = new[] { "R Foot", "R Calf" },
+            [DecoyLimb.LeftFoot] = new[] { "L Foot", "L Calf" },
+        };
+
+        /// <summary>The bone name a limb should ideally resolve to (no fallback).</summary>
+        public static string PrimaryBoneName(DecoyLimb limb)
+        {
+            return LimbBoneChains.TryGetValue(limb, out var chain) ? chain[0] : "Spine2";
+        }
+
         /// <summary>
-        /// The rigidbody the mouth pin grabs: the configured bone (right
-        /// forearm by default - a sleeve grab), falling back through the rest
-        /// of the arm and the spine if the ragdoll variant lacks one there.
+        /// The rigidbody the mouth pin grabs for a limb, walking the limb's
+        /// fallback chain and then the spine. Static so DecoySetup can validate
+        /// full-limb coverage against the ragdoll prefab at build time.
         /// </summary>
-        private Rigidbody FindGrabBody(Transform ragdollRoot)
+        public static Rigidbody ResolveLimbBody(Transform ragdollRoot, DecoyLimb limb)
         {
             var bodies = ragdollRoot.GetComponentsInChildren<Rigidbody>(true);
-            foreach (string boneName in new[] { grabBoneName, "R Hand", "R UpperArm", "Spine2", "Spine1" })
+            var chain = LimbBoneChains.TryGetValue(limb, out var names) ? names : System.Array.Empty<string>();
+
+            foreach (string boneName in chain.Concat(new[] { "Spine2", "Spine1", "CG" }))
             {
-                if (string.IsNullOrEmpty(boneName))
-                    continue;
                 foreach (var body in bodies)
                 {
                     if (NormalizeBoneName(body.name) == boneName)

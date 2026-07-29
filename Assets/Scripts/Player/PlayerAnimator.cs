@@ -96,6 +96,7 @@ namespace RingSport.Player
         private float currentJumpPitch;
         private float currentFacingYaw;
         private float targetFacingYaw;
+        private Vector3 externalModelOffset;
 
         /// <summary>True while the dog is (turned toward) the camera - mini-level mode.</summary>
         public bool FacingCamera => targetFacingYaw > 90f;
@@ -153,7 +154,7 @@ namespace RingSport.Player
             if (modelTransform == null)
                 return;
 
-            modelTransform.localPosition = modelBasePosition + clamberModelOffset * clamberOffsetWeight;
+            modelTransform.localPosition = modelBasePosition + clamberModelOffset * clamberOffsetWeight + externalModelOffset;
 
             // Camera facing: animated 180-degree turn for mini-levels and back
             currentFacingYaw = Mathf.MoveTowards(currentFacingYaw, targetFacingYaw, faceTurnSpeed * deltaTime);
@@ -265,6 +266,17 @@ namespace RingSport.Player
         public void SetVerticalVelocity(float velocityY)
         {
             verticalVelocity = velocityY;
+        }
+
+        /// <summary>
+        /// Extra offset on the dog model, purely visual (the CharacterController
+        /// is untouched). The flee attack steers the pounce onto the decoy's
+        /// grab limb with this. The player root doesn't rotate in the runner,
+        /// so world space and local space agree. Cleared by ResetToLocomotion.
+        /// </summary>
+        public void SetModelOffset(Vector3 offset)
+        {
+            externalModelOffset = offset;
         }
 
         /// <summary>
@@ -395,6 +407,7 @@ namespace RingSport.Player
             laneYawStrafe = 0f;
             currentLaneYaw = 0f;
             currentJumpPitch = 0f;
+            externalModelOffset = Vector3.zero;
             // Facing deliberately persists through resets - mini-level retries
             // keep the dog toward the camera; SetFacing owns turning back
             if (modelTransform != null)

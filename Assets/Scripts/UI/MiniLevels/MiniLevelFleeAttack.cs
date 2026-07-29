@@ -71,6 +71,8 @@ namespace RingSport.UI
         private const float CatchGap = 0.9f;       // lunge target
         private const float LungeSeconds = 0.85f;
         private const float PounceTriggerGap = 3.5f; // auto-jump at the decoy from this gap (~0.45s before the catch)
+        private const float MaxPounceSteer = 1.6f;   // cap on the dog-model steering offset toward the grab limb
+        private const float PounceSteerRecoverSpeed = 3.5f; // m/s the model recenters at during the carry
         private const float CatchToEndBuffer = 3f; // catch lands this long before the level timer ends (short carry to the line)
         private const float CoinIntervalSeconds = 0.5f;
         private const float DespawnBehind = 12f;
@@ -79,8 +81,10 @@ namespace RingSport.UI
         [Header("Decoy")]
         [Tooltip("Human decoy prefab, wired by Tools > RingSport > Setup Decoy. Falls back to a placeholder sphere when missing.")]
         [SerializeField] private GameObject decoyPrefab;
-        [Tooltip("Label accent color; also the fallback sphere's color.")]
+        [Tooltip("Fallback sphere / trail color (banners are white).")]
         [SerializeField] private Color decoyColor = new Color(1f, 0.42f, 0.05f);
+        [Tooltip("Font for the chase banners (FLEE ATTACK! etc.), wired by Tools > RingSport > Setup Decoy. TMP default when missing.")]
+        [SerializeField] private TMP_FontAsset bannerFont;
         [SerializeField] private Color wallColor = new Color(0.55f, 0.08f, 0.08f);
 
         [Header("Audio")]
@@ -98,8 +102,6 @@ namespace RingSport.UI
         private GameObject decoyRoot;
         private Transform decoySphere;   // fallback sphere only
         private DecoyController decoyHuman;
-        private TextMeshPro decoyLabel;
-        private float decoyLabelLife;
         private int decoyLane;
         private float decoyX;
         private float gap;
@@ -128,6 +130,8 @@ namespace RingSport.UI
         private bool caught;
         private bool pounceDone;         // the scripted jump at the decoy has fired
         private bool controlLockActive;  // manual jump + lane input disabled for the catch sequence
+        private Transform pounceMouth;   // jaw bone cached at the pounce, for steering
+        private Vector3 pounceModelOffset; // current visual steering offset on the dog model
 
         // Retry scoring: the run score present when the chase first began, so a
         // chase-only retry can be re-seeded with it (mirrors how arena mini
@@ -144,7 +148,6 @@ namespace RingSport.UI
         // Cached bits
         private Material decoyMaterial;
         private Material wallMaterial;
-        private Camera mainCamera;
 
         // The decoy shows up on most levels eventually, so its assets are
         // always warmed at scene start (once per session)
@@ -266,7 +269,6 @@ namespace RingSport.UI
                 return;
             }
             playerTransform = playerController.transform;
-            mainCamera = Camera.main;
 
             difficulty = ClampDifficulty(difficultyIndex);
             chaseActive = true;
@@ -303,7 +305,7 @@ namespace RingSport.UI
             retryEntryPending = false;
 
             SpawnDecoy();
-            ShowBanner("FLEE ATTACK!", decoyColor, 1.6f);
+            ShowBanner("FLEE ATTACK!", Color.white, 1.6f);
 
             phase = ChasePhase.Intro;
             phaseTimer = 0f;
@@ -367,14 +369,16 @@ namespace RingSport.UI
                     UpdateFinale(dt);
                     break;
                 case ChasePhase.Carry:
-                    // Decoy is parented to the jaw; nothing to simulate
+                    // The body hangs from the jaw; ease the pounce-steering
+                    // offset back out so the dog model recenters, carrying the
+                    // bitten limb (and the dangling body) with it
+                    EasePounceSteeringOut(dt);
                     break;
             }
 
             if (phase != ChasePhase.Carry)
                 UpdateDecoyTransform(dt);
 
-            UpdateDecoyLabel(dt);
             CleanupPassedObjects();
         }
 
@@ -450,7 +454,7 @@ namespace RingSport.UI
                 finaleWalls.Add(BuildWall(new Vector3(lane * LaneDistance, 0f, wallZ)));
             }
 
-            ShowBanner("CATCH HIM!", new Color(1f, 0.25f, 0.2f), 1.2f);
+            ShowBanner("CATCH HIM!", Color.white, 1.2f);
             Debug.Log($"[MiniLevelFleeAttack] Finale - decoy locked lane {decoyLane}, walls at z {wallZ:F1}");
         }
 
@@ -500,9 +504,18 @@ namespace RingSport.UI
                 PlayerLane() == decoyLane && playerController != null && playerController.IsGrounded)
             {
                 playerController.ForceJump();
-                decoyHuman?.TriggerFall();
+                decoyHuman?.TriggerFall(); // locks in the grab limb
+                pounceMouth = FindChildByName(playerTransform, "Jaw")
+                              ?? FindChildByName(playerTransform, "Head");
+                pounceModelOffset = Vector3.zero;
                 pounceDone = true;
             }
+
+            // The decoy holds its line while the DOG steers: the model blends
+            // onto the chosen grab limb through the lunge so the mouth arrives
+            // on the limb exactly as the bite connects
+            if (pounceDone && !caught)
+                UpdatePounceSteering();
 
             if (gap <= CatchGap + 0.15f)
             {
@@ -521,6 +534,46 @@ namespace RingSport.UI
             }
         }
 
+        /// <summary>
+        /// Blends the dog model onto the decoy's chosen grab limb across the
+        /// lunge (weight 0 at the pounce trigger gap, 1 at the catch gap) so
+        /// the mouth lands on the limb the moment the bite connects. Purely
+        /// visual - the CharacterController is untouched.
+        /// </summary>
+        private void UpdatePounceSteering()
+        {
+            var animations = playerController != null ? playerController.Animations : null;
+            if (decoyHuman == null || pounceMouth == null || animations == null)
+                return;
+
+            // Mouth position with the current steering offset removed, so the
+            // correction doesn't feed back on itself (the jaw rides the model)
+            Vector3 mouthBase = pounceMouth.position - pounceModelOffset;
+
+            float p = Mathf.InverseLerp(PounceTriggerGap, CatchGap, gap);
+            float w = p * p * (3f - 2f * p);
+
+            pounceModelOffset = Vector3.ClampMagnitude(
+                (decoyHuman.GetGrabLimbPosition() - mouthBase) * w, MaxPounceSteer);
+            animations.SetModelOffset(pounceModelOffset);
+        }
+
+        private void EasePounceSteeringOut(float dt)
+        {
+            if (pounceModelOffset == Vector3.zero)
+                return;
+
+            var animations = playerController != null ? playerController.Animations : null;
+            if (animations == null)
+            {
+                pounceModelOffset = Vector3.zero;
+                return;
+            }
+
+            pounceModelOffset = Vector3.MoveTowards(pounceModelOffset, Vector3.zero, PounceSteerRecoverSpeed * dt);
+            animations.SetModelOffset(pounceModelOffset);
+        }
+
         private void DoCatch()
         {
             caught = true;
@@ -530,7 +583,7 @@ namespace RingSport.UI
             LevelManager.Instance?.AddScore(CatchBonusPoints);
             if (catchSound != null)
                 LevelManager.Instance?.PlayCollectSound(catchSound);
-            ShowBanner("CAUGHT!", new Color(0.35f, 0.95f, 0.35f), 1.4f);
+            ShowBanner("CAUGHT!", Color.white, 1.4f);
 
             AttachDecoyToMouth();
 
@@ -553,7 +606,6 @@ namespace RingSport.UI
                               ?? FindChildByName(playerTransform, "Head")
                               ?? model;
 
-            DestroyDecoyLabel();
             Vector3 forward = model != null ? model.forward : Vector3.forward;
 
             if (decoyHuman != null)
@@ -646,19 +698,6 @@ namespace RingSport.UI
                 }
             }
 
-            // Floating "FLEE ATTACK" tag above the decoy for its entrance
-            var labelGO = new GameObject("FleeAttackLabel");
-            labelGO.transform.SetParent(decoyRoot.transform, false);
-            labelGO.transform.localPosition = new Vector3(0f, decoyHuman != null ? 3.3f : 1.85f, 0f);
-            decoyLabel = labelGO.AddComponent<TextMeshPro>();
-            decoyLabel.text = "FLEE ATTACK";
-            decoyLabel.fontSize = 8f;
-            decoyLabel.fontStyle = FontStyles.Bold;
-            decoyLabel.alignment = TextAlignmentOptions.Center;
-            decoyLabel.color = decoyColor;
-            decoyLabel.rectTransform.sizeDelta = new Vector2(6f, 1.5f);
-            decoyLabelLife = 4f;
-
             decoyRoot.transform.position = new Vector3(0f, 0f, PlayerZ() + gap);
         }
 
@@ -684,40 +723,6 @@ namespace RingSport.UI
                 bobPhase += dt * 3.2f;
                 float bob = Mathf.Abs(Mathf.Sin(bobPhase * Mathf.PI)) * 0.22f;
                 decoySphere.localPosition = new Vector3(0f, 0.6f + bob, 0f);
-            }
-        }
-
-        private void UpdateDecoyLabel(float dt)
-        {
-            if (decoyLabel == null)
-                return;
-
-            decoyLabelLife -= dt;
-            if (decoyLabelLife <= 0f)
-            {
-                DestroyDecoyLabel();
-                return;
-            }
-
-            // Billboard toward the camera, fading over the last stretch
-            if (mainCamera != null)
-            {
-                decoyLabel.transform.rotation =
-                    Quaternion.LookRotation(decoyLabel.transform.position - mainCamera.transform.position);
-            }
-
-            float alpha = Mathf.Clamp01(decoyLabelLife / 1.2f);
-            var c = decoyLabel.color;
-            c.a = alpha;
-            decoyLabel.color = c;
-        }
-
-        private void DestroyDecoyLabel()
-        {
-            if (decoyLabel != null)
-            {
-                Destroy(decoyLabel.gameObject);
-                decoyLabel = null;
             }
         }
 
@@ -961,6 +966,14 @@ namespace RingSport.UI
                 controlLockActive = false;
             }
 
+            // Recenter the dog model if a chase ended mid-steer
+            if (pounceModelOffset != Vector3.zero)
+            {
+                playerController?.Animations?.SetModelOffset(Vector3.zero);
+                pounceModelOffset = Vector3.zero;
+            }
+            pounceMouth = null;
+
             DestroyDecoy();
 
             foreach (var obst in chaseObstacles)
@@ -1000,7 +1013,6 @@ namespace RingSport.UI
 
         private void DestroyDecoy()
         {
-            DestroyDecoyLabel();
             if (decoyRoot != null)
             {
                 // Works even while attached to the jaw - DecoyController's
@@ -1086,8 +1098,18 @@ namespace RingSport.UI
             bannerText = textGO.AddComponent<TextMeshProUGUI>();
             bannerText.alignment = TextAlignmentOptions.Center;
             bannerText.fontSize = 96f;
-            bannerText.fontStyle = FontStyles.Bold | FontStyles.Italic;
             bannerText.raycastTarget = false;
+
+            // Barlow Bold carries its own weight - faux-bold on top muddies it
+            if (bannerFont != null)
+            {
+                bannerText.font = bannerFont;
+                bannerText.fontStyle = FontStyles.Italic;
+            }
+            else
+            {
+                bannerText.fontStyle = FontStyles.Bold | FontStyles.Italic;
+            }
 
             var rt = bannerText.rectTransform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.74f);

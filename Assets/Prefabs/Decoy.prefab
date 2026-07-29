@@ -49,9 +49,11 @@ MonoBehaviour:
   ragdollPrefab: {fileID: 8807176650166722493, guid: 820e370bc2f37df44adfbdd3b1536ed1, type: 3}
   moveSpeedDampTime: 0.2
   strafeDampTime: 0.12
-  grabBoneName: R Forearm
+  defaultGrabLimb: 0
+  randomizeGrabLimb: 1
   grabForwardOffset: 0.2
   grabUpOffset: 0.02
+  grabBlendSeconds: 0.15
   boneVelocityClamp: 8
   groundBounciness: 0.35
   randomTumble: 1.5
