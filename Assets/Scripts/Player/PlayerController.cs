@@ -17,8 +17,12 @@ namespace RingSport.Player
         [SerializeField] private float laneChangeSpeed = 10f;
 
         [Header("Jump Settings")]
-        [SerializeField] private float jumpHeight = 2f;
-        [SerializeField] private float gravity = -20f;
+        // 1.7 clears the 1.5-tall hurdle colliders VISUALLY (feet above the
+        // bar at apex), not just the pivot>=1.5 gameplay check; ~0.48s air time
+        [SerializeField] private float jumpHeight = 1.7f;
+        [SerializeField] private float gravity = -60f;
+        [Tooltip("A jump swipe made this long before landing is queued and fires on touchdown, so mid-air swipes aren't silently dropped.")]
+        [SerializeField] private float jumpBufferDuration = 0.2f;
 
         [Header("Sprint Stamina Settings")]
         [SerializeField] private float maxSprintDuration = 5f;
@@ -42,6 +46,7 @@ namespace RingSport.Player
         private bool isMovementPaused = false;
         private float lastInputTime = -1f;
         private float inputCooldown = 0.2f;
+        private float pendingJumpRequestTime = float.NegativeInfinity;
 
         // Stamina system for sprint management
         private PlayerStaminaSystem staminaSystem;
@@ -207,6 +212,12 @@ namespace RingSport.Player
                 : Time.deltaTime;
 
             HandleGroundCheck();
+
+            // Fire a buffered jump the moment we're grounded again - a swipe in
+            // the last part of a jump would otherwise be silently dropped
+            if (isGrounded && Time.unscaledTime - pendingJumpRequestTime <= jumpBufferDuration)
+                DoJump();
+
             HandleLaneMovement(deltaTime);
             HandleGravity(deltaTime);
             staminaSystem.Update(deltaTime); // Delegate to stamina system
@@ -379,8 +390,23 @@ namespace RingSport.Player
 
         private void TryJump()
         {
-            if (!isGrounded || !isJumpEnabled)
+            if (!isJumpEnabled)
                 return;
+
+            if (!isGrounded)
+            {
+                // Buffer the request; Update fires it on landing if recent enough
+                pendingJumpRequestTime = Time.unscaledTime;
+                return;
+            }
+
+            DoJump();
+        }
+
+        private void DoJump()
+        {
+            pendingJumpRequestTime = float.NegativeInfinity;
+            isGrounded = false;
 
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
             Debug.Log($"Jumping! New velocity.y: {velocity.y}");
@@ -446,6 +472,7 @@ namespace RingSport.Player
             targetLaneX = 0f;
             velocity = Vector3.zero;
             isJumpEnabled = true;
+            pendingJumpRequestTime = float.NegativeInfinity;
 
             // Disable CharacterController to allow direct position change
             characterController.enabled = false;
@@ -516,7 +543,10 @@ namespace RingSport.Player
             playerAnimator?.TriggerVault();
 
             // Calculate arc height: distance from current player position to top of obstacle + clearance
-            float clearanceHeight = 0.5f; // Small clearance above obstacle
+            // Tuned to the palisade's VISUAL height, which is shorter than its
+            // collider (obstacleHeight comes from collider bounds) - clearing
+            // the collider top by a full body height read ~50% too high
+            float clearanceHeight = 0.35f;
             float obstacleTop = obstaclePosition.y + obstacleHeight;
             float arcHeight = (obstacleTop - startPosition.y) + clearanceHeight;
 

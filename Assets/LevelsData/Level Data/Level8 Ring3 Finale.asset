@@ -19,8 +19,8 @@ MonoBehaviour:
   locationConfig: {fileID: 11400000, guid: cf0713b2ba640424dabef93c14a455ff, type: 2}
   miniLevelType: 3
   maxObstacles: 40
-  minObstacleSpacing: 5
-  maxObstacleSpacing: 11
+  minObstacleSpacing: 11
+  maxObstacleSpacing: 15
   maxCollectibles: 30
   minCollectibleSpacing: 3
   maxCollectibleSpacing: 6

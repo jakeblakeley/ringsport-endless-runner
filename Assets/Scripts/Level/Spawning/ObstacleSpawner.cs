@@ -9,8 +9,26 @@ namespace RingSport.Level.Spawning
     /// </summary>
     public class ObstacleSpawner
     {
+        // Must match PlayerController.forwardSpeed (Player.prefab); the run
+        // speed at which fairness distances are converted from seconds to units
+        private const float BasePlayerForwardSpeed = 10f;
+
+        // Fairness action model (validated against the swipe-input audit):
+        // gestures assume up to ~400ms user delay; jump air time is ~0.42s with
+        // a 0.2s landing buffer in PlayerController.
+        private const float SameLaneActionTime = 0.45f;   // re-jump in same lane (buffered)
+        private const float ForcingRowLeadTime = 0.9f;    // reposition + jump before a row
+        private const float PatternTailTime = 0.55f;      // breathing room after a pattern
+        private const float PinChainTime = 1.4f;          // window where forced lanes must stay adjacent
+
         private float nextObstacleSpawnZ;
         private int obstaclesSpawned;
+
+        // Fairness rule state
+        private float lastObstacleZ;
+        private float lastForcingRowZ;
+        private int? pinnedLane;      // lane the player was last forced into
+        private float pinnedLaneZ;
 
         private SpawnContext context;
         private ObstacleTracker obstacleTracker;
@@ -43,6 +61,67 @@ namespace RingSport.Level.Spawning
         {
             nextObstacleSpawnZ = 20f; // Spawn first obstacle 20 units ahead
             obstaclesSpawned = 0;
+            lastObstacleZ = -100f;
+            lastForcingRowZ = -100f;
+            pinnedLane = null;
+            pinnedLaneZ = -100f;
+        }
+
+        /// <summary>Base (non-sprint) scroll speed for the current level, u/s.</summary>
+        private float RunSpeed
+        {
+            get
+            {
+                var config = context.CurrentConfig;
+                if (config == null)
+                    return BasePlayerForwardSpeed;
+                return Mathf.Min(BasePlayerForwardSpeed * config.SpeedMultiplier, config.MaxEffectiveSpeed);
+            }
+        }
+
+        // FAIRNESS: consecutive obstacles in the SAME lane must be far enough
+        // apart to land and re-jump; converts the action time to units at the
+        // level's speed (faster levels need more room, not less).
+        private float SameLaneClearance => Mathf.Max(4f, SameLaneActionTime * RunSpeed);
+
+        private float ForcingRowGap => ForcingRowLeadTime * RunSpeed;
+        private float PatternTailGap => PatternTailTime * RunSpeed;
+        private float PinChainReach => PinChainTime * RunSpeed;
+
+        private bool PinActive(float atZ) => pinnedLane.HasValue && atZ - pinnedLaneZ < PinChainReach;
+
+        /// <summary>A lane adjacent to the given one (random side where both exist).</summary>
+        private static int AdjacentLane(int lane)
+        {
+            if (lane == 0)
+                return Random.value < 0.5f ? -1 : 1;
+            return 0;
+        }
+
+        /// <summary>Lane within +-1 of the pinned lane, chosen at random.</summary>
+        private int RandomLaneNearPin()
+        {
+            int pin = pinnedLane.Value;
+            int min = Mathf.Max(-1, pin - 1);
+            int max = Mathf.Min(1, pin + 1);
+            return Random.Range(min, max + 1);
+        }
+
+        /// <summary>
+        /// Bookkeeping shared by every single-obstacle spawn: an obstacle near
+        /// an active pin blocks the crossing corridor (so the pin persists from
+        /// here), and a lethal single ON the pinned lane pushes the player to
+        /// an adjacent lane.
+        /// </summary>
+        private void OnSingleSpawned(string poolTag, int lane, float virtualZ)
+        {
+            lastObstacleZ = Mathf.Max(lastObstacleZ, virtualZ);
+            if (PinActive(virtualZ))
+            {
+                if (lane == pinnedLane.Value && !IsObstaclePassable(poolTag))
+                    pinnedLane = AdjacentLane(pinnedLane.Value);
+                pinnedLaneZ = virtualZ;
+            }
         }
 
         /// <summary>
@@ -107,6 +186,9 @@ namespace RingSport.Level.Spawning
         /// </summary>
         private void SpawnRandomSingleObstacle()
         {
+            // FAIRNESS: keep breathing room after a row that forced an action
+            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastForcingRowZ + ForcingRowGap);
+
             // Select obstacle type
             string poolTag = GetRandomObstacleType();
 
@@ -132,7 +214,7 @@ namespace RingSport.Level.Spawning
         private bool TryFindClearLane(ref int lane)
         {
             // Check if current lane has clearance
-            if (!obstacleTracker.HasObstacleInLaneBehind(lane, nextObstacleSpawnZ, 4f))
+            if (!obstacleTracker.HasObstacleInLaneBehind(lane, nextObstacleSpawnZ, SameLaneClearance))
             {
                 return true; // Current lane is clear
             }
@@ -141,7 +223,7 @@ namespace RingSport.Level.Spawning
             int[] lanes = { -1, 0, 1 };
             foreach (int testLane in lanes)
             {
-                if (!obstacleTracker.HasObstacleInLaneBehind(testLane, nextObstacleSpawnZ, 4f))
+                if (!obstacleTracker.HasObstacleInLaneBehind(testLane, nextObstacleSpawnZ, SameLaneClearance))
                 {
                     lane = testLane;
                     return true;
@@ -173,6 +255,7 @@ namespace RingSport.Level.Spawning
                 // Track this obstacle's position, lane, and type
                 obstacleTracker.AddObstacle(new ObstacleData(nextObstacleSpawnZ, lane, poolTag));
                 despawnManager.RegisterObstacle(obstacle);
+                OnSingleSpawned(poolTag, lane, nextObstacleSpawnZ);
                 nextObstacleSpawnZ += Random.Range(context.CurrentConfig.MinObstacleSpacing, context.CurrentConfig.MaxObstacleSpacing);
                 Debug.Log($"Successfully spawned {poolTag}. Next spawn at virtual: {nextObstacleSpawnZ}");
             }
@@ -234,13 +317,21 @@ namespace RingSport.Level.Spawning
                 return false;
             }
 
+            // FAIRNESS: if the pattern contains a forcing row (2+ obstacles at
+            // one Z), the player needs reposition-and-act room between the last
+            // spawned obstacle and that row - shift the whole pattern out
+            float startZ = Mathf.Max(nextObstacleSpawnZ, lastForcingRowZ + ForcingRowGap);
+            float firstForcingOffset = FirstForcingRowOffset(pattern);
+            if (firstForcingOffset >= 0f)
+                startZ = Mathf.Max(startZ, lastObstacleZ + ForcingRowGap - firstForcingOffset);
+
             // Check clearance for all obstacles in the pattern
             foreach (var obstacleDef in pattern.obstacles)
             {
-                float obstacleZ = nextObstacleSpawnZ + obstacleDef.zOffset;
+                float obstacleZ = startZ + obstacleDef.zOffset;
 
                 // Check if this position has clearance issues
-                if (obstacleTracker.HasObstacleInLaneBehind(obstacleDef.lane, obstacleZ, 4f))
+                if (obstacleTracker.HasObstacleInLaneBehind(obstacleDef.lane, obstacleZ, SameLaneClearance))
                 {
                     Debug.Log($"Pattern '{pattern.patternName}' failed clearance check at lane {obstacleDef.lane}, Z offset {obstacleDef.zOffset}");
                     return false;
@@ -250,16 +341,103 @@ namespace RingSport.Level.Spawning
             // All checks passed - spawn the pattern
             Debug.Log($"Spawning pattern: {pattern.patternName} (difficulty {pattern.difficultyRating})");
 
+            float tailOffset = 0f;
             foreach (var obstacleDef in pattern.obstacles)
             {
-                float obstacleZ = nextObstacleSpawnZ + obstacleDef.zOffset;
+                float obstacleZ = startZ + obstacleDef.zOffset;
                 SpawnObstacleAtLane(obstacleDef.obstacleType, obstacleDef.lane, obstacleZ);
+                tailOffset = Mathf.Max(tailOffset, obstacleDef.zOffset);
             }
 
-            // Advance spawn position by pattern length
-            nextObstacleSpawnZ += pattern.patternLength;
+            UpdatePinFromPattern(pattern, startZ);
+
+            // Advance by pattern length, but always leave breathing room after
+            // the pattern's LAST obstacle (patternLength alone can end 6u short)
+            nextObstacleSpawnZ = Mathf.Max(startZ + pattern.patternLength, startZ + tailOffset + PatternTailGap);
 
             return true;
+        }
+
+        /// <summary>
+        /// Z offset of the pattern's first row with 2+ obstacles (a row that
+        /// forces the player's lane and usually an action), or -1 if none.
+        /// </summary>
+        private static float FirstForcingRowOffset(ObstaclePattern pattern)
+        {
+            float best = -1f;
+            foreach (var a in pattern.obstacles)
+            {
+                int count = 0;
+                foreach (var b in pattern.obstacles)
+                {
+                    if (Mathf.Abs(a.zOffset - b.zOffset) < 0.01f)
+                        count++;
+                }
+                if (count >= 2 && (best < 0f || a.zOffset < best))
+                    best = a.zOffset;
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// After spawning a pattern, updates the pinned lane from its forcing
+        /// rows (free lane first, else a passable lane), and keeps the pin
+        /// anchored at the pattern tail: obstacles after the pin block the
+        /// crossing corridor, so the escape clock starts at the tail.
+        /// </summary>
+        private void UpdatePinFromPattern(ObstaclePattern pattern, float startZ)
+        {
+            var rows = new SortedDictionary<float, List<ObstacleDefinition>>();
+            float tail = 0f;
+            foreach (var def in pattern.obstacles)
+            {
+                float key = Mathf.Round(def.zOffset * 100f) / 100f;
+                if (!rows.TryGetValue(key, out var list))
+                    rows[key] = list = new List<ObstacleDefinition>();
+                list.Add(def);
+                tail = Mathf.Max(tail, def.zOffset);
+            }
+
+            foreach (var kv in rows)
+            {
+                if (kv.Value.Count < 2)
+                    continue;
+
+                lastForcingRowZ = Mathf.Max(lastForcingRowZ, startZ + kv.Key);
+
+                var occupied = new HashSet<int>();
+                foreach (var def in kv.Value)
+                    occupied.Add(def.lane);
+
+                int newPin = int.MinValue;
+                foreach (int lane in new[] { -1, 0, 1 })
+                {
+                    if (!occupied.Contains(lane))
+                    {
+                        newPin = lane;
+                        break;
+                    }
+                }
+                if (newPin == int.MinValue)
+                {
+                    foreach (var def in kv.Value)
+                    {
+                        if (IsObstaclePassable(def.obstacleType))
+                        {
+                            newPin = def.lane;
+                            break;
+                        }
+                    }
+                }
+                if (newPin != int.MinValue)
+                {
+                    pinnedLane = newPin;
+                    pinnedLaneZ = startZ + kv.Key;
+                }
+            }
+
+            if (pinnedLane.HasValue && startZ + tail - pinnedLaneZ < PinChainReach)
+                pinnedLaneZ = Mathf.Max(pinnedLaneZ, startZ + tail);
         }
 
         /// <summary>
@@ -286,6 +464,10 @@ namespace RingSport.Level.Spawning
         /// </summary>
         private void SpawnTwoLaneRow()
         {
+            // FAIRNESS: a 2-lane row pins the player into the one free lane -
+            // require reposition-and-act room after whatever came before
+            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastObstacleZ + ForcingRowGap);
+
             // Pick a random obstacle type
             string obstacleType = GetRandomObstacleType();
 
@@ -295,10 +477,28 @@ namespace RingSport.Level.Spawning
             int lane1 = availableLanes[lane1Index];
             availableLanes.RemoveAt(lane1Index);
             int lane2 = availableLanes[Random.Range(0, 2)];
+            int freeLane = -(lane1 + lane2); // lanes sum to 0
+
+            // FAIRNESS: while a pin chain is active, the free lane must stay
+            // adjacent to the lane the player was last forced into
+            if (PinActive(nextObstacleSpawnZ) && Mathf.Abs(freeLane - pinnedLane.Value) > 1)
+            {
+                freeLane = RandomLaneNearPin();
+                lane1 = int.MinValue; // reassign below
+                foreach (int l in new[] { -1, 0, 1 })
+                {
+                    if (l == freeLane)
+                        continue;
+                    if (lane1 == int.MinValue)
+                        lane1 = l;
+                    else
+                        lane2 = l;
+                }
+            }
 
             // Check clearance for both lanes
-            if (obstacleTracker.HasObstacleInLaneBehind(lane1, nextObstacleSpawnZ, 4f) ||
-                obstacleTracker.HasObstacleInLaneBehind(lane2, nextObstacleSpawnZ, 4f))
+            if (obstacleTracker.HasObstacleInLaneBehind(lane1, nextObstacleSpawnZ, SameLaneClearance) ||
+                obstacleTracker.HasObstacleInLaneBehind(lane2, nextObstacleSpawnZ, SameLaneClearance))
             {
                 // Clearance failed for row - try spawning a single obstacle instead
                 Debug.Log("Two-lane row clearance failed, retrying with single obstacle");
@@ -309,6 +509,10 @@ namespace RingSport.Level.Spawning
             // Spawn in both lanes at the same Z position
             SpawnObstacleAtLane(obstacleType, lane1, nextObstacleSpawnZ);
             SpawnObstacleAtLane(obstacleType, lane2, nextObstacleSpawnZ);
+
+            pinnedLane = freeLane;
+            pinnedLaneZ = nextObstacleSpawnZ;
+            lastForcingRowZ = Mathf.Max(lastForcingRowZ, nextObstacleSpawnZ);
 
             // Update next spawn position
             nextObstacleSpawnZ += Random.Range(context.CurrentConfig.MinObstacleSpacing, context.CurrentConfig.MaxObstacleSpacing);
@@ -321,10 +525,14 @@ namespace RingSport.Level.Spawning
         /// </summary>
         private void SpawnSingleLaneRow()
         {
+            // FAIRNESS: a full row always forces an action - require
+            // reposition-and-act room after whatever came before
+            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastObstacleZ + ForcingRowGap);
+
             // Check clearance for all 3 lanes
-            if (obstacleTracker.HasObstacleInLaneBehind(-1, nextObstacleSpawnZ, 4f) ||
-                obstacleTracker.HasObstacleInLaneBehind(0, nextObstacleSpawnZ, 4f) ||
-                obstacleTracker.HasObstacleInLaneBehind(1, nextObstacleSpawnZ, 4f))
+            if (obstacleTracker.HasObstacleInLaneBehind(-1, nextObstacleSpawnZ, SameLaneClearance) ||
+                obstacleTracker.HasObstacleInLaneBehind(0, nextObstacleSpawnZ, SameLaneClearance) ||
+                obstacleTracker.HasObstacleInLaneBehind(1, nextObstacleSpawnZ, SameLaneClearance))
             {
                 // Clearance failed for 3-lane row - try a simpler two-lane row instead
                 Debug.Log("Three-lane row clearance failed, retrying with two-lane row");
@@ -364,12 +572,50 @@ namespace RingSport.Level.Spawning
 
             ShuffleArray(types);
 
-            // Spawn all 3 at the same Z position, one in each lane
             int[] lanes = { -1, 0, 1 }; // Left, center, right
+
+            // FAIRNESS: while a pin chain is active, the row's passable lane
+            // must be reachable (within one lane) from the last forced lane
+            if (PinActive(nextObstacleSpawnZ))
+            {
+                bool passableNearPin = false;
+                for (int i = 0; i < 3; i++)
+                {
+                    if (IsObstaclePassable(types[i]) && Mathf.Abs(lanes[i] - pinnedLane.Value) <= 1)
+                        passableNearPin = true;
+                }
+
+                if (!passableNearPin)
+                {
+                    int passableIndex = System.Array.FindIndex(types, IsObstaclePassable);
+                    int targetIndex = RandomLaneNearPin() + 1; // lane -1/0/1 -> index 0/1/2
+                    (types[passableIndex], types[targetIndex]) = (types[targetIndex], types[passableIndex]);
+                }
+            }
+
+            // Spawn all 3 at the same Z position, one in each lane
             for (int i = 0; i < 3; i++)
             {
                 SpawnObstacleAtLane(types[i], lanes[i], nextObstacleSpawnZ);
             }
+
+            // The player is now forced into (one of) the passable lane(s):
+            // remember the one nearest the previous pin
+            int newPin = int.MinValue;
+            for (int i = 0; i < 3; i++)
+            {
+                if (!IsObstaclePassable(types[i]))
+                    continue;
+                if (newPin == int.MinValue ||
+                    (pinnedLane.HasValue && Mathf.Abs(lanes[i] - pinnedLane.Value) < Mathf.Abs(newPin - pinnedLane.Value)))
+                    newPin = lanes[i];
+            }
+            if (newPin != int.MinValue)
+            {
+                pinnedLane = newPin;
+                pinnedLaneZ = nextObstacleSpawnZ;
+            }
+            lastForcingRowZ = Mathf.Max(lastForcingRowZ, nextObstacleSpawnZ);
 
             // Update next spawn position
             nextObstacleSpawnZ += Random.Range(context.CurrentConfig.MinObstacleSpacing, context.CurrentConfig.MaxObstacleSpacing);
@@ -400,18 +646,21 @@ namespace RingSport.Level.Spawning
         /// </summary>
         private void SpawnSingleObstacleWithRetry()
         {
+            // FAIRNESS: keep breathing room after a row that forced an action
+            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastForcingRowZ + ForcingRowGap);
+
             string poolTag = GetRandomObstacleType();
             int lane = Random.Range(-1, 2);
 
             // Try to find a clear lane
-            if (obstacleTracker.HasObstacleInLaneBehind(lane, nextObstacleSpawnZ, 4f))
+            if (obstacleTracker.HasObstacleInLaneBehind(lane, nextObstacleSpawnZ, SameLaneClearance))
             {
                 int[] lanes = { -1, 0, 1 };
                 bool foundClearLane = false;
 
                 foreach (int testLane in lanes)
                 {
-                    if (!obstacleTracker.HasObstacleInLaneBehind(testLane, nextObstacleSpawnZ, 4f))
+                    if (!obstacleTracker.HasObstacleInLaneBehind(testLane, nextObstacleSpawnZ, SameLaneClearance))
                     {
                         lane = testLane;
                         foundClearLane = true;
@@ -440,6 +689,7 @@ namespace RingSport.Level.Spawning
                 obstaclesSpawned++;
                 obstacleTracker.AddObstacle(new ObstacleData(nextObstacleSpawnZ, lane, poolTag));
                 despawnManager.RegisterObstacle(obstacle);
+                OnSingleSpawned(poolTag, lane, nextObstacleSpawnZ);
                 nextObstacleSpawnZ += Random.Range(context.CurrentConfig.MinObstacleSpacing, context.CurrentConfig.MaxObstacleSpacing);
             }
             else
@@ -468,6 +718,7 @@ namespace RingSport.Level.Spawning
                 obstaclesSpawned++;
                 obstacleTracker.AddObstacle(new ObstacleData(virtualZ, lane, poolTag));
                 despawnManager.RegisterObstacle(obstacle);
+                lastObstacleZ = Mathf.Max(lastObstacleZ, virtualZ);
                 Debug.Log($"Successfully spawned {poolTag} at lane {lane}");
             }
             else

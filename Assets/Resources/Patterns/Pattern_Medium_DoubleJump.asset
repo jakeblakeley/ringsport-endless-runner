@@ -20,10 +20,10 @@ MonoBehaviour:
     zOffset: 0
   - obstacleType: ObstacleJump
     lane: 0
-    zOffset: 5
+    zOffset: 8
   - obstacleType: ObstacleAvoid
     lane: 0
-    zOffset: 12
-  patternLength: 18
+    zOffset: 16
+  patternLength: 24
   minLevel: 3
   maxLevel: 6

@@ -26,19 +26,19 @@ MonoBehaviour:
     zOffset: 8
   - obstacleType: ObstacleJump
     lane: 0
-    zOffset: 13
+    zOffset: 16
   - obstacleType: ObstaclePalisade
     lane: -1
-    zOffset: 20
+    zOffset: 36
   - obstacleType: ObstacleAvoid
     lane: 0
-    zOffset: 20
+    zOffset: 36
   - obstacleType: ObstacleAvoid
     lane: 1
-    zOffset: 20
+    zOffset: 36
   - obstacleType: ObstaclePylon
     lane: 0
-    zOffset: 28
-  patternLength: 35
+    zOffset: 48
+  patternLength: 55
   minLevel: 7
   maxLevel: 9

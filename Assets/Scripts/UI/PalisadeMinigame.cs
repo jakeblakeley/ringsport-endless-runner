@@ -319,6 +319,13 @@ namespace RingSport.UI
 
         private System.Collections.IEnumerator AnimateAndResume()
         {
+            // Resume the world scroll BEFORE the vault so the palisade passes
+            // underneath the dog mid-arc and it lands beyond it - with the
+            // scroll frozen the dog would hop in place and the palisade would
+            // then slide through the model. Player movement stays paused so
+            // gravity doesn't fight the scripted arc.
+            LevelScroller.Instance?.Resume();
+
             // Animate player over obstacle
             yield return player.StartCoroutine(player.AnimateOverObstacle(obstaclePosition, obstacleHeight));
 
@@ -330,7 +337,6 @@ namespace RingSport.UI
 
             // Resume game
             player?.ResumeMovement();
-            LevelScroller.Instance?.Resume();
 
             Debug.Log("Palisade animation complete, game resumed");
         }

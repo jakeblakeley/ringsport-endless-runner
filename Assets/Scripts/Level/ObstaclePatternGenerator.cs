@@ -138,12 +138,14 @@ namespace RingSport.Level
             pattern.difficultyRating = 4;
             pattern.minLevel = 3;
             pattern.maxLevel = 6;
-            pattern.patternLength = 18f;
+            pattern.patternLength = 24f;
+            // Jumps 8u apart: land-and-rejump distance at medium speeds (a 5u
+            // gap is a dead zone - too far for one jump, too close for two)
             pattern.obstacles = new ObstacleDefinition[]
             {
                 new ObstacleDefinition("ObstacleJump", 0, 0f),
-                new ObstacleDefinition("ObstacleJump", 0, 5f),
-                new ObstacleDefinition("ObstacleAvoid", 0, 12f)
+                new ObstacleDefinition("ObstacleJump", 0, 8f),
+                new ObstacleDefinition("ObstacleAvoid", 0, 16f)
             };
 
             AssetDatabase.CreateAsset(pattern, $"{folderPath}/Pattern_Medium_DoubleJump.asset");
@@ -212,14 +214,15 @@ namespace RingSport.Level
             pattern.difficultyRating = 7;
             pattern.minLevel = 6;
             pattern.maxLevel = 9;
-            pattern.patternLength = 25f;
+            pattern.patternLength = 40f;
+            // 10u between lane switches: at hard-level speeds (18-20 u/s) a 5u
+            // gap left only ~270ms between forced dodges - unreactable
             pattern.obstacles = new ObstacleDefinition[]
             {
                 new ObstacleDefinition("ObstacleJump", -1, 0f),
-                new ObstacleDefinition("ObstacleJump", 0, 5f),
-                new ObstacleDefinition("ObstacleJump", 1, 10f),
-                new ObstacleDefinition("ObstacleJump", 0, 15f),
-                new ObstacleDefinition("ObstacleJump", -1, 20f)
+                new ObstacleDefinition("ObstacleJump", 0, 10f),
+                new ObstacleDefinition("ObstacleJump", 1, 20f),
+                new ObstacleDefinition("ObstacleJump", 0, 30f)
             };
 
             AssetDatabase.CreateAsset(pattern, $"{folderPath}/Pattern_Hard_RapidFire.asset");
@@ -232,15 +235,15 @@ namespace RingSport.Level
             pattern.difficultyRating = 7;
             pattern.minLevel = 6;
             pattern.maxLevel = 9;
-            pattern.patternLength = 20f;
+            pattern.patternLength = 22f;
             pattern.obstacles = new ObstacleDefinition[]
             {
                 // First row - mixed with passable center
                 new ObstacleDefinition("ObstacleAvoid", -1, 0f),
                 new ObstacleDefinition("ObstacleJump", 0, 0f),  // Passable
                 new ObstacleDefinition("ObstacleAvoid", 1, 0f),
-                // Second obstacle after gap
-                new ObstacleDefinition("ObstaclePylon", 0, 12f)
+                // Second obstacle after the forced jump: 14u = dodge room at 18-20 u/s
+                new ObstacleDefinition("ObstaclePylon", 0, 14f)
             };
 
             AssetDatabase.CreateAsset(pattern, $"{folderPath}/Pattern_Hard_TripleRow.asset");
@@ -294,18 +297,20 @@ namespace RingSport.Level
             pattern.difficultyRating = 9;
             pattern.minLevel = 7;
             pattern.maxLevel = 9;
-            pattern.patternLength = 35f;
+            pattern.patternLength = 55f;
+            // Spacing tuned for 18-20 u/s: jumps 8u apart (buffered re-jump),
+            // then 20u to reach the palisade row (move + jump gesture chain)
             pattern.obstacles = new ObstacleDefinition[]
             {
                 new ObstacleDefinition("ObstacleAvoid", -1, 0f),
                 new ObstacleDefinition("ObstacleAvoid", 1, 0f),
                 // Gap at center Z=0
                 new ObstacleDefinition("ObstacleJump", 0, 8f),
-                new ObstacleDefinition("ObstacleJump", 0, 13f),
-                new ObstacleDefinition("ObstaclePalisade", -1, 20f),  // Passable
-                new ObstacleDefinition("ObstacleAvoid", 0, 20f),
-                new ObstacleDefinition("ObstacleAvoid", 1, 20f),
-                new ObstacleDefinition("ObstaclePylon", 0, 28f)
+                new ObstacleDefinition("ObstacleJump", 0, 16f),
+                new ObstacleDefinition("ObstaclePalisade", -1, 36f),  // Passable
+                new ObstacleDefinition("ObstacleAvoid", 0, 36f),
+                new ObstacleDefinition("ObstacleAvoid", 1, 36f),
+                new ObstacleDefinition("ObstaclePylon", 0, 48f)
             };
 
             AssetDatabase.CreateAsset(pattern, $"{folderPath}/Pattern_Expert_Gauntlet.asset");

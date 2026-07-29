@@ -20,13 +20,18 @@ namespace RingSport.Editor
     public static class DogPlayerSetup
     {
         // Bump to make the auto-run rebuild the controller after changing this script
-        private const int SetupVersion = 13;
+        private const int SetupVersion = 15;
         private const string VersionPrefKey = "RingSport.DogPlayerSetup.Version";
 
         private const string DogName = "Dog Model";
         private const string ControllerPath = "Assets/Animations/Player/DogPlayer.controller";
         private const string DashLoopPath = "Assets/Animations/Player/WL_Dash_Loop.anim";
         private const string DodgeHopPath = "Assets/Animations/Player/WL_DodgeHop.anim";
+        private const string JumpFlatPath = "Assets/Animations/Player/WL_Jump_InPlace_Flat.anim";
+        private const string VaultInPlacePath = "Assets/Animations/Player/WL_Vault_InPlace.anim";
+        // Must match the arc duration in PlayerController.AnimateOverObstacle -
+        // the vault clip's takeoff->landing segment is sped to span this
+        private const float VaultArcDuration = 0.2f;
         private const float DodgeHopHeightScale = 0.5f;
         private const string FallbackMaterialPath = "Assets/Materials/DogPlayer.mat";
         private const string PlayerPrefabPath = "Assets/Prefabs/Player.prefab";
@@ -335,8 +340,21 @@ namespace RingSport.Editor
             sm.defaultState = locomotion;
 
             // --- Jump (physics drives the arc; clip plays in place) ---
+            // The raw WL_Jump_InPlace carries its ~1.9m rise in the CG bone's
+            // POSE curve (measured at runtime - it is NOT stripped as root
+            // motion), so played as-is it stacks on the physics arc and the two
+            // parabolas fight: the visual hovers at the apex and bounces back up
+            // after touchdown. Ground-lock the clip (clamp Y to standing,
+            // keeping the crouch and landing dips) so physics alone owns the arc.
+            var jumpFlat = CreateGroundLockedCopy(clips["jump"], JumpFlatPath);
+            float flatRise = MeasureHopRise(jumpFlat);
+            if (flatRise > 0.1f)
+                Debug.LogWarning($"[DogPlayerSetup] Ground-locked jump clip still rises {flatRise:F2}m - check which curve carries the rise.");
+            else
+                Debug.Log($"[DogPlayerSetup] Jump clip ground-locked (residual rise {flatRise:F2}m).");
+
             var jump = sm.AddState("Jump", new Vector3(560f, 20f));
-            jump.motion = clips["jump"];
+            jump.motion = jumpFlat;
             jump.speed = 1.3f;
 
             var toJump = locomotion.AddTransition(jump);
@@ -345,7 +363,7 @@ namespace RingSport.Editor
             toJump.duration = 0.08f;
             toJump.AddCondition(AnimatorConditionMode.If, 0f, "Jump");
 
-            // Exit time tuned to the ~0.42s air time of the 1.12m jump
+            // Exit time tuned to the ~0.48s air time of the 1.7m jump
             var jumpLand = jump.AddTransition(locomotion);
             jumpLand.hasExitTime = true;
             jumpLand.exitTime = 0.4f;
@@ -365,15 +383,39 @@ namespace RingSport.Editor
             clamber.motion = clips["clamber"];
             clamber.speed = 0f;
 
-            // --- Vault: forward leap after clamber success ---
+            // --- Vault: forward leap after clamber success. The scripted arc
+            // in AnimateOverObstacle owns ALL motion (0.2s over the palisade
+            // top), so the raw WL_Jump_Forward clip needs work: its pose-baked
+            // rise and forward travel are stripped (they'd fight the arc and
+            // drift the model off the collider), the state enters AT the clip's
+            // measured takeoff so the leap gesture plays at the top instead of
+            // the crouch playing near the ground, and playback is sped so the
+            // takeoff->landing segment spans the arc duration. ---
+            float vaultTakeoff = FindTakeoffNormalizedTime(clips["vault"]);
+            float vaultLanding = FindLandingNormalizedTime(clips["vault"]);
+            if (vaultLanding <= vaultTakeoff + 0.05f)
+            {
+                Debug.LogWarning($"[DogPlayerSetup] Vault takeoff/landing measurement failed ({vaultTakeoff:P0}/{vaultLanding:P0}) - using defaults.");
+                vaultTakeoff = 0.2f;
+                vaultLanding = 0.8f;
+            }
+
+            var vaultClip = CreateGroundLockedCopy(clips["vault"], VaultInPlacePath);
+            LockForwardTravel(vaultClip);
+
+            float vaultAirSeconds = clips["vault"].length * (vaultLanding - vaultTakeoff);
+            float vaultSpeed = Mathf.Clamp(vaultAirSeconds / VaultArcDuration, 1.5f, 6f);
+            Debug.Log($"[DogPlayerSetup] Vault: takeoff {vaultTakeoff:P0}, landing {vaultLanding:P0}, air {vaultAirSeconds:F2}s -> speed {vaultSpeed:F2} to match the {VaultArcDuration}s arc.");
+
             var vault = sm.AddState("Vault", new Vector3(560f, 320f));
-            vault.motion = clips["vault"];
-            vault.speed = 1.2f;
+            vault.motion = vaultClip;
+            vault.speed = vaultSpeed;
 
             var clamberToVault = clamber.AddTransition(vault);
             clamberToVault.hasExitTime = false;
             clamberToVault.hasFixedDuration = true;
-            clamberToVault.duration = 0.05f;
+            clamberToVault.duration = 0.08f;
+            clamberToVault.offset = vaultTakeoff;
             clamberToVault.AddCondition(AnimatorConditionMode.If, 0f, "Vault");
 
             var clamberOut = clamber.AddTransition(locomotion);
@@ -382,9 +424,11 @@ namespace RingSport.Editor
             clamberOut.duration = 0.2f;
             clamberOut.AddCondition(AnimatorConditionMode.IfNot, 0f, "Clamber");
 
+            // Blend back to locomotion as soon as the clip's landing moment
+            // passes; the 0.25s crossfade covers the landing recovery
             var vaultEnd = vault.AddTransition(locomotion);
             vaultEnd.hasExitTime = true;
-            vaultEnd.exitTime = 0.8f;
+            vaultEnd.exitTime = Mathf.Min(0.95f, vaultLanding + 0.05f);
             vaultEnd.hasFixedDuration = true;
             vaultEnd.duration = 0.25f;
 
@@ -770,6 +814,148 @@ namespace RingSport.Editor
 
             if (scaledCurves == 0)
                 Debug.LogWarning("[DogPlayerSetup] No vertical curve found to scale in the dodge hop clip - hop height unchanged.");
+
+            AssetDatabase.CreateAsset(copy, path);
+            return copy;
+        }
+
+        /// <summary>
+        /// Mirror of FindTakeoffNormalizedTime for the way down: the first
+        /// sample after the peak where the pelvis is back near standing height.
+        /// </summary>
+        private static float FindLandingNormalizedTime(AnimationClip clip)
+        {
+            var modelPath = AssetDatabase.GUIDToAssetPath(ModelGuid);
+            var modelPrefab = string.IsNullOrEmpty(modelPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            if (modelPrefab == null || clip == null)
+                return 1f;
+
+            var temp = Object.Instantiate(modelPrefab);
+            temp.hideFlags = HideFlags.HideAndDontSave;
+            try
+            {
+                var pelvis = temp.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == "Pelvis") ?? temp.transform;
+
+                const int samples = 60;
+                var heights = new float[samples + 1];
+                for (int i = 0; i <= samples; i++)
+                {
+                    clip.SampleAnimation(temp, clip.length * i / samples);
+                    heights[i] = pelvis.position.y;
+                }
+
+                float standing = heights[0];
+                float peak = heights.Max();
+                if (peak - standing < 0.05f)
+                    return 1f;
+
+                int peakIndex = System.Array.IndexOf(heights, peak);
+                float threshold = standing + 0.15f * (peak - standing);
+                for (int i = peakIndex; i <= samples; i++)
+                {
+                    if (heights[i] <= threshold)
+                        return Mathf.Min(1f, (float)i / samples + 0.02f);
+                }
+
+                return 1f;
+            }
+            finally
+            {
+                Object.DestroyImmediate(temp);
+            }
+        }
+
+        /// <summary>
+        /// Flattens every meaningful Z position curve to its first key, killing
+        /// the pose-baked forward lunge so the model stays on the collider
+        /// while scripted motion (the vault arc + world scroll) does the travel.
+        /// </summary>
+        private static void LockForwardTravel(AnimationClip clip)
+        {
+            int lockedCurves = 0;
+            foreach (var binding in AnimationUtility.GetCurveBindings(clip))
+            {
+                bool isPositionZ = binding.propertyName == "m_LocalPosition.z" || binding.propertyName == "RootT.z";
+                if (!isPositionZ)
+                    continue;
+
+                var curve = AnimationUtility.GetEditorCurve(clip, binding);
+                if (curve == null || curve.keys.Length == 0)
+                    continue;
+
+                float min = curve.keys.Min(k => k.value);
+                float max = curve.keys.Max(k => k.value);
+                if (max - min < 0.1f)
+                    continue;
+
+                var keys = curve.keys;
+                float baseline = keys[0].value;
+                for (int i = 0; i < keys.Length; i++)
+                {
+                    keys[i].value = baseline;
+                    keys[i].inTangent = 0f;
+                    keys[i].outTangent = 0f;
+                }
+                curve.keys = keys;
+                AnimationUtility.SetEditorCurve(clip, binding, curve);
+                lockedCurves++;
+                Debug.Log($"[DogPlayerSetup] Locked Z travel curve '{binding.path}/{binding.propertyName}' (was {min:F2}..{max:F2}).");
+            }
+
+            if (lockedCurves == 0)
+                Debug.Log("[DogPlayerSetup] No Z travel found to lock in the vault clip.");
+            EditorUtility.SetDirty(clip);
+        }
+
+        /// <summary>
+        /// Copy of a clip with every meaningful Y position curve clamped to its
+        /// own resting value (the last key - the clip's recovery/standing pose),
+        /// so the airborne rise disappears while crouch and landing dips are
+        /// kept. Used for the physics-driven jump, where code owns the arc and
+        /// any pose-baked rise fights it.
+        /// </summary>
+        private static AnimationClip CreateGroundLockedCopy(AnimationClip source, string path)
+        {
+            AssetDatabase.DeleteAsset(path);
+
+            var copy = Object.Instantiate(source);
+            copy.name = System.IO.Path.GetFileNameWithoutExtension(path);
+
+            int lockedCurves = 0;
+            foreach (var binding in AnimationUtility.GetCurveBindings(copy))
+            {
+                bool isPositionY = binding.propertyName == "m_LocalPosition.y" || binding.propertyName == "RootT.y";
+                if (!isPositionY)
+                    continue;
+
+                var curve = AnimationUtility.GetEditorCurve(copy, binding);
+                if (curve == null || curve.keys.Length == 0)
+                    continue;
+
+                float min = curve.keys.Min(k => k.value);
+                float max = curve.keys.Max(k => k.value);
+                if (max - min < 0.1f)
+                    continue;
+
+                var keys = curve.keys;
+                float standing = keys[keys.Length - 1].value;
+                for (int i = 0; i < keys.Length; i++)
+                {
+                    if (keys[i].value > standing)
+                    {
+                        keys[i].value = standing;
+                        keys[i].inTangent = 0f;
+                        keys[i].outTangent = 0f;
+                    }
+                }
+                curve.keys = keys;
+                AnimationUtility.SetEditorCurve(copy, binding, curve);
+                lockedCurves++;
+                Debug.Log($"[DogPlayerSetup] Ground-locked Y curve '{binding.path}/{binding.propertyName}' (was {min:F2}..{max:F2}, standing {standing:F2}).");
+            }
+
+            if (lockedCurves == 0)
+                Debug.LogWarning("[DogPlayerSetup] No vertical curve found to ground-lock in the jump clip - clip unchanged.");
 
             AssetDatabase.CreateAsset(copy, path);
             return copy;
