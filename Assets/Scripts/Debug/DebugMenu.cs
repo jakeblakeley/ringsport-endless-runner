@@ -102,6 +102,7 @@ namespace RingSport.DebugTools
                     {
                         case MiniLevelType.FleeAttack: label += " (flee)"; break;
                         case MiniLevelType.StopAttack: label += " (stop)"; break;
+                        case MiniLevelType.FaceAttack: label += " (face)"; break;
                         case MiniLevelType.FoodRefusal: label += " (food)"; break;
                         case MiniLevelType.PositionsSimonSays: label += " (positions)"; break;
                     }

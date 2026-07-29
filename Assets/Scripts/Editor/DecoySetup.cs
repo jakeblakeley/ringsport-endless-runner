@@ -30,7 +30,7 @@ namespace RingSport.Editor
     public static class DecoySetup
     {
         // Bump to make the auto-run rebuild after changing this script
-        private const int SetupVersion = 10;
+        private const int SetupVersion = 11;
         private const string VersionPrefKey = "RingSport.DecoySetup.Version";
 
         private const string ControllerPath = "Assets/Animations/Decoy/DecoyHuman.controller";
@@ -54,7 +54,15 @@ namespace RingSport.Editor
         private const string Death1FbxGuid = "999623ad073529442bb47e8a89aa6144";    // H_Death1.fbx
         private const string Death2AnimGuid = "a832e322c5cac594cb7c1db28b77e43c";   // H_Death2.anim
         private const string Death3FbxGuid = "29208826ca7505c468328e97add03b59";    // H_Death3.fbx
+        private const string PowerUpFbxGuid = "f21efd2b60c470a40bc375ba97743ea8";   // S_PowerUp.fbx
         private const string BarlowBoldFontGuid = "099dce98fb9fd47cb8ff1abc60bfba4c"; // Barlow-Bold SDF.asset
+
+        // Real seconds between the face attack firing the PowerUp trigger (at
+        // charge start) and the mid-pounce freeze: ChargeSeconds 0.6 +
+        // PounceFreezeDelaySeconds 0.22 (see MiniLevelFaceAttack). The Power Up
+        // state speed is solved so the clip's measured arms-up peak lands
+        // right at the freeze.
+        private const float PowerUpLeadRealSeconds = 0.82f;
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()
@@ -253,8 +261,118 @@ namespace RingSport.Editor
             anyToFall.canTransitionToSelf = false;
             anyToFall.AddCondition(AnimatorConditionMode.If, 0f, "Fall");
 
+            // --- Power up: arms-up taunt for the face attack. Fired as the
+            // decoy squares up (charge start); the frozen QTE then holds it
+            // via the AnimSpeed crawl, with the raised arms spreading the limb
+            // tap targets apart. The state speed is solved so the clip's
+            // MEASURED arms-up peak lands right at the freeze (the trigger
+            // fires PowerUpLeadRealSeconds earlier, playing at
+            // AnimSpeed = 1/ModelScale). Falls out to Locomotion at clip end
+            // (a crawling clip never gets there mid-QTE); the dodge escape
+            // exits early via DecoyController.ResumeLocomotion.
+            var powerUpClip = LoadClip(PowerUpFbxGuid, "S_PowerUp");
+            if (powerUpClip != null)
+            {
+                var powerUp = sm.AddState("Power Up", new Vector3(280f, 280f));
+                powerUp.motion = powerUpClip;
+                powerUp.speedParameterActive = true;
+                powerUp.speedParameter = "AnimSpeed";
+
+                float peakTime = MeasureHandsUpPeakTime(powerUpClip);
+                float clipSecondsByFreeze = PowerUpLeadRealSeconds / ModelScale; // seconds of clip elapsed at state speed 1
+                powerUp.speed = peakTime > 0.05f
+                    ? Mathf.Clamp(peakTime / Mathf.Max(clipSecondsByFreeze, 0.01f), 0.5f, 3f)
+                    : 1.2f;
+                Debug.Log($"[DecoySetup] Power up: arms-up peak at {peakTime:F2}s of {powerUpClip.length:F2}s -> state speed {powerUp.speed:F2} (peak lands at the QTE freeze).");
+
+                controller.AddParameter("PowerUp", AnimatorControllerParameterType.Trigger);
+                var anyToPowerUp = sm.AddAnyStateTransition(powerUp);
+                anyToPowerUp.hasExitTime = false;
+                anyToPowerUp.hasFixedDuration = true;
+                anyToPowerUp.duration = 0.15f;
+                anyToPowerUp.canTransitionToSelf = false;
+                anyToPowerUp.AddCondition(AnimatorConditionMode.If, 0f, "PowerUp");
+
+                var powerUpToLocomotion = powerUp.AddTransition(locomotion);
+                powerUpToLocomotion.hasExitTime = true;
+                powerUpToLocomotion.exitTime = 0.95f;
+                powerUpToLocomotion.hasFixedDuration = true;
+                powerUpToLocomotion.duration = 0.3f;
+            }
+            else
+            {
+                Debug.LogWarning("[DecoySetup] S_PowerUp clip not found - the face attack QTE keeps the plain standing pose.");
+            }
+
             EditorUtility.SetDirty(controller);
             return controller;
+        }
+
+        /// <summary>
+        /// Steps the clip through on a temp Steve (same stepped-Animator
+        /// sampling as the fall measurement - humanoid muscle poses need it)
+        /// and returns the clip time where the hands reach their highest
+        /// combined point: the arms-up peak of the power-up taunt.
+        /// </summary>
+        private static float MeasureHandsUpPeakTime(AnimationClip clip)
+        {
+            var modelPath = AssetDatabase.GUIDToAssetPath(ModelGuid);
+            var modelPrefab = string.IsNullOrEmpty(modelPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            if (modelPrefab == null)
+                return -1f;
+
+            var temp = Object.Instantiate(modelPrefab, Vector3.zero, Quaternion.identity);
+            temp.hideFlags = HideFlags.HideAndDontSave;
+            AnimatorController samplerController = null;
+            try
+            {
+                var animator = temp.GetComponent<Animator>();
+                Transform handL = FindBone(temp.transform, "L Hand");
+                Transform handR = FindBone(temp.transform, "R Hand");
+                if (animator == null || (handL == null && handR == null))
+                {
+                    Debug.LogWarning($"[DecoySetup] Could not find hand bones on the Steve model - cannot measure '{clip.name}'.");
+                    return -1f;
+                }
+
+                samplerController = new AnimatorController { name = "DecoySetupPoseSampler" };
+                samplerController.AddLayer("Base");
+                var state = samplerController.layers[0].stateMachine.AddState("Clip");
+                state.motion = clip;
+
+                animator.runtimeAnimatorController = samplerController;
+                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                animator.applyRootMotion = false; // pose only - hold in place
+
+                animator.Play("Clip", 0, 0f);
+                animator.Update(0f);
+
+                const int steps = 90;
+                float dt = clip.length / steps;
+                float bestTime = -1f;
+                float bestHeight = float.MinValue;
+                for (int i = 0; i <= steps; i++)
+                {
+                    // Read while the sampler is still assigned (reassigning the
+                    // controller rebinds and resets the pose)
+                    float height = (handL != null ? handL.position.y : 0f) +
+                                   (handR != null ? handR.position.y : 0f);
+                    if (height > bestHeight)
+                    {
+                        bestHeight = height;
+                        bestTime = i * dt;
+                    }
+                    if (i < steps)
+                        animator.Update(dt);
+                }
+                return bestTime;
+            }
+            finally
+            {
+                if (samplerController != null)
+                    Object.DestroyImmediate(samplerController);
+                Object.DestroyImmediate(temp);
+            }
         }
 
         // ------------------------------------------------------------------

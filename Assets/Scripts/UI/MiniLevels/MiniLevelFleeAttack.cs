@@ -36,6 +36,9 @@ namespace RingSport.UI
 
         public override MiniLevelType MiniLevelType => MiniLevelType.FleeAttack;
 
+        /// <summary>The wired Barlow banner font - the other in-run mini levels on this object use it as a fallback.</summary>
+        public TMP_FontAsset BannerFontAsset => bannerFont;
+
         private enum ChasePhase { Inactive, Intro, Approach, Finale, Carry }
 
         // ---- Difficulty tables, indexed by flee-attack ordinal across the
@@ -128,6 +131,7 @@ namespace RingSport.UI
         private bool wallsCrossed;
         private float lungeTimer;
         private bool caught;
+        private bool esquiveShown;       // "ESQUIVÉD!" fired for a finale (wrong lane) death
         private bool pounceDone;         // the scripted jump at the decoy has fired
         private bool controlLockActive;  // manual jump + lane input disabled for the catch sequence
         private Transform pounceMouth;   // jaw bone cached at the pounce, for steering
@@ -275,6 +279,7 @@ namespace RingSport.UI
             difficulty = ClampDifficulty(difficultyIndex);
             chaseActive = true;
             caught = false;
+            esquiveShown = false;
             wallsCrossed = false;
             lungeTimer = 0f;
             pounceDone = false;
@@ -343,7 +348,16 @@ namespace RingSport.UI
 
             // Death freeze-frames the chase; the retry/restart paths clean up.
             if (state == GameState.GameOver)
+            {
+                // A finale death is the wall row - the decoy juked the dog out
+                // of its lane. Same callout as the face attack's wrong lane.
+                if (!caught && !esquiveShown && phase == ChasePhase.Finale)
+                {
+                    esquiveShown = true;
+                    ShowBanner("ESQUIVÉD!", new Color(0.85f, 0.09f, 0.09f), 1.4f);
+                }
                 return;
+            }
 
             // Any other state (home, level complete reached without our
             // notify, etc.) means the run is over - tear down.

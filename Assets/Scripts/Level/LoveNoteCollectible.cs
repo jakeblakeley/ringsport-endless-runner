@@ -1,5 +1,6 @@
 using UnityEngine;
 using RingSport.Core;
+using RingSport.Effects;
 using RingSport.UI;
 
 namespace RingSport.Level
@@ -55,6 +56,8 @@ namespace RingSport.Level
             // Same points as the large coin it replaced
             LevelManager.Instance?.AddScore(pointValue);
             LevelManager.Instance?.PlayCollectSound(collectSound);
+
+            CollectBurstVFX.PlayLoveNote(transform.position);
 
             if (LoveNoteManager.TryCollectRandomLockedNote(out int noteIndex))
             {

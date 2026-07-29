@@ -29,9 +29,8 @@ namespace RingSport.Core
         [SerializeField] private MiniLevelInfo[] miniLevelConfigs = new MiniLevelInfo[]
         {
             new() { type = MiniLevelType.PositionsSimonSays, displayName = "Positions: Simon Says", instructions = "Follow the positions shown!" },
-            new() { type = MiniLevelType.FaceAttack, displayName = "Face Attack", instructions = "Defend against the face attack!" },
+            new() { type = MiniLevelType.FaceAttack, displayName = "Face Attack", instructions = "Get in his lane, then tap the right limb!" },
             new() { type = MiniLevelType.FleeAttack, displayName = "Flee Attack", instructions = "Chase down the fleeing target!" },
-            new() { type = MiniLevelType.DecoyBattle, displayName = "Decoy Battle", instructions = "Ignore the decoys, find the real target!" },
             new() { type = MiniLevelType.FoodRefusal, displayName = "Food Refusal", instructions = "Resist the temptation!" },
             new() { type = MiniLevelType.StopAttack, displayName = "Stop Attack", instructions = "Tap the whistle to stop!" },
         };

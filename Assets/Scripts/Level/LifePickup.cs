@@ -1,5 +1,6 @@
 using UnityEngine;
 using RingSport.Core;
+using RingSport.Effects;
 
 namespace RingSport.Level
 {
@@ -50,6 +51,8 @@ namespace RingSport.Level
             // Add partial life
             LevelManager.Instance?.AddPartialRetry(lifeValue);
             LevelManager.Instance?.PlayCollectSound(collectSound);
+
+            CollectBurstVFX.PlayLife(transform.position);
 
             // Play VFX
             if (collectVFX != null)

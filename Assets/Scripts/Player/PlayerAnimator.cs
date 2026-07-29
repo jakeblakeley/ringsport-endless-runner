@@ -330,6 +330,17 @@ namespace RingSport.Player
         }
 
         /// <summary>
+        /// Freezes/unfreezes the whole animator mid-pose - the face attack
+        /// holds the dog mid-pounce during its bullet-time limb pick.
+        /// Movement pauses separately; this only stops the clips advancing.
+        /// </summary>
+        public void SetAnimatorPaused(bool paused)
+        {
+            if (animator != null)
+                animator.speed = paused ? 0f : 1f;
+        }
+
+        /// <summary>
         /// Turn the dog around to face the camera (mini-levels) or back to the
         /// running direction. The turn is animated over faceTurnSpeed.
         /// towardYaw lets the home screen aim the dog at its angled start
@@ -449,6 +460,7 @@ namespace RingSport.Player
             if (animator == null)
                 return;
 
+            animator.speed = 1f; // clear any face-attack mid-pounce freeze
             animator.ResetTrigger(JumpHash);
             animator.ResetTrigger(VaultHash);
             animator.ResetTrigger(DieHash);

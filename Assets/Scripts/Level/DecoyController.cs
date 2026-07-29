@@ -71,6 +71,12 @@ namespace RingSport.Level
         private static readonly int StrafeHash = Animator.StringToHash("Strafe");
         private static readonly int AnimSpeedHash = Animator.StringToHash("AnimSpeed");
         private static readonly int FallHash = Animator.StringToHash("Fall");
+        private static readonly int PowerUpHash = Animator.StringToHash("PowerUp");
+        private static readonly int LocomotionStateHash = Animator.StringToHash("Locomotion");
+
+        // Whether the generated controller has the PowerUp trigger (guards
+        // against a stale pre-v11 controller so SetTrigger never warns)
+        private bool? hasPowerUpParam;
 
         // Previous-frame bone snapshot of the animated model, for the
         // animation -> physics velocity handover at the catch
@@ -146,14 +152,23 @@ namespace RingSport.Level
         /// </summary>
         public void TriggerFall()
         {
+            TriggerFall(randomizeGrabLimb
+                ? RandomLimbPool[Random.Range(0, RandomLimbPool.Length)]
+                : defaultGrabLimb);
+        }
+
+        /// <summary>
+        /// Fall-forward one-shot with an explicit grab target - the face attack
+        /// passes the limb the player picked in its quick time event.
+        /// </summary>
+        public void TriggerFall(DecoyLimb limb)
+        {
             if (animator == null || IsCarried)
                 return;
 
-            PendingGrabLimb = randomizeGrabLimb
-                ? RandomLimbPool[Random.Range(0, RandomLimbPool.Length)]
-                : defaultGrabLimb;
+            PendingGrabLimb = limb;
             limbChosen = true;
-            pendingGrabBone = FindTrackedBone(PrimaryBoneName(PendingGrabLimb));
+            pendingGrabBone = FindTrackedBone(PrimaryBoneName(limb));
             Debug.Log($"[DecoyController] Pounce target: {PendingGrabLimb}");
 
             // The fall clip carries its drop/stumble in root motion; let it own
@@ -161,6 +176,67 @@ namespace RingSport.Level
             // motion off so code owns all travel while running)
             animator.applyRootMotion = true;
             animator.SetTrigger(FallHash);
+        }
+
+        /// <summary>
+        /// Arms-up power-up taunt: the face attack fires this as the decoy
+        /// squares up, so the frozen QTE holds an aggressive pose with the
+        /// limb targets spread wide. No-ops gracefully on a stale controller.
+        /// </summary>
+        public void TriggerPowerUp()
+        {
+            if (animator == null || IsCarried || !HasPowerUpParam)
+                return;
+            animator.SetTrigger(PowerUpHash);
+        }
+
+        /// <summary>
+        /// Blends a one-shot pose (the power-up taunt) back into the
+        /// locomotion blend - the dodge escape bolts mid-pose.
+        /// </summary>
+        public void ResumeLocomotion()
+        {
+            if (animator == null || IsCarried)
+                return;
+            if (HasPowerUpParam)
+                animator.ResetTrigger(PowerUpHash);
+            animator.CrossFadeInFixedTime(LocomotionStateHash, 0.2f, 0);
+        }
+
+        private bool HasPowerUpParam
+        {
+            get
+            {
+                if (!hasPowerUpParam.HasValue)
+                {
+                    hasPowerUpParam = false;
+                    if (animator != null)
+                    {
+                        foreach (var parameter in animator.parameters)
+                        {
+                            if (parameter.nameHash == PowerUpHash)
+                            {
+                                hasPowerUpParam = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                return hasPowerUpParam.Value;
+            }
+        }
+
+        /// <summary>
+        /// World position of a limb's bone on the ANIMATED model - the anchor
+        /// the face attack's screen-space tap targets track each frame.
+        /// </summary>
+        public Vector3 GetLimbPosition(DecoyLimb limb)
+        {
+            Transform bone = FindTrackedBone(PrimaryBoneName(limb));
+            if (bone != null)
+                return bone.position;
+            Transform model = animator != null ? animator.transform : transform;
+            return model.position + Vector3.up * 0.8f * modelScale;
         }
 
         /// <summary>

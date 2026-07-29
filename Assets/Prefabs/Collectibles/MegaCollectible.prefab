@@ -164,6 +164,7 @@ MonoBehaviour:
   pointValue: 50
   collectVFX: {fileID: 0}
   collectSound: {fileID: 8300000, guid: ebadc580f0bf946bbbb1141bfd625bfd, type: 3}
+  isLargeCoin: 1
 --- !u!114 &2966558594096419058
 MonoBehaviour:
   m_ObjectHideFlags: 0

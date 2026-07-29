@@ -129,6 +129,22 @@ namespace RingSport.Core
             poseInitialized = true;
         }
 
+        /// <summary>
+        /// Marks the camera pose as externally driven (a scripted shot like
+        /// the face attack standoff moved the camera directly). Stops any
+        /// in-flight transition and forgets the last applied scale so the
+        /// next SetState always re-transitions back from the scripted pose.
+        /// </summary>
+        public void NotifyExternalPose()
+        {
+            if (transitionCoroutine != null)
+            {
+                StopCoroutine(transitionCoroutine);
+                transitionCoroutine = null;
+            }
+            currentDistanceScale = -1f;
+        }
+
         public void SetState(CameraStateType newState)
         {
             SetState(newState, 1f, 0f, null);

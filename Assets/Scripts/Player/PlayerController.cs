@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using RingSport.Core;
+using RingSport.Effects;
 using RingSport.Level;
 using RingSport.UI;
 using RingSport.Input;
@@ -37,6 +38,7 @@ namespace RingSport.Player
         private MobileInputHandler mobileInputHandler;
         private PlayerAnimator playerAnimator;
         private PlayerRagdoll playerRagdoll;
+        private SprintTrail sprintTrail;
 
         private Vector3 velocity;
         private bool isGrounded;
@@ -78,6 +80,7 @@ namespace RingSport.Player
             playerInput = GetComponent<PlayerInput>();
             playerAnimator = GetComponentInChildren<PlayerAnimator>(true);
             playerRagdoll = GetComponentInChildren<PlayerRagdoll>(true);
+            sprintTrail = GetComponentInChildren<SprintTrail>(true);
 
             // Get or add MobileInputHandler
             mobileInputHandler = GetComponent<MobileInputHandler>();
@@ -112,6 +115,12 @@ namespace RingSport.Player
                 Debug.LogError("PlayerInput.actions is null! Please assign InputSystem_Actions asset to PlayerInput component.");
                 return;
             }
+
+            // All input flows through the direct action subscriptions in
+            // SetupInputActions; the prefab's SendMessages mode also reflected
+            // into 'OnJump' and threw MissingMethodException on every jump
+            // press (the handler takes a CallbackContext, not an InputValue).
+            playerInput.notificationBehavior = PlayerNotifications.InvokeCSharpEvents;
 
             SetupInputActions();
         }
@@ -339,6 +348,9 @@ namespace RingSport.Player
             // Mini-levels stay at idle; lane changes there play the dodge states
             // (see NotifyLaneChange) instead of the locomotion blend.
             float moveSpeed = isRunning ? (staminaSystem.IsSprinting ? 2f : 1f) : 0f;
+
+            // Speed-line trail follows the sprint gait tier exactly
+            sprintTrail?.SetSprinting(moveSpeed > 1.5f);
 
             // Scale the cycle with level speed so feet stay in sync with the ground
             float levelSpeedMultiplier = LevelGenerator.Instance?.GetCurrentConfig()?.SpeedMultiplier ?? 1f;

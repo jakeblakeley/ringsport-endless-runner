@@ -1,5 +1,6 @@
 using UnityEngine;
 using RingSport.Core;
+using RingSport.Effects;
 
 namespace RingSport.Level
 {
@@ -8,6 +9,8 @@ namespace RingSport.Level
         [SerializeField] private int pointValue = 10;
         [SerializeField] private ParticleSystem collectVFX;
         [SerializeField] private AudioClip collectSound;
+        [Tooltip("Large coins burst with more sparks over a wider radius. Set on the MegaCollectible prefab by the particle polish setup.")]
+        [SerializeField] private bool isLargeCoin = false;
 
         private bool isCollected = false;
         private MeshRenderer meshRenderer;
@@ -67,6 +70,8 @@ namespace RingSport.Level
             // Add points to score and play sound
             LevelManager.Instance?.AddScore(pointValue);
             LevelManager.Instance?.PlayCollectSound(collectSound);
+
+            CollectBurstVFX.PlayCoin(transform.position, isLargeCoin);
 
             // Play VFX if assigned
             if (collectVFX != null)
