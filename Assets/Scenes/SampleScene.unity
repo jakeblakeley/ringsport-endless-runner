@@ -3595,6 +3595,7 @@ MonoBehaviour:
   decoyColor: {r: 1, g: 0.42, b: 0.05, a: 1}
   bannerFont: {fileID: 11400000, guid: 099dce98fb9fd47cb8ff1abc60bfba4c, type: 2}
   stopRed: {r: 0.9, g: 0.11, b: 0.11, a: 1}
+  whistleSprite: {fileID: 21300000, guid: a3b1954b74b4647e4b1ed50997a16b31, type: 3}
   whistleSound: {fileID: 0}
 --- !u!1 &744715060
 GameObject:

@@ -16,9 +16,10 @@ namespace RingSport.UI
     /// the flee attack slowly closes the gap for a catch, here the decoy HOLDS
     /// a slightly longer gap. Then the beat flips: a big red "STOP!" banner
     /// fires, the decoy turns to face the dog, a red line appears across all
-    /// three lanes, and the world eases into a slow-motion charge timed so the
-    /// dog reaches the line exactly when the stop window expires. Tapping the
-    /// on-screen whistle inside the window (4s on Ring 2-1, 2.5s on Ring 3-1)
+    /// three lanes, and the world settles into a near-full-pace charge timed
+    /// so the dog reaches the line exactly when the stop window expires.
+    /// Tapping the on-screen whistle inside the window (3s on Ring 2-1, 2s on
+    /// Ring 3-1)
     /// halts the dog short of the line and completes the level; missing it is
     /// a standard mini-level failure (which retries just this sequence, not
     /// the whole run - see GameManager's in-run MiniLevel-state reroute).
@@ -40,11 +41,15 @@ namespace RingSport.UI
         // ---- Difficulty tables, indexed by stop-attack ordinal across the
         // ---- run (level 4 "Ring 2-1" = 0, level 6 "Ring 3-1" = 1). The
         // ---- approach reuses the flee attack's validated fairness cadences;
-        // ---- the stop window is the real difficulty knob: 4s, then 2.5s.
+        // ---- the stop window is the real difficulty knob: 2.5s, then 2s.
+        // ---- (These are TAP reactions to a fully telegraphed cue - the STOP!
+        // ---- banner, the decoy's turn and the line all land together - so
+        // ---- they sit comfortably outside the ~0.4s mobile input latency the
+        // ---- swipe fairness model budgets for.)
         private static readonly float[] ChaseDurationSeconds = { 8f, 12f };
         private static readonly float[] ObstacleIntervalSeconds = { 2.1f, 1.6f };
         private static readonly float[] VoluntaryHopIntervalSeconds = { 3.0f, 2.0f };
-        private static readonly float[] StopWindowSeconds = { 4f, 2.5f };
+        private static readonly float[] StopWindowSeconds = { 2.5f, 2f };
 
         // ---- Fairness model: same action model as the flee attack chase
         // (one dodge ~0.9s; barrels are dodge-only; hard 1.1s row floor).
@@ -59,11 +64,12 @@ namespace RingSport.UI
         private const float DecoyLaneLerpSpeed = 9f;
         private const float IntroSeconds = 1.6f;
         private const float IntroStartGap = 8f;    // decoy appears here, then flees...
-        private const float FarGap = 24f;          // ...out to here...
-        private const float HoldGap = 28f;         // ...and settles a little further (never closes like the flee attack)
+        private const float FarGap = 24f;          // ...out to here, then keeps pulling ahead toward the charge gap
+        private const float ChargePaceFactor = 0.85f; // the stop-window charge runs at this fraction of the live scroll speed
+        private const float HoldGapAdjustSpeed = 8f;  // m/s the approach target gap tracks scroll-speed changes at
         private const float DecoyBeyondLineGap = 5f;  // the turned decoy stands this far past the line
         private const float LineFailGap = 1.2f;    // the line reaches here (the dog's nose) exactly at window expiry
-        private const float SlowdownRampSeconds = 0.4f;  // ease into the slow-motion charge
+        private const float SlowdownRampSeconds = 0.4f;  // ease into the charge pace
         private const float StopRampSeconds = 0.35f;     // ease from the slow charge to a full halt on success
         private const float DecoyTurnSeconds = 0.5f;
         private const float SuccessHoldSeconds = 1.8f;   // beat between the stop and the reward screen
@@ -79,8 +85,22 @@ namespace RingSport.UI
         [SerializeField] private Color decoyColor = new Color(1f, 0.42f, 0.05f);
         [Tooltip("Font for the banners (STOP! etc.) and the whistle label, wired by Tools > RingSport > Setup Stop Attack. TMP default when missing.")]
         [SerializeField] private TMP_FontAsset bannerFont;
-        [Tooltip("The STOP! banner, the stop line and the whistle button all use this red.")]
+        [Tooltip("The STOP! banner, the stop line and the ARMED whistle button all use this red.")]
         [SerializeField] private Color stopRed = new Color(0.9f, 0.11f, 0.11f);
+        [Tooltip("Whistle button background while the stop window is NOT open; it flips to stopRed the instant the window arms. Pure white by default.")]
+        [SerializeField] private Color whistleIdleColor = Color.white;
+
+        /// <summary>
+        /// The idle disc color, falling back to pure white if the serialized
+        /// value is invisible - a transparent disc would just hide the button,
+        /// and it is never a deliberate choice.
+        /// </summary>
+        private Color IdleWhistleColor =>
+            whistleIdleColor.a > 0.01f && whistleIdleColor.maxColorComponent > 0.01f
+                ? whistleIdleColor
+                : Color.white;
+        [Tooltip("Whistle icon on the tap button (Assets/Textures/whistle.png, wired by Tools > RingSport > Setup Stop Attack). Falls back to a primitive-built glyph when missing.")]
+        [SerializeField] private Sprite whistleSprite;
 
         [Header("Audio")]
         [SerializeField] private AudioClip whistleSound;
@@ -103,6 +123,7 @@ namespace RingSport.UI
         private float bobPhase;
         private float lastDodgeTime;
         private float decoyTurnTimer;
+        private float smoothedHoldGap;   // approach target gap, tracking the live scroll speed
 
         // Spawned chase objects (self-managed; deliberately NOT registered with
         // DespawnManager so the end-of-level despawn sweeps can't eat them)
@@ -146,6 +167,7 @@ namespace RingSport.UI
         private Canvas whistleCanvas;
         private CanvasGroup whistleGroup;
         private RectTransform whistleButtonRect;
+        private Image whistleBackground;
         private float whistlePopTimer;    // early-tap feedback bump
         private const float WhistlePopSeconds = 0.18f;
 
@@ -333,16 +355,35 @@ namespace RingSport.UI
             {
                 phase = StopPhase.Approach;
                 phaseTimer = 0f;
+                smoothedHoldGap = DesiredHoldGap();
             }
+        }
+
+        /// <summary>
+        /// The gap the approach pushes out to: far enough that the stop-window
+        /// charge (which must cover lineGap - LineFailGap in exactly the
+        /// window) runs at ~ChargePaceFactor of the live scroll speed instead
+        /// of a crawl. Derived from the same ramp integral EnterStopWindow
+        /// solves, so the charge lands on the intended pace.
+        /// </summary>
+        private float DesiredHoldGap()
+        {
+            float window = StopWindowSeconds[difficulty];
+            float speed = CurrentScrollSpeed();
+            float travel = speed * (ChargePaceFactor * window + (1f - ChargePaceFactor) * SlowdownRampSeconds * 0.5f);
+            return LineFailGap + DecoyBeyondLineGap + travel;
         }
 
         private void UpdateApproach(float dt)
         {
             float chaseDuration = ChaseDurationSeconds[difficulty];
             float t = Mathf.Clamp01(phaseTimer / chaseDuration);
-            // Unlike the flee attack the gap never closes - it drifts a little
-            // FURTHER out while the decoy leads the dog through the barrels
-            gap = Mathf.SmoothStep(FarGap, HoldGap, t);
+            // Unlike the flee attack the gap never closes - the decoy keeps
+            // pulling FURTHER ahead while it leads the dog through the
+            // barrels, out to the charge gap (tracked smoothly so sprint
+            // speed changes can't pop the decoy)
+            smoothedHoldGap = Mathf.MoveTowards(smoothedHoldGap, DesiredHoldGap(), HoldGapAdjustSpeed * dt);
+            gap = Mathf.SmoothStep(FarGap, smoothedHoldGap, t);
 
             float remaining = chaseDuration - phaseTimer;
 
@@ -375,9 +416,10 @@ namespace RingSport.UI
 
         /// <summary>
         /// The beat flip: STOP! banner, the decoy wheels around, the red line
-        /// materializes across the track, and the world eases into a slowed
-        /// charge tuned so the line arrives at the dog exactly when the window
-        /// expires - the crossing IS the failure moment.
+        /// materializes across the track, and the world settles into a charge
+        /// at ~ChargePaceFactor of run speed, tuned so the line arrives at the
+        /// dog exactly when the window expires - the crossing IS the failure
+        /// moment.
         /// </summary>
         private void EnterStopWindow()
         {
@@ -977,8 +1019,15 @@ namespace RingSport.UI
 
             float scale = 1f;
 
+            // Armed = the stop window is open: the disc goes red under the
+            // whistle and pulses. Driven off `phase` every frame rather than
+            // set once, so every entry/retry path lands on the right color.
+            bool armed = phase == StopPhase.StopWindow;
+            if (whistleBackground != null)
+                whistleBackground.color = armed ? stopRed : IdleWhistleColor;
+
             // Urgency pulse while the window is open
-            if (phase == StopPhase.StopWindow)
+            if (armed)
                 scale += 0.1f * Mathf.Sin(phaseTimer * Mathf.PI * 2f * 2.2f);
 
             // Early-tap feedback bump
@@ -1014,47 +1063,49 @@ namespace RingSport.UI
             whistleGroup.blocksRaycasts = false;
             whistleGroup.interactable = false;
 
-            // The button: a red disc in thumb reach, bottom center
+            // The button: a disc in thumb reach, bottom center. It sits white
+            // while the whistle is just "available" and flips to red the
+            // instant the stop window arms (see UpdateWhistle).
             var buttonGO = new GameObject("WhistleButton");
             buttonGO.transform.SetParent(canvasGO.transform, false);
-            var buttonImage = buttonGO.AddComponent<Image>();
-            buttonImage.sprite = GetCircleSprite();
-            buttonImage.color = stopRed;
-            whistleButtonRect = buttonImage.rectTransform;
-            whistleButtonRect.anchorMin = whistleButtonRect.anchorMax = new Vector2(0.5f, 0.17f);
+            whistleBackground = buttonGO.AddComponent<Image>();
+            whistleBackground.sprite = GetCircleSprite();
+            whistleBackground.color = IdleWhistleColor;
+            whistleButtonRect = whistleBackground.rectTransform;
+            whistleButtonRect.anchorMin = whistleButtonRect.anchorMax = new Vector2(0.5f, 0.25f);
             whistleButtonRect.sizeDelta = new Vector2(230f, 230f);
             whistleButtonRect.anchoredPosition = Vector2.zero;
 
             var button = buttonGO.AddComponent<Button>();
-            button.targetGraphic = buttonImage;
+            button.targetGraphic = whistleBackground;
+            // Unity's ColorTint transition drives the CanvasRenderer color on
+            // press/hover and would fight the armed-state color below
+            button.transition = Selectable.Transition.None;
             button.onClick.AddListener(OnWhistleTapped);
 
-            // Whistle glyph from primitives: round body + angled mouthpiece +
-            // the pea hole punched back out in the button color
-            BuildGlyphImage(buttonGO.transform, "WhistleBody", GetCircleSprite(), Color.white,
-                new Vector2(104f, 104f), new Vector2(-16f, -14f), 0f);
-            BuildGlyphImage(buttonGO.transform, "WhistleMouth", null, Color.white,
-                new Vector2(78f, 32f), new Vector2(42f, 34f), 35f);
-            BuildGlyphImage(buttonGO.transform, "WhistlePea", GetCircleSprite(), stopRed,
-                new Vector2(36f, 36f), new Vector2(-16f, -14f), 0f);
-
-            var labelGO = new GameObject("WhistleLabel");
-            labelGO.transform.SetParent(buttonGO.transform, false);
-            var label = labelGO.AddComponent<TextMeshProUGUI>();
-            label.text = "WHISTLE";
-            label.alignment = TextAlignmentOptions.Center;
-            label.fontSize = 40f;
-            label.color = Color.white;
-            label.raycastTarget = false;
-            if (bannerFont != null)
-                label.font = bannerFont;
-            var labelRT = label.rectTransform;
-            labelRT.anchorMin = labelRT.anchorMax = new Vector2(0.5f, 0f);
-            labelRT.sizeDelta = new Vector2(400f, 60f);
-            labelRT.anchoredPosition = new Vector2(0f, -55f);
+            // The icon: the wired whistle sprite, or a primitive-built glyph
+            // (round body + angled mouthpiece + pea hole) as the fallback
+            if (whistleSprite != null)
+            {
+                var icon = BuildGlyphImage(buttonGO.transform, "WhistleIcon", whistleSprite, Color.white,
+                    new Vector2(150f, 150f), new Vector2(0f, 10f), 0f);
+                icon.preserveAspect = true;
+            }
+            else
+            {
+                // Dark glyph, not knocked out of the background - the disc
+                // swaps white/red underneath it, so it must read on both
+                var glyphColor = new Color(0.13f, 0.14f, 0.16f);
+                BuildGlyphImage(buttonGO.transform, "WhistleBody", GetCircleSprite(), glyphColor,
+                    new Vector2(104f, 104f), new Vector2(-16f, -4f), 0f);
+                BuildGlyphImage(buttonGO.transform, "WhistleMouth", null, glyphColor,
+                    new Vector2(78f, 32f), new Vector2(42f, 44f), 35f);
+                BuildGlyphImage(buttonGO.transform, "WhistlePea", GetCircleSprite(), new Color(0.85f, 0.87f, 0.9f),
+                    new Vector2(36f, 36f), new Vector2(-16f, -4f), 0f);
+            }
         }
 
-        private static void BuildGlyphImage(Transform parent, string name, Sprite sprite, Color color,
+        private static Image BuildGlyphImage(Transform parent, string name, Sprite sprite, Color color,
             Vector2 size, Vector2 position, float rotationZ)
         {
             var go = new GameObject(name);
@@ -1067,6 +1118,7 @@ namespace RingSport.UI
             rt.sizeDelta = size;
             rt.anchoredPosition = position;
             rt.localEulerAngles = new Vector3(0f, 0f, rotationZ);
+            return image;
         }
 
         /// <summary>Procedural anti-aliased white disc, so no sprite asset wiring is needed.</summary>
