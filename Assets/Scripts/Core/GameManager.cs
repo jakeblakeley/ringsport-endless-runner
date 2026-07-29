@@ -53,6 +53,32 @@ namespace RingSport.Core
             debugMiniLevelOverride = type;
             SetState(GameState.MiniLevel);
         }
+
+        /// <summary>
+        /// Debug menu: show a runner level's start screen (location + level name)
+        /// instead of dropping straight into gameplay, so the intro UI can be
+        /// checked per level. Stays in the Home state until the start button is
+        /// pressed, which enters Playing on the level LevelManager is holding.
+        /// </summary>
+        public void DebugShowLevelIntro(int level)
+        {
+            Time.timeScale = 1f;
+            isInMiniLevelContext = false;
+
+            LevelConfig config = LevelGenerator.Instance?.GetLevelConfig(level);
+
+            // Dress the backdrop with the previewed level's location
+            LevelGenerator.Instance?.LoadHomeScene(level);
+            CameraStateMachine.Instance?.SetState(CameraStateType.Start);
+            Object.FindAnyObjectByType<PlayerController>()?.Animations?.SetFacing(false);
+            StopLocationAudio();
+
+            string levelName = config != null && !string.IsNullOrEmpty(config.LevelName)
+                ? config.LevelName
+                : $"Level {level}";
+
+            UIManager.Instance?.ShowLevelIntro(levelName, config != null ? config.Location.ToString() : "");
+        }
 #endif
 
         private void Awake()
@@ -167,6 +193,13 @@ namespace RingSport.Core
 
         private void HandleMiniLevelState()
         {
+            // Flee attack is an IN-RUN mini level: it plays during the Playing
+            // state at the end of its level, not in the arena flow. Reaching
+            // this state with it pending (chase-death retry, or the debug
+            // menu) reroutes into a short run that jumps straight to the chase.
+            if (TryRouteFleeAttackEntry())
+                return;
+
             Time.timeScale = 0f;
             isInMiniLevelContext = true;
 
@@ -214,6 +247,55 @@ namespace RingSport.Core
                 // Fallback: skip directly to level complete
                 SetState(GameState.LevelComplete);
             }
+        }
+
+        /// <summary>
+        /// If the mini level about to start is the in-run flee attack, routes
+        /// back into the Playing state fast-forwarded to the chase and returns
+        /// true. Handles both the current level's config and the debug override.
+        /// </summary>
+        private bool TryRouteFleeAttackEntry()
+        {
+            if (MiniLevelFleeAttack.Instance == null || LevelManager.Instance == null)
+                return false;
+
+            LevelConfig config = LevelGenerator.Instance?.GetCurrentConfig();
+            MiniLevelType effectiveType = config != null ? config.MiniLevelType : MiniLevelType.PositionsSimonSays;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (debugMiniLevelOverride.HasValue)
+                effectiveType = debugMiniLevelOverride.Value;
+#endif
+            if (effectiveType != MiniLevelType.FleeAttack)
+                return false;
+
+            // Retry on a flee level re-enters that level's chase; a debug jump
+            // from elsewhere hosts the chase on the first flee attack level
+            int targetLevel = (config != null && config.MiniLevelType == MiniLevelType.FleeAttack)
+                ? LevelManager.Instance.CurrentLevel
+                : LevelGenerator.Instance?.FindFirstLevelWithMiniLevel(MiniLevelType.FleeAttack) ?? -1;
+
+            if (targetLevel < 1)
+            {
+                Debug.LogWarning("[GameManager] No level uses the FleeAttack mini level - cannot route in-run entry");
+                return false;
+            }
+
+            Debug.Log($"[GameManager] Routing FleeAttack mini level into in-run chase on level {targetLevel}");
+            LevelManager.Instance.StartAtFleeAttack(targetLevel);
+            return true;
+        }
+
+        /// <summary>
+        /// Called when an in-run mini level (the flee attack chase) begins
+        /// during the Playing state. Banks the running-section score
+        /// (mirroring the arena flow's finalize-on-entry) and marks the
+        /// mini-level context so a death during the chase retries just the
+        /// chase instead of the whole run.
+        /// </summary>
+        public void NotifyInRunMiniLevelStarted()
+        {
+            ScoreManager.Instance?.FinalizeLevelScore();
+            isInMiniLevelContext = true;
         }
 
         private void HandleLevelCompleteState()

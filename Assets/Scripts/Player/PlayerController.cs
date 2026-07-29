@@ -41,6 +41,7 @@ namespace RingSport.Player
         private Vector3 velocity;
         private bool isGrounded;
         private bool isJumpEnabled = true;
+        private bool isLaneChangeEnabled = true;
         private float targetLaneX = 0f;
         private int currentLane = 0; // -1 = left, 0 = center, 1 = right
         private bool isMovementPaused = false;
@@ -68,6 +69,8 @@ namespace RingSport.Player
         public float ForwardSpeed => staminaSystem.IsSprinting ? forwardSpeed * sprintMultiplier : forwardSpeed;
         public bool IsGrounded => isGrounded;
         public PlayerAnimator Animations => playerAnimator;
+        /// <summary>Current target lane: -1 left, 0 center, 1 right.</summary>
+        public int CurrentLane => currentLane;
 
         private void Awake()
         {
@@ -261,8 +264,10 @@ namespace RingSport.Player
                 }
             }
 
-            // Discrete lane switching with cooldown
-            if (Time.unscaledTime - lastInputTime > inputCooldown)
+            // Discrete lane switching with cooldown (scripted sequences like
+            // the flee attack catch can lock switching; the lerp toward the
+            // current target lane keeps running so the player still settles)
+            if (isLaneChangeEnabled && Time.unscaledTime - lastInputTime > inputCooldown)
             {
                 if (moveInput.x > 0.5f && currentLane < 1)
                 {
@@ -464,6 +469,30 @@ namespace RingSport.Player
         public void SetJumpEnabled(bool enabled)
         {
             isJumpEnabled = enabled;
+
+            // A swipe buffered just before disabling would otherwise still
+            // fire on landing (the buffer check bypasses isJumpEnabled)
+            if (!enabled)
+                pendingJumpRequestTime = float.NegativeInfinity;
+        }
+
+        /// <summary>
+        /// Scripted jump used by the flee attack's catch pounce - fires even
+        /// while manual jumping is disabled. No-op when airborne.
+        /// </summary>
+        public void ForceJump()
+        {
+            if (isGrounded)
+                DoJump();
+        }
+
+        /// <summary>
+        /// Locks/unlocks discrete lane switching (the flee attack catch
+        /// sequence owns the dog's lane once the walls are passed).
+        /// </summary>
+        public void SetLaneChangeEnabled(bool enabled)
+        {
+            isLaneChangeEnabled = enabled;
         }
 
         public void ResetPosition()
@@ -472,6 +501,7 @@ namespace RingSport.Player
             targetLaneX = 0f;
             velocity = Vector3.zero;
             isJumpEnabled = true;
+            isLaneChangeEnabled = true;
             pendingJumpRequestTime = float.NegativeInfinity;
 
             // Disable CharacterController to allow direct position change

@@ -42,6 +42,8 @@ namespace RingSport.UI
         [SerializeField] private Button returnHomeButton;
         [SerializeField] private TextMeshProUGUI nextLevelNameText;
         [SerializeField] private TextMeshProUGUI nextLevelLocationText;
+        [Tooltip("The 'YOU DID IT!' banner - hidden when the screen is reused as a level intro")]
+        [SerializeField] private GameObject rewardCompleteBanner;
 
         [Header("Game Over Screen")]
         [SerializeField] private Button retryButton;
@@ -63,6 +65,11 @@ namespace RingSport.UI
         [SerializeField] private AnimationCurve countdownScaleAnimation = AnimationCurve.EaseInOut(0f, 1.5f, 1f, 1f);
 
         private Coroutine countdownCoroutine;
+
+        // Reward screen is reused as a level intro (location + level name + start).
+        // While set, the "Next Level" button starts the current level instead of
+        // advancing to the next one.
+        private bool isLevelIntro;
 
         private void Awake()
         {
@@ -100,6 +107,7 @@ namespace RingSport.UI
 
         public void HideAllScreens()
         {
+            isLevelIntro = false;
             if (homeScreen != null) homeScreen.SetActive(false);
             if (gameHUD != null) gameHUD.SetActive(false);
             if (rewardScreen != null) rewardScreen.SetActive(false);
@@ -156,12 +164,51 @@ namespace RingSport.UI
             }
         }
 
+        /// <summary>
+        /// Shows the reward screen as a level intro: just the upcoming level's
+        /// location and name plus a start button, with the level-complete score
+        /// summary hidden. Used by the debug menu to jump to a level's start screen.
+        /// </summary>
+        public void ShowLevelIntro(string levelName, string levelLocation)
+        {
+            HideAllScreens();
+            if (rewardScreen == null)
+            {
+                Debug.LogError("[UIManager] ShowLevelIntro called but rewardScreen is NULL!");
+                return;
+            }
+
+            isLevelIntro = true;
+            rewardScreen.SetActive(true);
+
+            if (nextLevelNameText != null)
+                nextLevelNameText.text = levelName ?? "";
+
+            if (nextLevelLocationText != null)
+                nextLevelLocationText.text = levelLocation ?? "";
+
+            // Nothing has been scored yet - hide the level-complete summary
+            if (rewardCompleteBanner != null) rewardCompleteBanner.SetActive(false);
+            if (rewardScoreText != null) rewardScoreText.gameObject.SetActive(false);
+            if (rewardTotalScoreText != null) rewardTotalScoreText.gameObject.SetActive(false);
+            if (rewardHighScoreText != null) rewardHighScoreText.gameObject.SetActive(false);
+            if (newHighScoreIndicator != null) newHighScoreIndicator.SetActive(false);
+
+            SetNextLevelButtonText("START");
+        }
+
         public void ShowRewardScreen(int level, int score, string nextLevelName = "", string nextLevelLocation = "")
         {
             HideAllScreens();
             if (rewardScreen != null)
             {
                 rewardScreen.SetActive(true);
+
+                // Undo anything the level intro hid
+                if (rewardCompleteBanner != null) rewardCompleteBanner.SetActive(true);
+                if (rewardTotalScoreText != null) rewardTotalScoreText.gameObject.SetActive(true);
+                if (rewardHighScoreText != null) rewardHighScoreText.gameObject.SetActive(true);
+                SetNextLevelButtonText("NEXT LEVEL");
 
                 // Display next level in "X/9" format
                 if (rewardLevelText != null)
@@ -456,8 +503,26 @@ namespace RingSport.UI
             GameManager.Instance?.StartGame();
         }
 
+        private void SetNextLevelButtonText(string label)
+        {
+            if (nextLevelButton == null)
+                return;
+
+            var text = nextLevelButton.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (text != null)
+                text.text = label;
+        }
+
         private void OnNextLevelButtonClicked()
         {
+            if (isLevelIntro)
+            {
+                Debug.Log("[UIManager] OnNextLevelButtonClicked - starting previewed level");
+                isLevelIntro = false;
+                GameManager.Instance?.SetState(GameState.Playing);
+                return;
+            }
+
             Debug.Log("[UIManager] OnNextLevelButtonClicked - calling NextLevel");
             LevelManager.Instance?.NextLevel();
         }

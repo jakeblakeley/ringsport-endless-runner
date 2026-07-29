@@ -95,6 +95,10 @@ namespace RingSport.DebugTools
                     ? $"{level}. {config.LevelName} ({config.Location})"
                     : $"Level {level}";
 
+                // Mark levels that end in the in-run flee attack chase
+                if (config != null && config.MiniLevelType == MiniLevelType.FleeAttack)
+                    label += " (flee)";
+
                 if (GUILayout.Button(label, GUILayout.Height(28f)))
                 {
                     isOpen = false;

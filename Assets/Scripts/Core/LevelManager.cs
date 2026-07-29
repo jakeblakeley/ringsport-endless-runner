@@ -18,6 +18,12 @@ namespace RingSport.Core
         [Header("Retry Settings")]
         [SerializeField] private int maxRetries = 3;
 
+        [Header("Flee Attack Settings")]
+        [Tooltip("Seconds of normal running before the chase begins when retrying a failed flee attack (the retry skips the rest of the run)")]
+        [SerializeField] private float fleeAttackRetryPreRoll = 4f;
+        [Tooltip("Seconds before the chase at which normal spawning stops, so the generated course drains past the player and leaves a clean gap of track (must cover the longest pattern tail ~105u at base speed)")]
+        [SerializeField] private float fleeAttackWindDownSeconds = 7.5f;
+
         [Header("Audio Settings")]
         [SerializeField] private AudioClip[] levelCompleteSounds;
         [SerializeField] private float sfxVolume = 1.0f;
@@ -32,6 +38,13 @@ namespace RingSport.Core
         private bool hasReachedFinishLine = false; // Track if player has reached finish line
         private int retriesRemaining = 3;
         private float partialRetries = 0f; // Track partial lives (0.5 increments)
+
+        // Flee attack (in-run mini level) state
+        private bool isFleeAttackLevel = false;
+        private bool fleeAttackTriggered = false;
+        private bool fleeAttackWindDownStarted = false;
+        private int fleeAttackDifficultyIndex = 0;
+        private bool pendingFleeAttackEntry = false; // next StartLevel fast-forwards to the chase
 
         public int CurrentLevel => currentLevel;
         public int MaxLevels => maxLevels;
@@ -68,6 +81,27 @@ namespace RingSport.Core
 
             levelTimer += Time.deltaTime;
 
+            // Flee attack levels hand the end of the run to the in-run chase.
+            // Spawning stops a wind-down period EARLIER so the generated
+            // course scrolls past the player and leaves a clean gap of empty
+            // track before the decoy appears (nothing visible is despawned).
+            if (isFleeAttackLevel && MiniLevelFleeAttack.Instance != null)
+            {
+                float chaseStartTime = currentLevelConfig.LevelDuration - MiniLevelFleeAttack.Instance.GetLeadSeconds(fleeAttackDifficultyIndex);
+
+                if (!fleeAttackWindDownStarted && levelTimer >= chaseStartTime - fleeAttackWindDownSeconds)
+                {
+                    fleeAttackWindDownStarted = true;
+                    LevelGenerator.Instance?.SetRunnerSpawningSuppressed(true);
+                }
+
+                if (!fleeAttackTriggered && levelTimer >= chaseStartTime)
+                {
+                    fleeAttackTriggered = true;
+                    MiniLevelFleeAttack.Instance.BeginChase(fleeAttackDifficultyIndex);
+                }
+            }
+
             // FAIRNESS: Despawn obstacles before level ends
             if (!hasCalledLevelEnding && levelTimer >= currentLevelConfig.LevelDuration - endGameWarningTime)
             {
@@ -98,6 +132,39 @@ namespace RingSport.Core
                 return;
             }
 
+            // Flee attack setup: the chase plays in-run at the end of the
+            // level. A pending flee-attack entry (chase retry or debug jump)
+            // fast-forwards the timer so only a short pre-roll runs first.
+            isFleeAttackLevel = currentLevelConfig.MiniLevelType == MiniLevelType.FleeAttack;
+            fleeAttackTriggered = false;
+            fleeAttackWindDownStarted = false;
+            fleeAttackDifficultyIndex = isFleeAttackLevel ? ComputeFleeAttackDifficulty(currentLevel) : 0;
+
+            bool fleeAttackRetryEntry = pendingFleeAttackEntry && isFleeAttackLevel && MiniLevelFleeAttack.Instance != null;
+            pendingFleeAttackEntry = false;
+
+            // Reset any leftover chase state BEFORE arming the retry entry -
+            // the controller's cleanup releases the spawn suppression, which
+            // must not undo the wind-down set below
+            MiniLevelFleeAttack.Instance?.OnRunLevelStarted(isFleeAttackLevel, fleeAttackRetryEntry);
+
+            if (fleeAttackRetryEntry)
+            {
+                float lead = MiniLevelFleeAttack.Instance.GetLeadSeconds(fleeAttackDifficultyIndex);
+                levelTimer = Mathf.Max(0f, currentLevelConfig.LevelDuration - lead - fleeAttackRetryPreRoll);
+                Debug.Log($"[LevelManager] Flee attack entry - fast-forwarding level timer to {levelTimer:F1}s");
+
+                // Keep the mini-level context armed through the pre-roll so a
+                // death before the chase re-begins still retries the chase,
+                // not the whole run (HandlePlayingState just cleared it)
+                GameManager.Instance?.NotifyInRunMiniLevelStarted();
+
+                // The pre-roll is inside the wind-down window: keep it a clean,
+                // empty approach (also avoids racing LevelGenerator's Update)
+                fleeAttackWindDownStarted = true;
+                LevelGenerator.Instance?.SetRunnerSpawningSuppressed(true);
+            }
+
             // Update HUD with level name now that config is loaded
             string levelName = !string.IsNullOrEmpty(currentLevelConfig.LevelName)
                 ? currentLevelConfig.LevelName
@@ -121,6 +188,17 @@ namespace RingSport.Core
             {
                 AudioClip randomClip = levelCompleteSounds[Random.Range(0, levelCompleteSounds.Length)];
                 sfxAudioSource.PlayOneShot(randomClip);
+            }
+
+            // Flee attack levels already played their mini level in-run (the
+            // chase ends just before the finish line), so skip the arena
+            // mini-level state and complete directly.
+            if (isFleeAttackLevel && fleeAttackTriggered)
+            {
+                MiniLevelFleeAttack.Instance?.NotifyLevelEndReached();
+                ScoreManager.Instance?.FinalizeLevelScore();
+                GameManager.Instance?.CompleteLevel();
+                return;
             }
 
             // Note: Score finalization is deferred to MiniLevelManager.CompleteMiniLevel()
@@ -183,16 +261,51 @@ namespace RingSport.Core
             }
         }
 
+        /// <summary>
+        /// Enters (or re-enters) a flee attack level fast-forwarded to just
+        /// before the chase. Used when retrying a failed chase and by the
+        /// debug menu - the retry replays only the chase plus a short
+        /// pre-roll, not the whole run.
+        /// </summary>
+        public void StartAtFleeAttack(int level)
+        {
+            // Bank whatever score the failed attempt had before StartLevel resets it
+            ScoreManager.Instance?.FinalizeLevelScore();
+
+            currentLevel = Mathf.Clamp(level, 1, maxLevels);
+            pendingFleeAttackEntry = true;
+            Debug.Log($"[LevelManager] Starting level {currentLevel} at the flee attack chase");
+            GameManager.Instance?.SetState(GameState.Playing);
+        }
+
+        /// <summary>
+        /// Difficulty ordinal of the flee attack on the given level: how many
+        /// earlier levels also run one (level 3 = 0, level 5 = 1, level 7 = 2).
+        /// </summary>
+        private int ComputeFleeAttackDifficulty(int level)
+        {
+            int index = 0;
+            for (int i = 1; i < level; i++)
+            {
+                var config = LevelGenerator.Instance?.GetLevelConfig(i);
+                if (config != null && config.MiniLevelType == MiniLevelType.FleeAttack)
+                    index++;
+            }
+            return index;
+        }
+
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         /// <summary>
-        /// Debug menu: start a fresh run directly at the given level.
+        /// Debug menu: start a fresh run at the given level, opening on that
+        /// level's intro screen (location + level name) rather than dropping
+        /// straight into gameplay.
         /// </summary>
         public void DebugStartAtLevel(int level)
         {
             ResetProgress();
             currentLevel = Mathf.Clamp(level, 1, maxLevels);
-            Debug.Log($"[LevelManager] DEBUG: jumping to level {currentLevel}");
-            GameManager.Instance?.SetState(GameState.Playing);
+            Debug.Log($"[LevelManager] DEBUG: showing intro for level {currentLevel}");
+            GameManager.Instance?.DebugShowLevelIntro(currentLevel);
         }
 #endif
 

@@ -20,6 +20,10 @@ namespace RingSport.Level.Spawning
         private const float ForcingRowLeadTime = 0.9f;    // reposition + jump before a row
         private const float PatternTailTime = 0.55f;      // breathing room after a pattern
         private const float PinChainTime = 1.4f;          // window where forced lanes must stay adjacent
+        // A player who ENGAGES a palisade (the designed path) stops for the
+        // minigame, rides the scripted vault, and regains control in the
+        // palisade's lane - nothing may need an action for this long after it
+        private const float PalisadeRecoveryTime = 1.1f;
 
         private float nextObstacleSpawnZ;
         private int obstaclesSpawned;
@@ -27,6 +31,7 @@ namespace RingSport.Level.Spawning
         // Fairness rule state
         private float lastObstacleZ;
         private float lastForcingRowZ;
+        private float lastPalisadeZ;
         private int? pinnedLane;      // lane the player was last forced into
         private float pinnedLaneZ;
 
@@ -63,6 +68,7 @@ namespace RingSport.Level.Spawning
             obstaclesSpawned = 0;
             lastObstacleZ = -100f;
             lastForcingRowZ = -100f;
+            lastPalisadeZ = -100f;
             pinnedLane = null;
             pinnedLaneZ = -100f;
         }
@@ -87,6 +93,24 @@ namespace RingSport.Level.Spawning
         private float ForcingRowGap => ForcingRowLeadTime * RunSpeed;
         private float PatternTailGap => PatternTailTime * RunSpeed;
         private float PinChainReach => PinChainTime * RunSpeed;
+        private float PalisadeRecoveryGap => PalisadeRecoveryTime * RunSpeed;
+
+        /// <summary>
+        /// Earliest Z at which anything may spawn: keeps reposition room after
+        /// forcing rows and full recovery room after every palisade.
+        /// </summary>
+        private float SpawnFloor => Mathf.Max(lastForcingRowZ + ForcingRowGap, lastPalisadeZ + PalisadeRecoveryGap);
+
+        /// <summary>
+        /// A spawned palisade anchors both the recovery gap and the pin: the
+        /// player who takes it comes out of the vault in ITS lane.
+        /// </summary>
+        private void NotePalisade(int lane, float virtualZ)
+        {
+            lastPalisadeZ = Mathf.Max(lastPalisadeZ, virtualZ);
+            pinnedLane = lane;
+            pinnedLaneZ = Mathf.Max(pinnedLaneZ, virtualZ);
+        }
 
         private bool PinActive(float atZ) => pinnedLane.HasValue && atZ - pinnedLaneZ < PinChainReach;
 
@@ -116,6 +140,8 @@ namespace RingSport.Level.Spawning
         private void OnSingleSpawned(string poolTag, int lane, float virtualZ)
         {
             lastObstacleZ = Mathf.Max(lastObstacleZ, virtualZ);
+            if (poolTag == PoolTags.ObstaclePalisade)
+                NotePalisade(lane, virtualZ);
             if (PinActive(virtualZ))
             {
                 if (lane == pinnedLane.Value && !IsObstaclePassable(poolTag))
@@ -186,8 +212,8 @@ namespace RingSport.Level.Spawning
         /// </summary>
         private void SpawnRandomSingleObstacle()
         {
-            // FAIRNESS: keep breathing room after a row that forced an action
-            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastForcingRowZ + ForcingRowGap);
+            // FAIRNESS: keep breathing room after forcing rows and palisades
+            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, SpawnFloor);
 
             // Select obstacle type
             string poolTag = GetRandomObstacleType();
@@ -320,7 +346,7 @@ namespace RingSport.Level.Spawning
             // FAIRNESS: if the pattern contains a forcing row (2+ obstacles at
             // one Z), the player needs reposition-and-act room between the last
             // spawned obstacle and that row - shift the whole pattern out
-            float startZ = Mathf.Max(nextObstacleSpawnZ, lastForcingRowZ + ForcingRowGap);
+            float startZ = Mathf.Max(nextObstacleSpawnZ, SpawnFloor);
             float firstForcingOffset = FirstForcingRowOffset(pattern);
             if (firstForcingOffset >= 0f)
                 startZ = Mathf.Max(startZ, lastObstacleZ + ForcingRowGap - firstForcingOffset);
@@ -466,7 +492,7 @@ namespace RingSport.Level.Spawning
         {
             // FAIRNESS: a 2-lane row pins the player into the one free lane -
             // require reposition-and-act room after whatever came before
-            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastObstacleZ + ForcingRowGap);
+            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastObstacleZ + ForcingRowGap, SpawnFloor);
 
             // Pick a random obstacle type
             string obstacleType = GetRandomObstacleType();
@@ -527,7 +553,7 @@ namespace RingSport.Level.Spawning
         {
             // FAIRNESS: a full row always forces an action - require
             // reposition-and-act room after whatever came before
-            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastObstacleZ + ForcingRowGap);
+            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastObstacleZ + ForcingRowGap, SpawnFloor);
 
             // Check clearance for all 3 lanes
             if (obstacleTracker.HasObstacleInLaneBehind(-1, nextObstacleSpawnZ, SameLaneClearance) ||
@@ -646,8 +672,8 @@ namespace RingSport.Level.Spawning
         /// </summary>
         private void SpawnSingleObstacleWithRetry()
         {
-            // FAIRNESS: keep breathing room after a row that forced an action
-            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastForcingRowZ + ForcingRowGap);
+            // FAIRNESS: keep breathing room after forcing rows and palisades
+            nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, SpawnFloor);
 
             string poolTag = GetRandomObstacleType();
             int lane = Random.Range(-1, 2);
@@ -719,6 +745,8 @@ namespace RingSport.Level.Spawning
                 obstacleTracker.AddObstacle(new ObstacleData(virtualZ, lane, poolTag));
                 despawnManager.RegisterObstacle(obstacle);
                 lastObstacleZ = Mathf.Max(lastObstacleZ, virtualZ);
+                if (poolTag == PoolTags.ObstaclePalisade)
+                    NotePalisade(lane, virtualZ);
                 Debug.Log($"Successfully spawned {poolTag} at lane {lane}");
             }
             else

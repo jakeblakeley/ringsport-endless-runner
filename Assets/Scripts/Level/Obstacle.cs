@@ -26,6 +26,16 @@ namespace RingSport.Level
 
         public ObstacleType Type => obstacleType;
 
+        /// <summary>
+        /// Runtime initializer for procedurally-built obstacles (e.g. the
+        /// flee attack finale walls), which can't set the serialized type.
+        /// </summary>
+        public void Configure(ObstacleType type)
+        {
+            obstacleType = type;
+            hasBeenTriggered = false;
+        }
+
         private void Awake()
         {
             // Cache component reference (collider doesn't change)

@@ -39,6 +39,7 @@ namespace RingSport.Level
         private LevelConfig currentConfig;
         private float virtualDistance = 0f; // Tracks how far the level has scrolled
         private bool isLevelEnding = false; // Tracks if we're in the end game phase
+        private bool isRunnerSpawningSuppressed = false; // Flee attack owns spawning while true
 
         // Spawning and management systems
         private SpawnContext spawnContext;
@@ -104,10 +105,15 @@ namespace RingSport.Level
             // Update spawn context with current frame data
             spawnContext.Update(virtualDistance, player.position, currentConfig);
 
-            // Delegate to spawning systems
+            // Delegate to spawning systems. During a flee attack's wind-down
+            // and chase the mini level owns obstacle/coin generation; floors
+            // keep flowing.
             floorSpawner.SpawnFloor();
-            obstacleSpawner.SpawnObstacles();
-            collectibleSpawner.SpawnCollectibles();
+            if (!isRunnerSpawningSuppressed)
+            {
+                obstacleSpawner.SpawnObstacles();
+                collectibleSpawner.SpawnCollectibles();
+            }
 
             // Delegate to management systems
             despawnManager.DespawnBehindPlayer(player.position);
@@ -175,6 +181,7 @@ namespace RingSport.Level
             // Reset virtual distance and ending flag
             virtualDistance = 0f;
             isLevelEnding = false;
+            isRunnerSpawningSuppressed = false;
 
             // Reset all systems
             obstacleTracker.Clear();
@@ -236,6 +243,41 @@ namespace RingSport.Level
         }
 
         /// <summary>
+        /// Suspends/restores the normal obstacle and collectible spawners.
+        /// The flee attack turns this on a few seconds BEFORE its chase so the
+        /// already-spawned course scrolls past the player naturally, leaving a
+        /// clean gap of empty track - nothing visible is ever despawned.
+        /// </summary>
+        public void SetRunnerSpawningSuppressed(bool suppressed)
+        {
+            if (isRunnerSpawningSuppressed == suppressed)
+                return;
+
+            isRunnerSpawningSuppressed = suppressed;
+            Debug.Log(suppressed
+                ? "Runner spawning suspended (flee attack wind-down)"
+                : "Runner spawning restored");
+        }
+
+        /// <summary>
+        /// First level number whose config uses the given mini level type,
+        /// or -1 if none does. Used to pick a host level for in-run mini
+        /// levels launched from the debug menu.
+        /// </summary>
+        public int FindFirstLevelWithMiniLevel(MiniLevelType type)
+        {
+            if (levelConfigs == null)
+                return -1;
+
+            for (int i = 0; i < levelConfigs.Length; i++)
+            {
+                if (levelConfigs[i] != null && levelConfigs[i].MiniLevelType == type)
+                    return i + 1;
+            }
+            return -1;
+        }
+
+        /// <summary>
         /// Called when level is ending - starts despawning distant obstacles for fairness
         /// FAIRNESS: Prevents unfair hits from obstacles too far ahead
         /// </summary>
@@ -255,26 +297,26 @@ namespace RingSport.Level
         }
 
         /// <summary>
-        /// Load the first level's location for the home screen
+        /// Load a level's location for the home / level intro screen
         /// Spawns initial floors and start scene without starting gameplay
         /// </summary>
-        public void LoadHomeScene()
+        /// <param name="levelNumber">Level whose location is used as the backdrop (defaults to level 1)</param>
+        public void LoadHomeScene(int levelNumber = 1)
         {
             // Clear any previous level content
             ObjectPooler.Instance?.ClearAllPools();
 
-            // Get the first level's config
             if (levelConfigs == null || levelConfigs.Length == 0)
             {
                 Debug.LogWarning("No level configs available for home scene");
                 return;
             }
 
-            currentConfig = levelConfigs[0];
+            currentConfig = GetLevelConfig(levelNumber);
 
             if (currentConfig == null)
             {
-                Debug.LogError("First LevelConfig is null! Make sure LevelConfigs array is assigned in inspector.");
+                Debug.LogError($"LevelConfig for level {levelNumber} is null! Make sure LevelConfigs array is assigned in inspector.");
                 return;
             }
 
@@ -294,12 +336,13 @@ namespace RingSport.Level
                 floorSpawner.SetSideFloorPrefab(null);
                 floorSpawner.SetFinishLineFloorPrefab(null);
                 floorSpawner.ConfigureScenery(null);
-                Debug.LogWarning("First level has no LocationConfig - home scene may look empty");
+                Debug.LogWarning($"Level {levelNumber} has no LocationConfig - home scene may look empty");
             }
 
             // Reset virtual distance and ending flag
             virtualDistance = 0f;
             isLevelEnding = false;
+            isRunnerSpawningSuppressed = false;
 
             // Reset all systems
             obstacleTracker.Clear();
