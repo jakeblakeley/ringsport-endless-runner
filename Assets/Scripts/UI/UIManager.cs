@@ -23,6 +23,16 @@ namespace RingSport.UI
         [SerializeField] private Button startButton;
         [SerializeField] private TextMeshProUGUI highScoreText;
 
+        [Header("Love Notes")]
+        [SerializeField] private Button loveNotesButton;
+        [SerializeField] private TextMeshProUGUI loveNotesCountText;
+        [SerializeField] private GameObject loveNotesNewBadge;
+        [SerializeField] private LoveNotesPanel loveNotesPanel;
+        [SerializeField] private GameObject loveNoteHudCounter;
+        [SerializeField] private TextMeshProUGUI loveNoteHudCountText;
+        [SerializeField] private GameObject gameOverLoveNoteCounter;
+        [SerializeField] private TextMeshProUGUI gameOverLoveNoteCountText;
+
         [Header("Game HUD")]
         [SerializeField] private TextMeshProUGUI scoreText;
         [SerializeField] private TextMeshProUGUI levelText;
@@ -103,6 +113,9 @@ namespace RingSport.UI
 
             if (homeButton != null)
                 homeButton.onClick.AddListener(OnReturnHomeButtonClicked);
+
+            if (loveNotesButton != null)
+                loveNotesButton.onClick.AddListener(OnLoveNotesButtonClicked);
         }
 
         public void HideAllScreens()
@@ -121,13 +134,55 @@ namespace RingSport.UI
             {
                 homeScreen.SetActive(true);
 
-                // Display high score
+                // Display high score (number only - the "High Score" label is a
+                // separate static text below it, like the in-game score column)
                 if (highScoreText != null && ScoreManager.Instance != null)
                 {
                     int highScore = ScoreManager.Instance.HighScore;
-                    highScoreText.text = highScore > 0 ? $"High Score: {highScore}" : "High Score: -";
+                    highScoreText.text = highScore > 0 ? $"{highScore}" : "-";
                 }
+
+                RefreshHomeLoveNotes();
+
+                // Notes grid should never linger open across screen changes
+                if (loveNotesPanel != null)
+                    loveNotesPanel.Close();
             }
+        }
+
+        /// <summary>
+        /// Updates the home screen love notes button: "collected/total" count
+        /// and the NEW badge when unseen notes are waiting.
+        /// </summary>
+        public void RefreshHomeLoveNotes()
+        {
+            if (loveNotesCountText != null)
+                loveNotesCountText.text = $"{LoveNoteManager.UnlockedCount}/{LoveNoteManager.TotalCount}";
+
+            if (loveNotesNewBadge != null)
+                loveNotesNewBadge.SetActive(LoveNoteManager.HasUnseenNotes);
+        }
+
+        /// <summary>
+        /// Shows "[icon] xN" under the score while at least one love note has
+        /// been collected this run; hidden at zero. Mirrored on the game over
+        /// screen so collected notes stay visible on retry.
+        /// </summary>
+        public void UpdateLoveNoteCounter(int count)
+        {
+            bool show = count > 0;
+
+            if (loveNoteHudCounter != null)
+                loveNoteHudCounter.SetActive(show);
+
+            if (loveNoteHudCountText != null)
+                loveNoteHudCountText.text = $"x{count}";
+
+            if (gameOverLoveNoteCounter != null)
+                gameOverLoveNoteCounter.SetActive(show);
+
+            if (gameOverLoveNoteCountText != null)
+                gameOverLoveNoteCountText.text = $"x{count}";
         }
 
         public void ShowGameHUD()
@@ -148,6 +203,7 @@ namespace RingSport.UI
 
                 UpdateLives(LevelManager.Instance?.TotalRetries ?? 3f);
                 UpdateSprintBar(1f, false); // Reset sprint bar to full
+                UpdateLoveNoteCounter(LoveNoteManager.CollectedThisRun);
             }
         }
 
@@ -282,6 +338,9 @@ namespace RingSport.UI
             if (gameOverScreen != null)
             {
                 gameOverScreen.SetActive(true);
+
+                // Love notes collected this run stay visible on the retry screen
+                UpdateLoveNoteCounter(LoveNoteManager.CollectedThisRun);
 
                 // Check if player has retries remaining (use floored TotalRetries)
                 int flooredRetries = LevelManager.Instance != null
@@ -501,6 +560,15 @@ namespace RingSport.UI
 
             Debug.Log("[UIManager] OnStartButtonClicked - calling StartGame (resets progress)");
             GameManager.Instance?.StartGame();
+        }
+
+        private void OnLoveNotesButtonClicked()
+        {
+            // Only browsable from the home screen
+            if (GameManager.Instance?.CurrentState != GameState.Home)
+                return;
+
+            loveNotesPanel?.Open();
         }
 
         private void SetNextLevelButtonText(string label)

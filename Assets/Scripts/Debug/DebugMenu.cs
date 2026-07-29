@@ -130,6 +130,18 @@ namespace RingSport.DebugTools
                 ScoreManager.Instance?.ClearHighScore();
                 UIManager.Instance?.ShowHomeScreen(); // refresh high score text
             }
+
+            if (GUILayout.Button($"Unlock Love Note ({LoveNoteManager.UnlockedCount}/{LoveNoteManager.TotalCount})", GUILayout.Height(28f)))
+            {
+                LoveNoteManager.TryCollectRandomLockedNote(out _);
+                UIManager.Instance?.RefreshHomeLoveNotes();
+            }
+
+            if (GUILayout.Button("Reset Love Notes", GUILayout.Height(28f)))
+            {
+                LoveNoteManager.ClearAllProgress();
+                UIManager.Instance?.RefreshHomeLoveNotes();
+            }
         }
 
         /// <summary>

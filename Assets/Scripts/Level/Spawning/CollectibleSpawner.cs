@@ -244,14 +244,29 @@ namespace RingSport.Level.Spawning
 
             // Randomly choose between regular and mega collectible
             bool isMega = Random.value < context.CurrentConfig.MegaCollectibleSpawnRatio;
-            string poolTag = isMega ? PoolTags.MegaCollectible : PoolTags.Collectible;
+
+            // A large coin can spawn as a love note instead while locked notes remain
+            bool isLoveNote = isMega && LoveNoteManager.HasLockedNotes &&
+                Random.value < LoveNoteManager.MegaCoinReplaceChance;
+
+            string poolTag = isLoveNote ? PoolTags.LoveNote
+                : isMega ? PoolTags.MegaCollectible
+                : PoolTags.Collectible;
 
             GameObject collectible = ObjectPooler.Instance?.SpawnFromPool(poolTag, spawnPosition, Quaternion.identity);
 
             if (collectible != null)
             {
-                // If mega collectible, set its point value
-                if (isMega)
+                // Love notes and mega collectibles are worth the same points
+                if (isLoveNote)
+                {
+                    var loveNote = collectible.GetComponent<LoveNoteCollectible>();
+                    if (loveNote != null)
+                    {
+                        loveNote.SetPointValue(context.CurrentConfig.MegaCollectiblePointValue);
+                    }
+                }
+                else if (isMega)
                 {
                     var collectibleComponent = collectible.GetComponent<Collectible>();
                     if (collectibleComponent != null)
@@ -385,14 +400,29 @@ namespace RingSport.Level.Spawning
 
                 // Randomly choose between regular and mega collectible
                 bool isMega = Random.value < context.CurrentConfig.MegaCollectibleSpawnRatio;
-                string poolTag = isMega ? "MegaCollectible" : "Collectible";
+
+                // A large coin can spawn as a love note instead while locked notes remain
+                bool isLoveNote = isMega && LoveNoteManager.HasLockedNotes &&
+                    Random.value < LoveNoteManager.MegaCoinReplaceChance;
+
+                string poolTag = isLoveNote ? PoolTags.LoveNote
+                    : isMega ? PoolTags.MegaCollectible
+                    : PoolTags.Collectible;
 
                 GameObject collectible = ObjectPooler.Instance?.SpawnFromPool(poolTag, spawnPosition, Quaternion.identity);
 
                 if (collectible != null)
                 {
-                    // If mega collectible, set its point value
-                    if (isMega)
+                    // Love notes and mega collectibles are worth the same points
+                    if (isLoveNote)
+                    {
+                        var loveNote = collectible.GetComponent<LoveNoteCollectible>();
+                        if (loveNote != null)
+                        {
+                            loveNote.SetPointValue(context.CurrentConfig.MegaCollectiblePointValue);
+                        }
+                    }
+                    else if (isMega)
                     {
                         var collectibleComponent = collectible.GetComponent<Collectible>();
                         if (collectibleComponent != null)

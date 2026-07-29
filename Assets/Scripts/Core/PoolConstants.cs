@@ -18,6 +18,7 @@ namespace RingSport.Core
         // Collectible pool tags
         public const string Collectible = "Collectible";
         public const string MegaCollectible = "MegaCollectible";
+        public const string LoveNote = "LoveNote";
 
         // Floor pool tags
         public const string FloorTile = "FloorTile";

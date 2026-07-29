@@ -317,6 +317,9 @@ namespace RingSport.Core
             // Reset scores via ScoreManager (handles high score save if applicable)
             ScoreManager.Instance?.ResetForNewRun();
 
+            // Love note unlocks persist across runs; only the HUD counter resets
+            LoveNoteManager.ResetRunCounter();
+
             currentLevel = 1;
             levelTimer = 0f;
             distanceTraveled = 0f;
