@@ -8,7 +8,8 @@ namespace RingSport.Core
         Start,
         Gameplay,
         Bite,
-        MiniLevel
+        MiniLevel,
+        Home
     }
 
     [System.Serializable]
@@ -37,6 +38,18 @@ namespace RingSport.Core
             cameraLocalRotation = new Vector3(35f, 0f, 0f),
             parentRotation = Vector3.zero,
             transitionDuration = 0.5f
+        };
+
+        // Close-up greeting shot (Simon Says-like distance): same -60 rig angle
+        // as the Start podium shot but ~2.1m from the dog's chest, dropped to
+        // its eye line, aimed so the camera-facing dog is centered
+        [SerializeField] private CameraStateData homeState = new CameraStateData
+        {
+            stateName = "Home State",
+            cameraLocalPosition = new Vector3(-1.49f, 1.53f, -2.42f),
+            cameraLocalRotation = new Vector3(16f, 18f, 0f),
+            parentRotation = new Vector3(0f, -60f, 0f),
+            transitionDuration = 1.5f
         };
 
         [SerializeField] private CameraStateData gameplayState = new CameraStateData
@@ -70,6 +83,7 @@ namespace RingSport.Core
         private float currentDistanceScale = 1f;
         private float currentHeightOffset = 0f;
         private Coroutine transitionCoroutine;
+        private bool poseInitialized;
 
         public CameraStateType CurrentState => currentState;
 
@@ -86,9 +100,33 @@ namespace RingSport.Core
 
         private void Start()
         {
-            // Initialize with start state (no transition)
+            // Initialize with start state (no transition) - unless the game flow
+            // already snapped somewhere (GameManager.Start boots the home shot;
+            // script Start order between the two is undefined)
+            if (poseInitialized)
+                return;
+
             ApplyStateImmediate(startState);
             currentState = CameraStateType.Start;
+        }
+
+        /// <summary>
+        /// Snap straight to a state's authored pose with no transition (initial
+        /// scene load, before the player has seen anything to transition from).
+        /// </summary>
+        public void SetStateImmediate(CameraStateType newState)
+        {
+            if (transitionCoroutine != null)
+            {
+                StopCoroutine(transitionCoroutine);
+                transitionCoroutine = null;
+            }
+
+            currentState = newState;
+            currentDistanceScale = 1f;
+            currentHeightOffset = 0f;
+            ApplyStateImmediate(GetStateData(newState));
+            poseInitialized = true;
         }
 
         public void SetState(CameraStateType newState)
@@ -149,6 +187,7 @@ namespace RingSport.Core
                 CameraStateType.Gameplay => gameplayState,
                 CameraStateType.Bite => biteState,
                 CameraStateType.MiniLevel => miniLevelState,
+                CameraStateType.Home => homeState,
                 _ => startState
             };
         }

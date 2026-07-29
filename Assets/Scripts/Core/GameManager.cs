@@ -26,6 +26,10 @@ namespace RingSport.Core
         [Header("Countdown Settings")]
         [SerializeField] private float countdownDuration = 3f;
 
+        [Header("Home Screen")]
+        [Tooltip("Model yaw for the dog greeting the player on the home screen - aims it at the angled Start camera (180 would face straight back down the track).")]
+        [SerializeField] private float homeDogFacingYaw = 138f;
+
         public GameState CurrentState => currentState;
         public bool IsInMiniLevelContext => isInMiniLevelContext;
 
@@ -69,8 +73,11 @@ namespace RingSport.Core
 
             // Dress the backdrop with the previewed level's location
             LevelGenerator.Instance?.LoadHomeScene(level);
-            CameraStateMachine.Instance?.SetState(CameraStateType.Start);
-            Object.FindAnyObjectByType<PlayerController>()?.Animations?.SetFacing(false);
+            CameraStateMachine.Instance?.SetState(CameraStateType.Home);
+            // Match the real home screen: dog idles facing the home camera
+            var introPlayer = Object.FindAnyObjectByType<PlayerController>();
+            introPlayer?.Animations?.SetFacing(true, homeDogFacingYaw);
+            introPlayer?.Animations?.SetIdleFlourishes(true);
             StopLocationAudio();
 
             string levelName = config != null && !string.IsNullOrEmpty(config.LevelName)
@@ -119,6 +126,10 @@ namespace RingSport.Core
             previousState = currentState;
             currentState = newState;
 
+            // Idle flourishes (bark, shake...) only ever run on the home screen
+            Object.FindAnyObjectByType<PlayerController>()?.Animations
+                ?.SetIdleFlourishes(newState == GameState.Home);
+
             switch (newState)
             {
                 case GameState.Home:
@@ -145,9 +156,26 @@ namespace RingSport.Core
             debugMiniLevelOverride = null;
 #endif
             Time.timeScale = 1f;
-            Object.FindAnyObjectByType<PlayerController>()?.Animations?.SetFacing(false);
+
+            // The dog greets the player on the home screen: clear any death
+            // ragdoll or mid-run pose, then idle facing the close-up home
+            // camera. On scene load both the facing and the camera snap;
+            // returning home (quit / game over) plays the walk-turn and the
+            // camera transition instead.
+            var player = Object.FindAnyObjectByType<PlayerController>();
+            player?.ResetPosition();
+            if (previousState == GameState.Home)
+            {
+                player?.Animations?.SetFacingImmediate(true, homeDogFacingYaw);
+                CameraStateMachine.Instance?.SetStateImmediate(CameraStateType.Home);
+            }
+            else
+            {
+                player?.Animations?.SetFacing(true, homeDogFacingYaw);
+                CameraStateMachine.Instance?.SetState(CameraStateType.Home);
+            }
+
             UIManager.Instance?.ShowHomeScreen();
-            CameraStateMachine.Instance?.SetState(CameraStateType.Start);
 
             // Stop location audio when returning home
             StopLocationAudio();
@@ -193,11 +221,12 @@ namespace RingSport.Core
 
         private void HandleMiniLevelState()
         {
-            // Flee attack is an IN-RUN mini level: it plays during the Playing
-            // state at the end of its level, not in the arena flow. Reaching
-            // this state with it pending (chase-death retry, or the debug
-            // menu) reroutes into a short run that jumps straight to the chase.
-            if (TryRouteFleeAttackEntry())
+            // Flee attack and stop attack are IN-RUN mini levels: they play
+            // during the Playing state at the end of their level, not in the
+            // arena flow. Reaching this state with one pending (chase-death
+            // retry, or the debug menu) reroutes into a short run that jumps
+            // straight to the chase.
+            if (TryRouteInRunMiniLevelEntry())
                 return;
 
             Time.timeScale = 0f;
@@ -250,13 +279,14 @@ namespace RingSport.Core
         }
 
         /// <summary>
-        /// If the mini level about to start is the in-run flee attack, routes
-        /// back into the Playing state fast-forwarded to the chase and returns
-        /// true. Handles both the current level's config and the debug override.
+        /// If the mini level about to start is an in-run one (flee attack,
+        /// stop attack), routes back into the Playing state fast-forwarded to
+        /// the chase and returns true. Handles both the current level's config
+        /// and the debug override.
         /// </summary>
-        private bool TryRouteFleeAttackEntry()
+        private bool TryRouteInRunMiniLevelEntry()
         {
-            if (MiniLevelFleeAttack.Instance == null || LevelManager.Instance == null)
+            if (LevelManager.Instance == null)
                 return false;
 
             LevelConfig config = LevelGenerator.Instance?.GetCurrentConfig();
@@ -265,23 +295,24 @@ namespace RingSport.Core
             if (debugMiniLevelOverride.HasValue)
                 effectiveType = debugMiniLevelOverride.Value;
 #endif
-            if (effectiveType != MiniLevelType.FleeAttack)
+            if (InRunMiniLevel.GetController(effectiveType) == null)
                 return false;
 
-            // Retry on a flee level re-enters that level's chase; a debug jump
-            // from elsewhere hosts the chase on the first flee attack level
-            int targetLevel = (config != null && config.MiniLevelType == MiniLevelType.FleeAttack)
+            // Retry on a level of this type re-enters that level's chase; a
+            // debug jump from elsewhere hosts the chase on the first level
+            // that runs this mini level
+            int targetLevel = (config != null && config.MiniLevelType == effectiveType)
                 ? LevelManager.Instance.CurrentLevel
-                : LevelGenerator.Instance?.FindFirstLevelWithMiniLevel(MiniLevelType.FleeAttack) ?? -1;
+                : LevelGenerator.Instance?.FindFirstLevelWithMiniLevel(effectiveType) ?? -1;
 
             if (targetLevel < 1)
             {
-                Debug.LogWarning("[GameManager] No level uses the FleeAttack mini level - cannot route in-run entry");
+                Debug.LogWarning($"[GameManager] No level uses the {effectiveType} mini level - cannot route in-run entry");
                 return false;
             }
 
-            Debug.Log($"[GameManager] Routing FleeAttack mini level into in-run chase on level {targetLevel}");
-            LevelManager.Instance.StartAtFleeAttack(targetLevel);
+            Debug.Log($"[GameManager] Routing {effectiveType} mini level into in-run chase on level {targetLevel}");
+            LevelManager.Instance.StartAtInRunMiniLevel(targetLevel);
             return true;
         }
 

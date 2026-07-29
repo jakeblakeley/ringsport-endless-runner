@@ -6,6 +6,7 @@ namespace RingSport.Level
         FaceAttack,
         FleeAttack,
         DecoyBattle,
-        FoodRefusal
+        FoodRefusal,
+        StopAttack
     }
 }

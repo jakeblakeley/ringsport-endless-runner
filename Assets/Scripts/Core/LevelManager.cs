@@ -18,8 +18,8 @@ namespace RingSport.Core
         [Header("Retry Settings")]
         [SerializeField] private int maxRetries = 3;
 
-        [Header("Flee Attack Settings")]
-        [Tooltip("Seconds of normal running before the chase begins when retrying a failed flee attack (the retry skips the rest of the run)")]
+        [Header("In-Run Mini Level Settings (flee attack, stop attack)")]
+        [Tooltip("Seconds of normal running before the chase begins when retrying a failed in-run mini level (the retry skips the rest of the run)")]
         [SerializeField] private float fleeAttackRetryPreRoll = 4f;
         [Tooltip("Seconds before the chase at which normal spawning stops, so the generated course drains past the player and leaves a clean gap of track (must cover the longest pattern tail ~105u at base speed)")]
         [SerializeField] private float fleeAttackWindDownSeconds = 7.5f;
@@ -39,12 +39,14 @@ namespace RingSport.Core
         private int retriesRemaining = 3;
         private float partialRetries = 0f; // Track partial lives (0.5 increments)
 
-        // Flee attack (in-run mini level) state
-        private bool isFleeAttackLevel = false;
-        private bool fleeAttackTriggered = false;
-        private bool fleeAttackWindDownStarted = false;
-        private int fleeAttackDifficultyIndex = 0;
-        private bool pendingFleeAttackEntry = false; // next StartLevel fast-forwards to the chase
+        // In-run mini level state (flee attack chase, stop attack). The
+        // controller is the InRunMiniLevel handling this level's type, or null
+        // when the level ends in a regular arena mini level.
+        private InRunMiniLevel inRunMiniLevel;
+        private bool inRunTriggered = false;
+        private bool inRunWindDownStarted = false;
+        private int inRunDifficultyIndex = 0;
+        private bool pendingInRunEntry = false; // next StartLevel fast-forwards to the chase
 
         public int CurrentLevel => currentLevel;
         public int MaxLevels => maxLevels;
@@ -81,24 +83,25 @@ namespace RingSport.Core
 
             levelTimer += Time.deltaTime;
 
-            // Flee attack levels hand the end of the run to the in-run chase.
-            // Spawning stops a wind-down period EARLIER so the generated
-            // course scrolls past the player and leaves a clean gap of empty
-            // track before the decoy appears (nothing visible is despawned).
-            if (isFleeAttackLevel && MiniLevelFleeAttack.Instance != null)
+            // In-run mini levels (flee attack, stop attack) hand the end of the
+            // run to their chase. Spawning stops a wind-down period EARLIER so
+            // the generated course scrolls past the player and leaves a clean
+            // gap of empty track before the decoy appears (nothing visible is
+            // despawned).
+            if (inRunMiniLevel != null)
             {
-                float chaseStartTime = currentLevelConfig.LevelDuration - MiniLevelFleeAttack.Instance.GetLeadSeconds(fleeAttackDifficultyIndex);
+                float chaseStartTime = currentLevelConfig.LevelDuration - inRunMiniLevel.GetLeadSeconds(inRunDifficultyIndex);
 
-                if (!fleeAttackWindDownStarted && levelTimer >= chaseStartTime - fleeAttackWindDownSeconds)
+                if (!inRunWindDownStarted && levelTimer >= chaseStartTime - fleeAttackWindDownSeconds)
                 {
-                    fleeAttackWindDownStarted = true;
+                    inRunWindDownStarted = true;
                     LevelGenerator.Instance?.SetRunnerSpawningSuppressed(true);
                 }
 
-                if (!fleeAttackTriggered && levelTimer >= chaseStartTime)
+                if (!inRunTriggered && levelTimer >= chaseStartTime)
                 {
-                    fleeAttackTriggered = true;
-                    MiniLevelFleeAttack.Instance.BeginChase(fleeAttackDifficultyIndex);
+                    inRunTriggered = true;
+                    inRunMiniLevel.BeginChase(inRunDifficultyIndex);
                 }
             }
 
@@ -132,27 +135,34 @@ namespace RingSport.Core
                 return;
             }
 
-            // Flee attack setup: the chase plays in-run at the end of the
-            // level. A pending flee-attack entry (chase retry or debug jump)
-            // fast-forwards the timer so only a short pre-roll runs first.
-            isFleeAttackLevel = currentLevelConfig.MiniLevelType == MiniLevelType.FleeAttack;
-            fleeAttackTriggered = false;
-            fleeAttackWindDownStarted = false;
-            fleeAttackDifficultyIndex = isFleeAttackLevel ? ComputeFleeAttackDifficulty(currentLevel) : 0;
+            // In-run mini level setup (flee attack, stop attack): the chase
+            // plays in-run at the end of the level. A pending in-run entry
+            // (chase retry or debug jump) fast-forwards the timer so only a
+            // short pre-roll runs first.
+            inRunMiniLevel = InRunMiniLevel.GetController(currentLevelConfig.MiniLevelType);
+            inRunTriggered = false;
+            inRunWindDownStarted = false;
+            inRunDifficultyIndex = inRunMiniLevel != null
+                ? ComputeInRunDifficulty(currentLevel, currentLevelConfig.MiniLevelType)
+                : 0;
 
-            bool fleeAttackRetryEntry = pendingFleeAttackEntry && isFleeAttackLevel && MiniLevelFleeAttack.Instance != null;
-            pendingFleeAttackEntry = false;
+            bool inRunRetryEntry = pendingInRunEntry && inRunMiniLevel != null;
+            pendingInRunEntry = false;
 
-            // Reset any leftover chase state BEFORE arming the retry entry -
-            // the controller's cleanup releases the spawn suppression, which
-            // must not undo the wind-down set below
-            MiniLevelFleeAttack.Instance?.OnRunLevelStarted(isFleeAttackLevel, fleeAttackRetryEntry);
-
-            if (fleeAttackRetryEntry)
+            // Reset any leftover chase state on EVERY in-run controller BEFORE
+            // arming the retry entry - a controller's cleanup releases the
+            // spawn suppression, which must not undo the wind-down set below
+            foreach (var controller in InRunMiniLevel.Controllers)
             {
-                float lead = MiniLevelFleeAttack.Instance.GetLeadSeconds(fleeAttackDifficultyIndex);
+                if (controller != null)
+                    controller.OnRunLevelStarted(controller == inRunMiniLevel, inRunRetryEntry && controller == inRunMiniLevel);
+            }
+
+            if (inRunRetryEntry)
+            {
+                float lead = inRunMiniLevel.GetLeadSeconds(inRunDifficultyIndex);
                 levelTimer = Mathf.Max(0f, currentLevelConfig.LevelDuration - lead - fleeAttackRetryPreRoll);
-                Debug.Log($"[LevelManager] Flee attack entry - fast-forwarding level timer to {levelTimer:F1}s");
+                Debug.Log($"[LevelManager] In-run mini level entry - fast-forwarding level timer to {levelTimer:F1}s");
 
                 // Keep the mini-level context armed through the pre-roll so a
                 // death before the chase re-begins still retries the chase,
@@ -161,7 +171,7 @@ namespace RingSport.Core
 
                 // The pre-roll is inside the wind-down window: keep it a clean,
                 // empty approach (also avoids racing LevelGenerator's Update)
-                fleeAttackWindDownStarted = true;
+                inRunWindDownStarted = true;
                 LevelGenerator.Instance?.SetRunnerSpawningSuppressed(true);
             }
 
@@ -190,12 +200,12 @@ namespace RingSport.Core
                 sfxAudioSource.PlayOneShot(randomClip);
             }
 
-            // Flee attack levels already played their mini level in-run (the
-            // chase ends just before the finish line), so skip the arena
+            // In-run mini level levels already played their mini level in-run
+            // (the chase ends just before the finish line), so skip the arena
             // mini-level state and complete directly.
-            if (isFleeAttackLevel && fleeAttackTriggered)
+            if (inRunMiniLevel != null && inRunTriggered)
             {
-                MiniLevelFleeAttack.Instance?.NotifyLevelEndReached();
+                inRunMiniLevel.NotifyLevelEndReached();
                 ScoreManager.Instance?.FinalizeLevelScore();
                 GameManager.Instance?.CompleteLevel();
                 return;
@@ -262,33 +272,53 @@ namespace RingSport.Core
         }
 
         /// <summary>
-        /// Enters (or re-enters) a flee attack level fast-forwarded to just
-        /// before the chase. Used when retrying a failed chase and by the
-        /// debug menu - the retry replays only the chase plus a short
+        /// Completes the current level directly from an in-run mini level that
+        /// resolves WITHOUT reaching the finish line (the stop attack: the dog
+        /// stopped, so the run is over where it stands). Mirrors EndLevel's
+        /// in-run branch: complete sound, chase teardown, score finalize.
+        /// </summary>
+        public void CompleteInRunMiniLevel()
+        {
+            if (levelCompleteSounds != null && levelCompleteSounds.Length > 0 && sfxAudioSource != null)
+            {
+                AudioClip randomClip = levelCompleteSounds[Random.Range(0, levelCompleteSounds.Length)];
+                sfxAudioSource.PlayOneShot(randomClip);
+            }
+
+            inRunMiniLevel?.NotifyLevelEndReached();
+            ScoreManager.Instance?.FinalizeLevelScore();
+            GameManager.Instance?.CompleteLevel();
+        }
+
+        /// <summary>
+        /// Enters (or re-enters) an in-run mini level's level fast-forwarded
+        /// to just before the chase. Used when retrying a failed chase and by
+        /// the debug menu - the retry replays only the chase plus a short
         /// pre-roll, not the whole run.
         /// </summary>
-        public void StartAtFleeAttack(int level)
+        public void StartAtInRunMiniLevel(int level)
         {
             // Bank whatever score the failed attempt had before StartLevel resets it
             ScoreManager.Instance?.FinalizeLevelScore();
 
             currentLevel = Mathf.Clamp(level, 1, maxLevels);
-            pendingFleeAttackEntry = true;
-            Debug.Log($"[LevelManager] Starting level {currentLevel} at the flee attack chase");
+            pendingInRunEntry = true;
+            Debug.Log($"[LevelManager] Starting level {currentLevel} at its in-run mini level");
             GameManager.Instance?.SetState(GameState.Playing);
         }
 
         /// <summary>
-        /// Difficulty ordinal of the flee attack on the given level: how many
-        /// earlier levels also run one (level 3 = 0, level 5 = 1, level 7 = 2).
+        /// Difficulty ordinal of an in-run mini level on the given level: how
+        /// many earlier levels run the same type (flee attack: level 3 = 0,
+        /// level 5 = 1, level 7 = 2; stop attack: level 4 = 0, level 6 = 1).
         /// </summary>
-        private int ComputeFleeAttackDifficulty(int level)
+        private int ComputeInRunDifficulty(int level, MiniLevelType type)
         {
             int index = 0;
             for (int i = 1; i < level; i++)
             {
                 var config = LevelGenerator.Instance?.GetLevelConfig(i);
-                if (config != null && config.MiniLevelType == MiniLevelType.FleeAttack)
+                if (config != null && config.MiniLevelType == type)
                     index++;
             }
             return index;

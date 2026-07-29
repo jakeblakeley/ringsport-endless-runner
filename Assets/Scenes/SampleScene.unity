@@ -494,7 +494,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -1466,7 +1466,37 @@ MonoBehaviour:
   startState:
     stateName: Start State
     cameraLocalPosition: {x: -2, y: 2, z: -4}
-    cameraLocalRotation: {x: 15, y: 0, z: 0}
+    cameraLocalRotation: {x: 16, y: 18, z: 0}
+    parentRotation: {x: 0, y: -60, z: 0}
+    transitionDuration: 1.5
+    easingCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  homeState:
+    stateName: Home State
+    cameraLocalPosition: {x: -1.49, y: 1.53, z: -2.42}
+    cameraLocalRotation: {x: 16, y: 18, z: 0}
     parentRotation: {x: 0, y: -60, z: 0}
     transitionDuration: 1.5
     easingCurve:
@@ -3384,6 +3414,7 @@ GameObject:
   - component: {fileID: 664844477}
   - component: {fileID: 664844476}
   - component: {fileID: 664844475}
+  - component: {fileID: 664844480}
   m_Layer: 0
   m_Name: MiniGames
   m_TagString: Untagged
@@ -3548,6 +3579,23 @@ MonoBehaviour:
   cameraDistanceScale: 0.5
   cameraHeightOffset: -1.2
   cameraFocusHeight: -0.5
+--- !u!114 &664844480
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 664844465}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8ae1e4c716f743049a39579baf62830, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.MiniLevelStopAttack
+  decoyPrefab: {fileID: 3370300271964328902, guid: b2c932bead64041ee95ccbec5df9022d, type: 3}
+  decoyColor: {r: 1, g: 0.42, b: 0.05, a: 1}
+  bannerFont: {fileID: 11400000, guid: 099dce98fb9fd47cb8ff1abc60bfba4c, type: 2}
+  stopRed: {r: 0.9, g: 0.11, b: 0.11, a: 1}
+  whistleSound: {fileID: 0}
 --- !u!1 &744715060
 GameObject:
   m_ObjectHideFlags: 0
@@ -6626,6 +6674,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Core.GameManager
   currentState: 0
   countdownDuration: 3
+  homeDogFacingYaw: 138
   gameOverSound: {fileID: 8300000, guid: df6fa74fc458d4eada31bf6505c5e326, type: 3}
   musicVolume: 0.5
   ambientVolume: 1
@@ -7927,7 +7976,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4278719521
   m_fontColor: {r: 0.13, g: 0.08, b: 0.03, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -7940,12 +7989,12 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 39
+  m_fontSize: 45
   m_fontSizeBase: 39
   m_fontWeight: 400
   m_enableAutoSizing: 1

@@ -33,6 +33,7 @@ namespace RingSport.Core
             new() { type = MiniLevelType.FleeAttack, displayName = "Flee Attack", instructions = "Chase down the fleeing target!" },
             new() { type = MiniLevelType.DecoyBattle, displayName = "Decoy Battle", instructions = "Ignore the decoys, find the real target!" },
             new() { type = MiniLevelType.FoodRefusal, displayName = "Food Refusal", instructions = "Resist the temptation!" },
+            new() { type = MiniLevelType.StopAttack, displayName = "Stop Attack", instructions = "Tap the whistle to stop!" },
         };
 
         [Header("Start Panel")]

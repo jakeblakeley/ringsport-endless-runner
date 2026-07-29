@@ -13,6 +13,10 @@ namespace RingSport.Level
         private float scrollSpeed = 0f;
         private bool isPaused = false;
 
+        // Scripted sequences (the stop attack's slow-motion charge) can pin the
+        // scroll speed, overriding the player-derived speed; < 0 = no override
+        private float speedOverride = -1f;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -28,6 +32,13 @@ namespace RingSport.Level
         {
             if (isPaused || GameManager.Instance?.CurrentState != GameState.Playing || player == null)
                 return;
+
+            if (speedOverride >= 0f)
+            {
+                scrollSpeed = speedOverride;
+                LevelManager.Instance?.AddDistance(scrollSpeed * Time.deltaTime);
+                return;
+            }
 
             // Get current speed from player (includes sprint)
             scrollSpeed = player.ForwardSpeed;
@@ -58,6 +69,17 @@ namespace RingSport.Level
         public float GetScrollSpeed()
         {
             return scrollSpeed;
+        }
+
+        /// <summary>Pin the world scroll to an exact speed (sprint and level multipliers ignored).</summary>
+        public void SetSpeedOverride(float speed)
+        {
+            speedOverride = Mathf.Max(0f, speed);
+        }
+
+        public void ClearSpeedOverride()
+        {
+            speedOverride = -1f;
         }
 
         public void Pause()

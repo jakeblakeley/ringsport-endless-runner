@@ -20,7 +20,7 @@ namespace RingSport.Editor
     public static class DogPlayerSetup
     {
         // Bump to make the auto-run rebuild the controller after changing this script
-        private const int SetupVersion = 15;
+        private const int SetupVersion = 16;
         private const string VersionPrefKey = "RingSport.DogPlayerSetup.Version";
 
         private const string DogName = "Dog Model";
@@ -53,6 +53,9 @@ namespace RingSport.Editor
         private const string RagdollPrefabGuid = "1866b9e9949480b40a71eecb4ea69e03"; // Wolf Lite Ragdoll.prefab
         private const string SleepFbxGuid = "558c52fb80d72814bbd94a05998c957f";   // WL_Sleep.FBX (sit/lie pose clips)
         private const string JumpInPlaceBakedGuid = "50050480bda5ca24abe00af5c60ffcf6"; // WL_Jump_InPlace_Baked.anim (Y-rise baked into pose)
+        private const string Bark2Guid = "2418d78995a33784cbb79676b298922e";      // WL_Bark2.anim
+        private const string ShakeWaterFbxGuid = "edafe4aa19de1234195b832fb3556e39"; // WL_ShakeWater.fbx
+        private const string ActionsFbxGuid = "e014be69bd49c7d458293d2d8cd0e051"; // WL_Actions.FBX (howl, dig, eat...)
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()
@@ -504,6 +507,34 @@ namespace RingSport.Editor
             AddDodgeTransition(dodgeRight, dodgeLeft, "DodgeLeft", dodgeOffset);
             AddClipEndTransition(dodgeLeft, locomotion);
             AddClipEndTransition(dodgeRight, locomotion);
+
+            // --- Home screen flourishes: one-shot character moments PlayerAnimator
+            // CrossFades into (no parameters - the code targets the state hash
+            // directly) while the dog idles facing the camera; each exits back to
+            // Locomotion on clip end. A missing clip skips its state - the runtime
+            // guards with Animator.HasState. Names must match
+            // PlayerAnimator.FlourishHashes. ---
+            var flourishes = new (string state, AnimationClip clip)[]
+            {
+                ("Flourish Bark", LoadClip(Bark2Guid)),
+                ("Flourish Shake", LoadClip(ShakeWaterFbxGuid, "WL_ShakeWater")),
+                ("Flourish Howl", LoadClip(ActionsFbxGuid, "WL_Howl")),
+                ("Flourish Glance", LoadClip(IdlesFbxGuid, "WL_Idle02")),
+            };
+            float flourishY = 20f;
+            foreach (var (flourishName, flourishClip) in flourishes)
+            {
+                if (flourishClip == null)
+                {
+                    Debug.LogWarning($"[DogPlayerSetup] Clip for '{flourishName}' not found - state skipped.");
+                    continue;
+                }
+
+                var flourish = sm.AddState(flourishName, new Vector3(840f, flourishY));
+                flourish.motion = flourishClip;
+                AddClipEndTransition(flourish, locomotion);
+                flourishY += 100f;
+            }
 
             EditorUtility.SetDirty(controller);
             return controller;

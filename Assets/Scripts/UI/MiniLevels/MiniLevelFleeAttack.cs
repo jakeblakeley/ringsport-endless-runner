@@ -30,7 +30,7 @@ namespace RingSport.UI
     /// the body ragdolls for the carry. A placeholder sphere remains as the
     /// fallback when the prefab isn't wired.
     /// </summary>
-    public class MiniLevelFleeAttack : MiniLevelBase
+    public class MiniLevelFleeAttack : InRunMiniLevel
     {
         public static MiniLevelFleeAttack Instance { get; private set; }
 
@@ -158,6 +158,7 @@ namespace RingSport.UI
             if (Instance != null && Instance != this)
                 return;
             Instance = this;
+            Register();
         }
 
         private void Start()
@@ -205,6 +206,7 @@ namespace RingSport.UI
 
         private void OnDestroy()
         {
+            Unregister();
             if (Instance == this)
                 Instance = null;
         }
@@ -234,7 +236,7 @@ namespace RingSport.UI
         /// Seconds before the end of the level timer at which the chase must
         /// begin so the catch resolves before the finish line spawns.
         /// </summary>
-        public float GetLeadSeconds(int difficultyIndex)
+        public override float GetLeadSeconds(int difficultyIndex)
         {
             int d = ClampDifficulty(difficultyIndex);
             return IntroSeconds + ChaseDurationSeconds[d] + WallLeadSeconds[d] + LungeSeconds + CatchToEndBuffer;
@@ -245,7 +247,7 @@ namespace RingSport.UI
         /// leftover chase state; on a chase retry entry keeps the banked
         /// pre-chase score so BeginChase can re-seed it.
         /// </summary>
-        public void OnRunLevelStarted(bool isFleeAttackLevel, bool isRetryEntry)
+        public override void OnRunLevelStarted(bool isFleeAttackLevel, bool isRetryEntry)
         {
             Cleanup();
             retryEntryPending = isFleeAttackLevel && isRetryEntry;
@@ -257,7 +259,7 @@ namespace RingSport.UI
         /// Starts the chase. Called by LevelManager during the Playing state
         /// when the level timer enters the flee-attack window.
         /// </summary>
-        public void BeginChase(int difficultyIndex)
+        public override void BeginChase(int difficultyIndex)
         {
             if (chaseActive)
                 return;
@@ -317,7 +319,7 @@ namespace RingSport.UI
         /// Called by LevelManager when the finish line is reached on a flee
         /// attack level: the decoy disappears and everything cleans up.
         /// </summary>
-        public void NotifyLevelEndReached()
+        public override void NotifyLevelEndReached()
         {
             if (!chaseActive)
                 return;
@@ -326,7 +328,7 @@ namespace RingSport.UI
             Cleanup();
         }
 
-        public bool IsChaseActive => chaseActive;
+        public override bool IsChaseActive => chaseActive;
 
         // ------------------------------------------------------------------
         // Chase simulation
