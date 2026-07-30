@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using RingSport.Effects;
 using RingSport.Level;
 using RingSport.Core;
 using RingSport.Player;
@@ -305,6 +306,11 @@ namespace RingSport.UI
             Debug.Log("[MiniLevelFoodRefusal] Player hit a steak! Game over.");
             isGameRunning = false;
 
+            // Steak splat: dust burst + camera hit (splat clip pending - see SOUND_EFFECTS.md)
+            if (playerController != null)
+                ImpactVFX.PlayDust(playerController.transform.position + Vector3.up * 0.8f, 12);
+            CameraStateMachine.Instance?.AddShake(0.3f);
+
             // Reset mini-level score (removes points earned in this mini-level only)
             ScoreManager.Instance?.ResetMiniLevelScore();
 
@@ -318,6 +324,11 @@ namespace RingSport.UI
         private void OnCollectibleCollected(int points)
         {
             Debug.Log($"[MiniLevelFoodRefusal] Collectible collected! +{points} points");
+
+            // The falling collectible's own Collectible component is disabled,
+            // so its burst never fires - play it manually at the catch point
+            if (playerController != null)
+                CollectBurstVFX.PlayCoin(playerController.transform.position + Vector3.up * 0.8f, true);
 
             // Add to mini-level score (also adds to level score)
             ScoreManager.Instance?.AddMiniLevelScore(points);

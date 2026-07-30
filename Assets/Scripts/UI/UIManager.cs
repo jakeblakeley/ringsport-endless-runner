@@ -105,9 +105,26 @@ namespace RingSport.UI
         private readonly Dictionary<RectTransform, Vector3> entranceBaseScales = new Dictionary<RectTransform, Vector3>();
         private Coroutine rewardCountUpRoutine;
         private Coroutine highScorePulseRoutine;
-        private Coroutine retryPulseRoutine;
         private Vector3 newHighScoreBaseScale;
-        private Vector3 retryButtonBaseScale;
+
+        // Sprint bar smoothing / urgency
+        private float sprintFillTarget = 1f;
+        private float sprintFillDisplayed = 1f;
+        private float sprintFillVelocity;
+        private bool sprintExhausted;
+        private Color sprintBarCurrentColor;
+        private RectTransform sprintBarContainer;
+        private Vector2 sprintBarBasePos;
+        private bool sprintBarBaseCaptured;
+        private float sprintJitterTimer = float.MaxValue;
+
+        // Lives flash + home-screen idle life
+        private float lastLivesShown = float.NaN;
+        private Color livesBaseColor;
+        private bool livesColorCaptured;
+        private Coroutine livesFlashRoutine;
+        private Coroutine homeIdleRoutine;
+        private bool lastBadgeShown;
 
         // Reward screen is reused as a level intro (location + level name + start).
         // While set, the "Next Level" button starts the current level instead of
@@ -126,6 +143,8 @@ namespace RingSport.UI
 
             uiAudioSource = gameObject.AddComponent<AudioSource>();
             uiAudioSource.playOnAwake = false;
+
+            sprintBarCurrentColor = sprintBarNormalColor;
         }
 
         private void Start()
@@ -148,6 +167,46 @@ namespace RingSport.UI
 
                 if (Mathf.Approximately(displayedScore, targetScore))
                     scoreRolling = false;
+            }
+
+            if (gameHUD != null && gameHUD.activeInHierarchy)
+                AnimateSprintBar();
+        }
+
+        /// <summary>
+        /// Per-frame sprint bar polish: SmoothDamped fill, color crossfade,
+        /// low-stamina alpha pulse, and a brief container jitter on exhaustion.
+        /// </summary>
+        private void AnimateSprintBar()
+        {
+            float dt = Time.unscaledDeltaTime;
+
+            sprintFillDisplayed = Mathf.SmoothDamp(sprintFillDisplayed, sprintFillTarget, ref sprintFillVelocity, 0.08f, Mathf.Infinity, dt);
+            if (sprintBarFillRect != null)
+                sprintBarFillRect.anchorMax = new Vector2(sprintFillDisplayed, sprintBarFillRect.anchorMax.y);
+
+            if (sprintBarFill != null)
+            {
+                Color target = sprintExhausted ? sprintBarExhaustedColor : sprintBarNormalColor;
+                sprintBarCurrentColor = Color.Lerp(sprintBarCurrentColor, target, Mathf.Clamp01(dt * 5f));
+
+                float alpha = 1f;
+                if (!sprintExhausted && sprintFillTarget < 0.25f)
+                    alpha = 0.7f + 0.3f * Mathf.Sin(Time.unscaledTime * Mathf.PI * 4f); // running-low pulse
+
+                Color final = sprintBarCurrentColor;
+                final.a *= alpha;
+                sprintBarFill.color = final;
+            }
+
+            if (sprintJitterTimer < 0.35f && sprintBarContainer != null)
+            {
+                sprintJitterTimer += dt;
+                float n = Mathf.Clamp01(sprintJitterTimer / 0.35f);
+                float x = 4f * Mathf.Sin(sprintJitterTimer * 55f) * (1f - n);
+                sprintBarContainer.anchoredPosition = sprintBarBasePos + new Vector2(x, 0f);
+                if (n >= 1f)
+                    sprintBarContainer.anchoredPosition = sprintBarBasePos;
             }
         }
 
@@ -176,7 +235,11 @@ namespace RingSport.UI
         {
             isLevelIntro = false;
             StopRewardEntrance();
-            StopRetryPulse();
+            if (homeIdleRoutine != null)
+            {
+                StopCoroutine(homeIdleRoutine);
+                homeIdleRoutine = null;
+            }
             if (homeScreen != null) homeScreen.SetActive(false);
             if (gameHUD != null) gameHUD.SetActive(false);
             if (rewardScreen != null) rewardScreen.SetActive(false);
@@ -206,6 +269,10 @@ namespace RingSport.UI
                 // Notes grid should never linger open across screen changes
                 if (loveNotesPanel != null)
                     loveNotesPanel.Close();
+
+                if (homeIdleRoutine != null)
+                    StopCoroutine(homeIdleRoutine);
+                homeIdleRoutine = StartCoroutine(HomeIdleRoutine());
             }
         }
 
@@ -219,7 +286,35 @@ namespace RingSport.UI
                 loveNotesCountText.text = $"{LoveNoteManager.UnlockedCount}/{LoveNoteManager.TotalCount}";
 
             if (loveNotesNewBadge != null)
-                loveNotesNewBadge.SetActive(LoveNoteManager.HasUnseenNotes);
+            {
+                bool show = LoveNoteManager.HasUnseenNotes;
+                loveNotesNewBadge.SetActive(show);
+
+                // Bounce the NEW badge in when it first appears
+                if (show && !lastBadgeShown && homeScreen != null && homeScreen.activeInHierarchy)
+                    Juice.PunchScale(loveNotesNewBadge.transform, 0.45f, 0.3f);
+                lastBadgeShown = show;
+            }
+        }
+
+        /// <summary>
+        /// Home-screen idle life: while unseen notes are waiting, the love
+        /// notes button wiggles for attention every few seconds. (Button
+        /// SCALE belongs to JuicyButton - only rotation is touched here.)
+        /// </summary>
+        private IEnumerator HomeIdleRoutine()
+        {
+            while (homeScreen != null && homeScreen.activeInHierarchy)
+            {
+                yield return new WaitForSecondsRealtime(4f);
+
+                if (homeScreen == null || !homeScreen.activeInHierarchy)
+                    break;
+
+                if (loveNotesNewBadge != null && loveNotesNewBadge.activeSelf && loveNotesButton != null)
+                    Juice.PunchRotation(loveNotesButton.transform, 6f, 0.5f);
+            }
+            homeIdleRoutine = null;
         }
 
         /// <summary>
@@ -285,10 +380,25 @@ namespace RingSport.UI
                     : $"Level {LevelManager.Instance?.CurrentLevel ?? 1}";
                 UpdateLevel(levelName);
 
-                UpdateLives(LevelManager.Instance?.TotalRetries ?? 3f);
-                UpdateSprintBar(1f, false); // Reset sprint bar to full
+                SnapLives(LevelManager.Instance?.TotalRetries ?? 3f);
+                SnapSprintBar();
                 UpdateLoveNoteCounter(LoveNoteManager.CollectedThisRun);
+
+                PlayHudEntrance();
             }
+        }
+
+        /// <summary>Staggered pop-in for the HUD elements on show.</summary>
+        private void PlayHudEntrance()
+        {
+            EnsureSprintBarContainer();
+
+            float delay = 0.02f;
+            AnimateEntrance(levelText != null ? levelText.gameObject : null, delay, popScale: true);
+            AnimateEntrance(scoreText != null ? scoreText.gameObject : null, delay += 0.05f, popScale: true);
+            AnimateEntrance(livesText != null ? livesText.gameObject : null, delay += 0.05f, popScale: true);
+            AnimateEntrance(sprintBarContainer != null ? sprintBarContainer.gameObject : null, delay += 0.05f, popScale: true);
+            AnimateEntrance(loveNoteHudCounter, delay += 0.05f, popScale: true);
         }
 
         public void HideGameHUD()
@@ -692,45 +802,8 @@ namespace RingSport.UI
                     }
                 }
 
-                // Retry is the loop's most important button - give it a pulse
-                StartRetryPulse();
+                // The Retry attention pulse lives on its JuicyButton (idlePulse)
             }
-        }
-
-        private void StartRetryPulse()
-        {
-            StopRetryPulse();
-            if (retryButton == null || !retryButton.gameObject.activeInHierarchy)
-                return;
-            retryPulseRoutine = StartCoroutine(RetryPulse());
-        }
-
-        private void StopRetryPulse()
-        {
-            if (retryPulseRoutine != null)
-            {
-                StopCoroutine(retryPulseRoutine);
-                retryPulseRoutine = null;
-            }
-            if (retryButton != null && retryButtonBaseScale != Vector3.zero)
-                retryButton.transform.localScale = retryButtonBaseScale;
-        }
-
-        private IEnumerator RetryPulse()
-        {
-            var target = retryButton.transform;
-            if (retryButtonBaseScale == Vector3.zero)
-                retryButtonBaseScale = target.localScale;
-
-            while (retryButton != null && retryButton.gameObject.activeInHierarchy)
-            {
-                float pulse = 1f + 0.05f * Mathf.Sin(Time.unscaledTime * Mathf.PI * 2f * 1.2f);
-                target.localScale = retryButtonBaseScale * pulse;
-                yield return null;
-            }
-
-            target.localScale = retryButtonBaseScale;
-            retryPulseRoutine = null;
         }
 
         public void UpdateScore(int score)
@@ -764,26 +837,107 @@ namespace RingSport.UI
 
         public void UpdateLives(float lives)
         {
-            if (livesText != null)
+            if (livesText == null)
+                return;
+
+            SetLivesText(lives);
+
+            // Flash on real changes while the HUD is up: red shake-down on a
+            // lost life, green bounce on a gained one
+            bool isRealChange = !float.IsNaN(lastLivesShown) && !Mathf.Approximately(lives, lastLivesShown);
+            if (isRealChange && gameHUD != null && gameHUD.activeInHierarchy)
             {
-                if (lives == Mathf.Floor(lives))
-                    livesText.text = $"{(int)lives}"; // No decimal for whole numbers
-                else
-                    livesText.text = $"{lives:F1}"; // Show one decimal place
+                bool gained = lives > lastLivesShown;
+                Juice.PunchScale(livesText.transform, gained ? 0.25f : 0.35f, 0.2f);
+                FlashLives(gained ? new Color(0.42f, 0.85f, 0.42f) : new Color(0.91f, 0.3f, 0.24f));
             }
+            lastLivesShown = lives;
+        }
+
+        /// <summary>Set the lives display without flash (HUD show).</summary>
+        private void SnapLives(float lives)
+        {
+            if (livesText == null)
+                return;
+            SetLivesText(lives);
+            lastLivesShown = lives;
+        }
+
+        private void SetLivesText(float lives)
+        {
+            if (lives == Mathf.Floor(lives))
+                livesText.text = $"{(int)lives}"; // No decimal for whole numbers
+            else
+                livesText.text = $"{lives:F1}"; // Show one decimal place
+        }
+
+        private void FlashLives(Color flashColor)
+        {
+            if (!livesColorCaptured)
+            {
+                livesBaseColor = livesText.color;
+                livesColorCaptured = true;
+            }
+
+            if (livesFlashRoutine != null)
+                StopCoroutine(livesFlashRoutine);
+            livesFlashRoutine = StartCoroutine(LivesFlashRoutine(flashColor));
+        }
+
+        private IEnumerator LivesFlashRoutine(Color flashColor)
+        {
+            const float duration = 0.35f;
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float k = Juice.OutQuad(Mathf.Clamp01(elapsed / duration));
+                if (livesText != null)
+                    livesText.color = Color.Lerp(flashColor, livesBaseColor, k);
+                yield return null;
+            }
+            if (livesText != null)
+                livesText.color = livesBaseColor;
+            livesFlashRoutine = null;
         }
 
         public void UpdateSprintBar(float fillAmount, bool isExhausted)
         {
-            if (sprintBarFillRect != null)
-            {
-                // Scale width using anchorMax for 9-slice compatibility
-                sprintBarFillRect.anchorMax = new Vector2(fillAmount, sprintBarFillRect.anchorMax.y);
-            }
+            sprintFillTarget = fillAmount;
 
-            if (sprintBarFill != null)
+            // Exhaustion moment: jitter the whole bar (pant SFX pending - see SOUND_EFFECTS.md)
+            if (isExhausted && !sprintExhausted)
             {
-                sprintBarFill.color = isExhausted ? sprintBarExhaustedColor : sprintBarNormalColor;
+                EnsureSprintBarContainer();
+                sprintJitterTimer = 0f;
+            }
+            sprintExhausted = isExhausted;
+            // Fill, color and pulse are applied per-frame in AnimateSprintBar()
+        }
+
+        /// <summary>Snap the bar to full (HUD show) - no visible refill lerp.</summary>
+        private void SnapSprintBar()
+        {
+            sprintFillTarget = 1f;
+            sprintFillDisplayed = 1f;
+            sprintFillVelocity = 0f;
+            sprintExhausted = false;
+            sprintBarCurrentColor = sprintBarNormalColor;
+            sprintJitterTimer = float.MaxValue;
+            EnsureSprintBarContainer();
+            if (sprintBarContainer != null && sprintBarBaseCaptured)
+                sprintBarContainer.anchoredPosition = sprintBarBasePos;
+        }
+
+        private void EnsureSprintBarContainer()
+        {
+            if (sprintBarContainer != null || sprintBarFillRect == null)
+                return;
+            sprintBarContainer = sprintBarFillRect.parent as RectTransform;
+            if (sprintBarContainer != null && !sprintBarBaseCaptured)
+            {
+                sprintBarBasePos = sprintBarContainer.anchoredPosition;
+                sprintBarBaseCaptured = true;
             }
         }
 

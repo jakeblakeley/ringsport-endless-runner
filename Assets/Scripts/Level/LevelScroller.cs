@@ -10,6 +10,12 @@ namespace RingSport.Level
 
         [SerializeField] private PlayerController player;
 
+        [Header("Speed Sensation")]
+        [Tooltip("Extra camera FOV per unit of scroll speed above the base speed - subtle sense of speed (sprint widens naturally). 0 disables.")]
+        [SerializeField] private float fovPerSpeedUnit = 0.6f;
+        [SerializeField] private float fovBaseSpeed = 10f;
+        [SerializeField] private float fovMaxOffset = 7f;
+
         private float scrollSpeed = 0f;
         private bool isPaused = false;
 
@@ -31,12 +37,16 @@ namespace RingSport.Level
         private void Update()
         {
             if (isPaused || GameManager.Instance?.CurrentState != GameState.Playing || player == null)
+            {
+                CameraStateMachine.Instance?.SetSpeedFov(0f);
                 return;
+            }
 
             if (speedOverride >= 0f)
             {
                 scrollSpeed = speedOverride;
                 LevelManager.Instance?.AddDistance(scrollSpeed * Time.deltaTime);
+                ApplySpeedFov();
                 return;
             }
 
@@ -55,6 +65,14 @@ namespace RingSport.Level
 
             // Track distance for level progress
             LevelManager.Instance?.AddDistance(scrollSpeed * Time.deltaTime);
+            ApplySpeedFov();
+        }
+
+        /// <summary>Camera widens slightly with speed (sprint and fast levels feel faster).</summary>
+        private void ApplySpeedFov()
+        {
+            float offset = Mathf.Clamp((scrollSpeed - fovBaseSpeed) * fovPerSpeedUnit, 0f, fovMaxOffset);
+            CameraStateMachine.Instance?.SetSpeedFov(offset);
         }
 
         public void ScrollObject(Transform obj)

@@ -245,6 +245,9 @@ namespace RingSport.Core
         {
             if (levelCompleteSounds != null && levelCompleteSounds.Length > 0 && sfxAudioSource != null)
             {
+                // Duck the location music under the sting; it stops moments
+                // later on LevelComplete and the next level's fade-in resets it
+                GameManager.Instance?.SetMusicDuck(true);
                 AudioClip randomClip = levelCompleteSounds[Random.Range(0, levelCompleteSounds.Length)];
                 sfxAudioSource.PlayOneShot(randomClip);
             }

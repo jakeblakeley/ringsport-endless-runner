@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using RingSport.Effects;
 using RingSport.Level;
 using RingSport.Core;
 using RingSport.Player;
@@ -37,6 +38,13 @@ namespace RingSport.UI
         [Header("Round Configuration")]
         [SerializeField] private int[] sequenceLengths = { 3, 4, 5 };
 
+        [Header("Juice (temporary clips - see SOUND_EFFECTS.md)")]
+        [Tooltip("Per-pose tone: Sit / Down / Stand each get their own pitch.")]
+        [SerializeField] private AudioClip poseToneSound;
+        [SerializeField] private AudioClip correctSound;
+        [SerializeField] private AudioClip wrongSound;
+        [SerializeField] [Range(0f, 1f)] private float juiceVolume = 0.85f;
+
         [Header("Camera Framing")]
         [Tooltip("Scale on the mini-level camera's distance from its rig - 0.5 = twice as close.")]
         [SerializeField] private float cameraDistanceScale = 0.5f;
@@ -54,11 +62,87 @@ namespace RingSport.UI
         private Coroutine gameCoroutine;
         private bool isProcessingInput = false;
         private PlayerController player;
+        private AudioSource sfxSource;
+        private Vector2 promptBasePos;
+        private bool promptBaseCaptured;
+        private Coroutine promptShakeRoutine;
 
         private void Start()
         {
             SetupButtons();
             HidePanel();
+
+            sfxSource = gameObject.AddComponent<AudioSource>();
+            sfxSource.playOnAwake = false;
+        }
+
+        private void PlayClip(AudioClip clip, float pitch = 1f)
+        {
+            if (clip == null || sfxSource == null)
+                return;
+            sfxSource.pitch = pitch;
+            sfxSource.PlayOneShot(clip, juiceVolume);
+        }
+
+        /// <summary>Sit / Down / Stand each get a distinct pitch, so the shown sequence reads as a melody.</summary>
+        private void PlayPoseTone(string position)
+        {
+            float pitch = position switch
+            {
+                "Sit" => 1f,
+                "Down" => 0.8f,
+                _ => 1.2f,
+            };
+            PlayClip(poseToneSound, pitch);
+        }
+
+        private Button ButtonFor(string position)
+        {
+            return position switch
+            {
+                "Sit" => sitButton,
+                "Down" => downButton,
+                _ => standButton,
+            };
+        }
+
+        /// <summary>Prompt pop on each step (scale) - shake is separate (position).</summary>
+        private void PunchPrompt()
+        {
+            if (simonSaysText != null)
+                Juice.PunchScale(simonSaysText.transform, 0.2f, 0.15f);
+        }
+
+        private void ShakePrompt()
+        {
+            if (simonSaysText == null)
+                return;
+
+            if (!promptBaseCaptured)
+            {
+                promptBasePos = simonSaysText.rectTransform.anchoredPosition;
+                promptBaseCaptured = true;
+            }
+
+            if (promptShakeRoutine != null)
+                StopCoroutine(promptShakeRoutine);
+            promptShakeRoutine = StartCoroutine(PromptShakeRoutine());
+        }
+
+        private IEnumerator PromptShakeRoutine()
+        {
+            const float duration = 0.4f;
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float n = Mathf.Clamp01(elapsed / duration);
+                float x = 12f * Mathf.Sin(elapsed * 55f) * (1f - n) * (1f - n);
+                simonSaysText.rectTransform.anchoredPosition = promptBasePos + new Vector2(x, 0f);
+                yield return null;
+            }
+            simonSaysText.rectTransform.anchoredPosition = promptBasePos;
+            promptShakeRoutine = null;
         }
 
         private void SetupButtons()
@@ -201,6 +285,8 @@ namespace RingSport.UI
                 {
                     UpdateText("Correct!");
                     SetDogPose("Stand");
+                    PlayClip(correctSound);
+                    PunchPrompt();
                     yield return new WaitForSecondsRealtime(roundTransitionTime);
                 }
             }
@@ -209,6 +295,8 @@ namespace RingSport.UI
             Debug.Log("[MiniLevelPositionsSimonSays] All rounds complete!");
             UpdateText("Well Done!");
             SetDogPose("Stand");
+            PlayClip(correctSound, 1.15f);
+            PunchPrompt();
 
             // Success - turn back away from the camera before the next level
             player?.Animations?.SetFacing(false);
@@ -243,9 +331,15 @@ namespace RingSport.UI
 
             for (int i = 0; i < currentSequence.Count; i++)
             {
-                // Show the position - the dog demonstrates it
+                // Show the position - the dog demonstrates it, its tone plays,
+                // and the matching button wiggles so the mapping sinks in
                 UpdateText(currentSequence[i]);
                 SetDogPose(currentSequence[i]);
+                PlayPoseTone(currentSequence[i]);
+                PunchPrompt();
+                var shownButton = ButtonFor(currentSequence[i]);
+                if (shownButton != null)
+                    Juice.PunchRotation(shownButton.transform, 8f, 0.35f);
 
                 // Wait for display time
                 yield return new WaitForSecondsRealtime(positionDisplayTime);
@@ -310,6 +404,8 @@ namespace RingSport.UI
             // Show feedback - the dog performs the commanded position
             UpdateText(position);
             SetDogPose(position);
+            PlayPoseTone(position);
+            PunchPrompt();
             yield return new WaitForSecondsRealtime(correctFeedbackTime);
 
             playerInputIndex++;
@@ -336,6 +432,8 @@ namespace RingSport.UI
 
             // Show incorrect feedback
             UpdateText("Incorrect!");
+            PlayClip(wrongSound);
+            ShakePrompt();
             yield return new WaitForSecondsRealtime(incorrectFeedbackTime);
 
             // Stop the game coroutine

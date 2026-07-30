@@ -29,6 +29,10 @@ empty fields, so replacing a temp clip in the Inspector sticks.
 | NEW HIGH SCORE reveal | `Meme/meme-taduh.wav` | Bright fanfare sting | `UIManager.RevealNewHighScore` |
 | Secret-note reveal | `Meme/meme-taduh.wav` | Paper unfold + warm fanfare (this is the emotional payoff — worth a real clip) | `SecretNotePanel.Open` |
 | Love-note pickup | `Reward/reward-squeaker1.wav` (no longer shares the mega coin's squeaker2) | Unique romantic chime | `LoveNoteCollectible.Collect` |
+| Button click (all UI) | `Reward/reward-pop.wav` (±3% pitch jitter, low volume) | Soft dry UI tick | `JuicyButton.OnPointerDown` |
+| Simon Says pose tones | `Reward/reward-pop.wav` (Down 0.8 / Sit 1.0 / Stand 1.2) | Three clean melodic tones | `MiniLevelPositionsSimonSays.PlayPoseTone` |
+| Simon Says correct | `Reward/reward-coin.wav` | Bright confirmation chime | `MiniLevelPositionsSimonSays` round pass |
+| Simon Says wrong | `Meme/meme-bruh.wav` | Soft error buzz (bruh may be a keeper) | `MiniLevelPositionsSimonSays.HandleIncorrectInput` |
 
 ## Needed — no clip in the repo fits yet
 
@@ -40,6 +44,9 @@ empty fields, so replacing a temp clip in the Inspector sticks.
 | Face-attack freeze riser | Whoosh/riser into the bullet-time freeze (tick + music duck are in; the entry hit isn't) | `MiniLevelFaceAttack.EnterReveal` |
 | Lane-change whoosh | Very soft swipe whoosh per lane change (bank animation is in) | `PlayerController.NotifyLaneChange` |
 | Confetti pops | Small paper-pop layer under both confetti moments | `LevelManager.FinishMomentRoutine`, `SecretNotePanel.Open` |
+| Sprint exhausted pant | Dog panting when stamina empties (bar jitter is in; sound missing) | `UIManager.UpdateSprintBar` exhaustion branch |
+| Steak splat | Wet splat on a steak hit (dust + shake are in) | `MiniLevelFoodRefusal.OnSteakHit` |
+| Wind speed layer | Looping wind whose volume follows scroll speed (FOV widening is in) | `LevelScroller.ApplySpeedFov` area |
 | Simon Says | Per-pose tone ladder, correct chime, wrong buzz | `MiniLevelPositionsSimonSays` (Tier 3) |
 | Steak splat / whoosh | Splat on hit, whoosh per near-missed steak | `MiniLevelFoodRefusal` (Tier 3) |
 | UI button click | Global soft click on every button press | future `JuicyButton` (Tier 3) |

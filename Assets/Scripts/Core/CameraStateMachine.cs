@@ -105,6 +105,9 @@ namespace RingSport.Core
         private float fovKickAmount;
         private float fovKickDuration;
         private float fovKickTimer;
+        private float speedFovTarget;
+        private float speedFovCurrent;
+        private float speedFovVelocity;
         private float baseFov;
         private bool fovApplied;
         private Vector3 impulseBasePos;
@@ -125,6 +128,8 @@ namespace RingSport.Core
 
             Instance = this;
             cameraComponent = GetComponent<Camera>();
+            if (cameraComponent != null)
+                baseFov = cameraComponent.fieldOfView;
         }
 
         private void Start()
@@ -245,16 +250,18 @@ namespace RingSport.Core
         /// <summary>FOV punch (degrees, +widens): instant pop, eased return.</summary>
         public void AddFovKick(float degrees, float duration = 0.5f)
         {
-            if (cameraComponent == null)
-                cameraComponent = GetComponent<Camera>();
-            if (cameraComponent == null)
-                return;
-
-            if (!fovApplied)
-                baseFov = cameraComponent.fieldOfView;
             fovKickAmount = degrees;
             fovKickDuration = Mathf.Max(0.01f, duration);
             fovKickTimer = 0f;
+        }
+
+        /// <summary>
+        /// Continuous FOV widening for speed sensation (LevelScroller drives
+        /// this from the scroll speed). Smoothed here; composes with kicks.
+        /// </summary>
+        public void SetSpeedFov(float offset)
+        {
+            speedFovTarget = Mathf.Max(0f, offset);
         }
 
         private void LateUpdate()
@@ -316,7 +323,18 @@ namespace RingSport.Core
             if (cameraComponent == null)
                 return;
 
-            if (fovKickTimer >= fovKickDuration)
+            speedFovCurrent = Mathf.SmoothDamp(speedFovCurrent, speedFovTarget, ref speedFovVelocity, 0.3f, Mathf.Infinity, dt);
+
+            float kick = 0f;
+            if (fovKickTimer < fovKickDuration)
+            {
+                fovKickTimer += dt;
+                float remain = 1f - Mathf.Clamp01(fovKickTimer / fovKickDuration);
+                kick = fovKickAmount * (remain * remain);
+            }
+
+            float total = speedFovCurrent + kick;
+            if (Mathf.Abs(total) < 0.01f)
             {
                 if (fovApplied)
                 {
@@ -326,9 +344,7 @@ namespace RingSport.Core
                 return;
             }
 
-            fovKickTimer += dt;
-            float remain = 1f - Mathf.Clamp01(fovKickTimer / fovKickDuration);
-            cameraComponent.fieldOfView = baseFov + fovKickAmount * (remain * remain);
+            cameraComponent.fieldOfView = baseFov + total;
             fovApplied = true;
         }
 

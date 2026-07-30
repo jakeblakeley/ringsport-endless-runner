@@ -840,6 +840,11 @@ namespace RingSport.UI
             if (!chaseActive || phase != FacePhase.Window)
                 return; // taps before the X's are stamped are free
 
+            // Press pop on the tapped widget (these runtime buttons have no
+            // Unity transition - ColorTint fought their own color states)
+            if (targets != null && index < targets.Length && targets[index].root != null)
+                Juice.PunchScale(targets[index].root, 0.18f, 0.12f);
+
             if (index == correctTargetIndex)
                 ResolveCorrectTap();
             else

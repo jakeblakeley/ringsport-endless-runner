@@ -8,6 +8,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.UI;
 
 namespace RingSport.Editor
 {
@@ -29,7 +30,7 @@ namespace RingSport.Editor
     public static class JuicePolishSetup
     {
         // Bump to force the auto-run to re-apply the setup
-        private const int SetupVersion = 2;
+        private const int SetupVersion = 3;
         private const string VersionPrefKey = "RingSport.JuicePolishSetup.Version";
 
         private const string TextureFolder = "Assets/Textures/VFX";
@@ -58,6 +59,8 @@ namespace RingSport.Editor
         private const string ClipScream1 = "Assets/Sounds/Decoy bite/decoy-scream1.wav";
         private const string ClipScream2 = "Assets/Sounds/Decoy bite/decoy-scream2.wav";
         private const string ClipSqueaker1 = "Assets/Sounds/Reward/reward-squeaker1.wav";
+        private const string ClipRewardCoin = "Assets/Sounds/Reward/reward-coin.wav";
+        private const string ClipBruh = "Assets/Sounds/Meme/meme-bruh.wav";
         private const string LoveNotePrefabPath = "Assets/Prefabs/Collectibles/LoveNote.prefab";
 
         [InitializeOnLoadMethod]
@@ -114,6 +117,7 @@ namespace RingSport.Editor
             WireBannerFont();
             WirePlayerPrefab();
             WireLoveNotePrefab();
+            AddJuicyButtons();
             BuildImpactVFX();
 
             AssetDatabase.SaveAssets();
@@ -162,6 +166,58 @@ namespace RingSport.Editor
             WireClip(uiManager, "newHighScoreSound", ClipTaduh);
 
             WireClip(Object.FindAnyObjectByType<SecretNotePanel>(FindObjectsInactive.Include), "revealSound", ClipTaduh);
+
+            var simonSays = Object.FindAnyObjectByType<MiniLevelPositionsSimonSays>(FindObjectsInactive.Include);
+            WireClip(simonSays, "poseToneSound", ClipRewardPop);
+            WireClip(simonSays, "correctSound", ClipRewardCoin);
+            WireClip(simonSays, "wrongSound", ClipBruh);
+        }
+
+        /// <summary>
+        /// JuicyButton (press scale + soft click) on every scene button. The
+        /// primary actions (START, Retry) also get the idle attention pulse.
+        /// The secret-note scrim is skipped - it's a full-screen dismiss
+        /// button, and scaling the whole screen on press would look broken.
+        /// </summary>
+        private static void AddJuicyButtons()
+        {
+            Button startButton = null;
+            Button retryButton = null;
+            var uiManager = Object.FindAnyObjectByType<UIManager>(FindObjectsInactive.Include);
+            if (uiManager != null)
+            {
+                var uiSerialized = new SerializedObject(uiManager);
+                startButton = uiSerialized.FindProperty("startButton")?.objectReferenceValue as Button;
+                retryButton = uiSerialized.FindProperty("retryButton")?.objectReferenceValue as Button;
+            }
+
+            var clickClip = AssetDatabase.LoadAssetAtPath<AudioClip>(ClipRewardPop);
+            int added = 0;
+
+            foreach (var button in Object.FindObjectsByType<Button>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (button.gameObject.name == "Scrim")
+                    continue;
+
+                var juicy = button.GetComponent<JuicyButton>();
+                if (juicy == null)
+                {
+                    juicy = button.gameObject.AddComponent<JuicyButton>();
+                    added++;
+                }
+
+                var serialized = new SerializedObject(juicy);
+                var clickProp = serialized.FindProperty("clickSound");
+                if (clickProp != null && clickProp.objectReferenceValue == null)
+                    clickProp.objectReferenceValue = clickClip;
+                var pulseProp = serialized.FindProperty("idlePulse");
+                if (pulseProp != null)
+                    pulseProp.boolValue = button == startButton || button == retryButton;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(juicy);
+            }
+
+            Debug.Log($"[JuicePolishSetup] JuicyButton on scene buttons (added {added}; START/Retry get the idle pulse).");
         }
 
         /// <summary>
