@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using RingSport.Core;
+using RingSport.Effects;
 using RingSport.Player;
 using RingSport.Level;
 using System;
@@ -32,6 +33,9 @@ namespace RingSport.UI
         [SerializeField] private TextMeshProUGUI loveNoteHudCountText;
         [SerializeField] private GameObject gameOverLoveNoteCounter;
         [SerializeField] private TextMeshProUGUI gameOverLoveNoteCountText;
+
+        [Header("Secret Note")]
+        [SerializeField] private SecretNotePanel secretNotePanel;
 
         [Header("Game HUD")]
         [SerializeField] private TextMeshProUGUI scoreText;
@@ -74,7 +78,23 @@ namespace RingSport.UI
         [SerializeField] private string[] countdownNumbers = { "3", "2", "1" };
         [SerializeField] private AnimationCurve countdownScaleAnimation = AnimationCurve.EaseInOut(0f, 1.5f, 1f, 1f);
 
+        [Header("Juice")]
+        [Tooltip("Tick per countdown digit (temporary clip - see SOUND_EFFECTS.md).")]
+        [SerializeField] private AudioClip countdownTickSound;
+        [Tooltip("The GO! beat that starts the run (temporary clip - see SOUND_EFFECTS.md).")]
+        [SerializeField] private AudioClip countdownGoSound;
+        [SerializeField] [Range(0f, 1f)] private float uiSfxVolume = 0.9f;
+        [Tooltip("Seconds for the HUD score to roll up to its target after a pickup.")]
+        [SerializeField] private float scoreRollSeconds = 0.35f;
+
         private Coroutine countdownCoroutine;
+        private AudioSource uiAudioSource;
+        private float displayedScore;
+        private int targetScore;
+        private bool scoreRolling;
+        private CanvasGroup gameOverGroup;
+        private Coroutine gameOverFadeRoutine;
+        private int lastLoveNoteCount;
 
         // Reward screen is reused as a level intro (location + level name + start).
         // While set, the "Next Level" button starts the current level instead of
@@ -90,11 +110,32 @@ namespace RingSport.UI
             }
 
             Instance = this;
+
+            uiAudioSource = gameObject.AddComponent<AudioSource>();
+            uiAudioSource.playOnAwake = false;
         }
 
         private void Start()
         {
             SetupButtons();
+        }
+
+        private void Update()
+        {
+            // HUD score rolls toward its target instead of snapping. Rate is
+            // proportional to the remaining gap (OutExpo feel) with a floor so
+            // the tail lands briskly. Unscaled - the HUD lives through
+            // timeScale-0 moments.
+            if (scoreRolling && scoreText != null)
+            {
+                float remaining = Mathf.Abs(targetScore - displayedScore);
+                float rate = Mathf.Max(remaining / Mathf.Max(0.05f, scoreRollSeconds), 25f);
+                displayedScore = Mathf.MoveTowards(displayedScore, targetScore, rate * Time.unscaledDeltaTime);
+                scoreText.text = $"{Mathf.RoundToInt(displayedScore)}";
+
+                if (Mathf.Approximately(displayedScore, targetScore))
+                    scoreRolling = false;
+            }
         }
 
         private void SetupButtons()
@@ -125,6 +166,9 @@ namespace RingSport.UI
             if (gameHUD != null) gameHUD.SetActive(false);
             if (rewardScreen != null) rewardScreen.SetActive(false);
             if (gameOverScreen != null) gameOverScreen.SetActive(false);
+
+            // The secret note overlay never lingers across a screen change
+            if (secretNotePanel != null) secretNotePanel.Close();
         }
 
         public void ShowHomeScreen()
@@ -171,12 +215,17 @@ namespace RingSport.UI
         public void UpdateLoveNoteCounter(int count)
         {
             bool show = count > 0;
+            bool increased = count > lastLoveNoteCount;
+            lastLoveNoteCount = count;
 
             if (loveNoteHudCounter != null)
                 loveNoteHudCounter.SetActive(show);
 
             if (loveNoteHudCountText != null)
                 loveNoteHudCountText.text = $"x{count}";
+
+            if (increased && loveNoteHudCounter != null && loveNoteHudCounter.activeInHierarchy)
+                Juice.PunchScale(loveNoteHudCounter.transform, 0.28f, 0.22f);
 
             if (gameOverLoveNoteCounter != null)
                 gameOverLoveNoteCounter.SetActive(show);
@@ -185,6 +234,23 @@ namespace RingSport.UI
                 gameOverLoveNoteCountText.text = $"x{count}";
         }
 
+        /// <summary>
+        /// Reveals the finale secret note: a big love note with the secret word
+        /// under a confetti shower. Shown over the reward screen when the last
+        /// level's finish line is crossed; the debug menu opens it from the
+        /// home screen.
+        /// </summary>
+        public void ShowSecretNote()
+        {
+            if (secretNotePanel != null)
+                secretNotePanel.Open();
+            else
+                Debug.LogWarning("[UIManager] secretNotePanel not assigned - run Tools/RingSport/Setup Secret Note.");
+        }
+
+        /// <summary>True while the secret note overlay is up (DebugMenu hides its IMGUI behind it).</summary>
+        public bool IsSecretNoteOpen => secretNotePanel != null && secretNotePanel.IsOpen;
+
         public void ShowGameHUD()
         {
             Debug.Log("[UIManager] ShowGameHUD called");
@@ -192,7 +258,7 @@ namespace RingSport.UI
             if (gameHUD != null)
             {
                 gameHUD.SetActive(true);
-                UpdateScore(ScoreManager.Instance?.DisplayScore ?? 0);
+                SnapScore(ScoreManager.Instance?.DisplayScore ?? 0);
 
                 // Get level name from config, fallback to "Level X" format
                 var levelConfig = LevelGenerator.Instance?.GetCurrentConfig();
@@ -269,7 +335,7 @@ namespace RingSport.UI
                 // Display next level in "X/9" format
                 if (rewardLevelText != null)
                 {
-                    int maxLevels = LevelManager.Instance?.MaxLevels ?? 9;
+                    int maxLevels = LevelManager.Instance?.MaxLevels ?? 8;
                     int nextLevel = level + 1;
 
                     // if (nextLevel <= maxLevels)
@@ -338,6 +404,18 @@ namespace RingSport.UI
             if (gameOverScreen != null)
             {
                 gameOverScreen.SetActive(true);
+
+                // Panel fades in over the ragdoll instead of hard-cutting
+                if (gameOverGroup == null)
+                {
+                    gameOverGroup = gameOverScreen.GetComponent<CanvasGroup>();
+                    if (gameOverGroup == null)
+                        gameOverGroup = gameOverScreen.AddComponent<CanvasGroup>();
+                }
+                gameOverGroup.alpha = 0f;
+                if (gameOverFadeRoutine != null)
+                    StopCoroutine(gameOverFadeRoutine);
+                gameOverFadeRoutine = StartCoroutine(FadeInGameOverPanel(0.3f));
 
                 // Love notes collected this run stay visible on the retry screen
                 UpdateLoveNoteCounter(LoveNoteManager.CollectedThisRun);
@@ -419,6 +497,23 @@ namespace RingSport.UI
 
         public void UpdateScore(int score)
         {
+            if (scoreText == null)
+                return;
+
+            // Pickup pop on the counter, then Update() rolls the number up
+            if (score > targetScore && gameHUD != null && gameHUD.activeInHierarchy)
+                Juice.PunchScale(scoreText.transform, 0.18f, 0.16f);
+
+            targetScore = score;
+            scoreRolling = true;
+        }
+
+        /// <summary>Set the score display instantly (screen shows, resets) - no roll, no punch.</summary>
+        private void SnapScore(int score)
+        {
+            targetScore = score;
+            displayedScore = score;
+            scoreRolling = false;
             if (scoreText != null)
                 scoreText.text = $"{score}";
         }
@@ -521,13 +616,15 @@ namespace RingSport.UI
         {
             Debug.Log($"[UIManager] CountdownRoutine started. Panel active before: {countdownPanel.activeSelf}, Parent active: {countdownPanel.transform.parent?.gameObject.activeInHierarchy ?? true}");
             countdownPanel.SetActive(true);
-            Debug.Log($"[UIManager] CountdownRoutine - Panel active after SetActive(true): {countdownPanel.activeSelf}, activeInHierarchy: {countdownPanel.activeInHierarchy}");
+            countdownText.alpha = 1f; // a stopped GO fade may have left it faded
+            countdownText.transform.localScale = Vector3.one;
 
             float timePerNumber = totalDuration / countdownNumbers.Length;
 
             for (int i = 0; i < countdownNumbers.Length; i++)
             {
                 countdownText.text = countdownNumbers[i];
+                PlayUiSound(countdownTickSound, 1f + 0.06f * i); // ticks climb slightly
 
                 float elapsed = 0f;
                 while (elapsed < timePerNumber)
@@ -541,9 +638,53 @@ namespace RingSport.UI
                 }
             }
 
+            // GO! - the run starts on this beat; the text pops (OutBack) and
+            // fades out over the first moments of gameplay
+            countdownText.text = "GO!";
+            PlayUiSound(countdownGoSound, 1.15f);
+            onComplete?.Invoke();
+
+            const float goSeconds = 0.45f;
+            float goElapsed = 0f;
+            while (goElapsed < goSeconds)
+            {
+                goElapsed += Time.unscaledDeltaTime;
+                float n = Mathf.Clamp01(goElapsed / goSeconds);
+                float pop = Juice.OutBack(Mathf.Clamp01(n / 0.45f));
+                countdownText.transform.localScale = Vector3.one * Mathf.LerpUnclamped(0.5f, 1f, pop);
+                countdownText.alpha = 1f - Mathf.Clamp01((n - 0.5f) / 0.5f);
+                yield return null;
+            }
+
+            countdownText.alpha = 1f;
+            countdownText.transform.localScale = Vector3.one;
             countdownPanel.SetActive(false);
             countdownCoroutine = null;
-            onComplete?.Invoke();
+        }
+
+        private void PlayUiSound(AudioClip clip, float pitch = 1f)
+        {
+            if (clip == null || uiAudioSource == null)
+                return;
+
+            uiAudioSource.pitch = pitch;
+            uiAudioSource.PlayOneShot(clip, uiSfxVolume);
+        }
+
+        private IEnumerator FadeInGameOverPanel(float duration)
+        {
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                if (gameOverGroup != null)
+                    gameOverGroup.alpha = Juice.OutQuad(Mathf.Clamp01(elapsed / duration));
+                yield return null;
+            }
+
+            if (gameOverGroup != null)
+                gameOverGroup.alpha = 1f;
+            gameOverFadeRoutine = null;
         }
 
         private void OnStartButtonClicked()
@@ -587,7 +728,7 @@ namespace RingSport.UI
             {
                 Debug.Log("[UIManager] OnNextLevelButtonClicked - starting previewed level");
                 isLevelIntro = false;
-                GameManager.Instance?.SetState(GameState.Playing);
+                GameManager.Instance?.TransitionToState(GameState.Playing);
                 return;
             }
 

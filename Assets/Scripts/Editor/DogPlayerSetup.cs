@@ -20,7 +20,7 @@ namespace RingSport.Editor
     public static class DogPlayerSetup
     {
         // Bump to make the auto-run rebuild the controller after changing this script
-        private const int SetupVersion = 17;
+        private const int SetupVersion = 18;
         private const string VersionPrefKey = "RingSport.DogPlayerSetup.Version";
 
         private const string DogName = "Dog Model";
@@ -49,8 +49,6 @@ namespace RingSport.Editor
         private const string JumpInPlaceGuid = "03d8d67d519ba8b44a9356d4badc4039"; // WL_Jump_InPlace.anim
         private const string JumpForwardGuid = "7ce4f711dd11df041898390c845db393"; // WL_Jump_Forward.anim
         private const string DashFbxGuid = "af25c5ee9aa180643a14d1acb874c030";    // WL_Dash.fbx
-        private const string ChargeLowFbxGuid = "dd52ffdad900ee04f9cfc0aaeda7c871";  // WL_Charge_Low.fbx (bolt-sprint cycle, loops)
-        private const string ChargeHighFbxGuid = "8e56cddac001e4a4e969c589b0779643"; // WL_Charge_High.fbx (bolt-sprint cycle, loops)
         private const string DeathGuid = "69e70d70d4cea1442bdbe47dc487a263";      // WL_Death1.anim
         private const string RagdollPrefabGuid = "1866b9e9949480b40a71eecb4ea69e03"; // Wolf Lite Ragdoll.prefab
         private const string SleepFbxGuid = "558c52fb80d72814bbd94a05998c957f";   // WL_Sleep.FBX (sit/lie pose clips)
@@ -233,65 +231,20 @@ namespace RingSport.Editor
                 return null;
             }
 
-            // Sprint gait: the wolf's real sprint is the Bolt charge cycle
-            // (WL_Charge_Low/High - authored as looping gait clips, and what
-            // Malbers' own controller blends while bolting). WL_Dash is a
-            // one-shot dash move (loopTime 0), so the old looped copy of it
-            // hitched once per second; keep it, then the sped-up run, only as
-            // fallbacks. Low posture first - the stretched-out silhouette reads
-            // as flat-out sprint from the runner camera.
-            AnimationClip sprintMotion = null;
-            float sprintTimeScale = 1f;
-            foreach (var (chargeGuid, chargeName) in new[]
-            {
-                (ChargeLowFbxGuid, "WL_Charge_Low"),
-                (ChargeHighFbxGuid, "WL_Charge_High"),
-            })
-            {
-                var charge = LoadClip(chargeGuid, chargeName);
-                if (charge == null)
-                {
-                    Debug.LogWarning($"[DogPlayerSetup] {chargeName} not found - trying next sprint gait candidate.");
-                    continue;
-                }
-
-                float chargeTravel = MeasureHorizontalTravel(charge);
-                if (chargeTravel >= 1f)
-                {
-                    Debug.Log($"[DogPlayerSetup] {chargeName} travels {chargeTravel:F2}m in-pose - trying next sprint gait candidate.");
-                    continue;
-                }
-
-                sprintMotion = charge;
-                // Play the charge cycle so its stride lands a touch quicker than
-                // the run cycle - sprint should raise the cadence, not just the pose
-                sprintTimeScale = charge.length / Mathf.Max(0.01f, clips["run"].length) * 1.05f;
-                AssetDatabase.DeleteAsset(DashLoopPath); // stale fallback from earlier versions
-                Debug.Log($"[DogPlayerSetup] Sprint gait: {chargeName} (travel {chargeTravel:F2}m, length {charge.length:F2}s, timeScale {sprintTimeScale:F2}).");
-                break;
-            }
-            if (sprintMotion == null)
-            {
-                var dashSource = LoadClip(DashFbxGuid, "WL_Dash");
-                if (dashSource != null)
-                {
-                    float travel = MeasureHorizontalTravel(dashSource);
-                    if (travel < 1f)
-                    {
-                        sprintMotion = GetOrCreateLoopingCopy(dashSource, DashLoopPath);
-                        Debug.Log($"[DogPlayerSetup] Sprint gait: WL_Dash loop (in-pose travel {travel:F2}m).");
-                    }
-                    else
-                    {
-                        Debug.Log($"[DogPlayerSetup] WL_Dash travels {travel:F2}m in-pose; sprint falls back to sped-up run.");
-                    }
-                }
-            }
-            if (sprintMotion == null)
-            {
-                sprintMotion = clips["run"];
-                sprintTimeScale = 1.35f;
-            }
+            // Sprint gait: the pack ships exactly three locomotion cycles
+            // (walk/trot/run) - Malbers' own controller sprints by playing the
+            // Run gait faster (a speed modifier), never a separate clip. The
+            // action clips that look like sprint candidates are not gaits:
+            // WL_Dash is a one-shot lunge (looping it hitched once a second,
+            // v16) and WL_Charge_High/Low are HELD bolt-charge stances - they
+            // loop because the charge can be held, and used as a gait they
+            // freeze the legs mid-crouch (v17). Sprint is the run cycle at a
+            // higher cadence; the speed-line trail and footstep pitch sell the
+            // tier change.
+            AnimationClip sprintMotion = clips["run"];
+            float sprintTimeScale = 1.4f;
+            AssetDatabase.DeleteAsset(DashLoopPath); // stale looped-dash sprint from v16
+            Debug.Log($"[DogPlayerSetup] Sprint gait: WL_Run at {sprintTimeScale:F2}x cadence.");
 
             EnsureFolder("Assets/Animations");
             EnsureFolder("Assets/Animations/Player");

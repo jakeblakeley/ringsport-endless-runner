@@ -79,11 +79,39 @@ namespace RingSport.Core
             transitionDuration = 0.5f
         };
 
+        [Header("Impulse Layer (shake / kicks, additive on top of states)")]
+        [Tooltip("How fast accumulated shake trauma drains, per second. Shake amplitude is trauma squared, so the tail dies off quickly.")]
+        [SerializeField] private float traumaDecayPerSecond = 1.6f;
+        [SerializeField] private float shakePositionAmplitude = 0.2f;
+        [SerializeField] private float shakeRollAmplitude = 2.2f;
+        [SerializeField] private float shakeFrequency = 16f;
+
         private CameraStateType currentState;
         private float currentDistanceScale = 1f;
         private float currentHeightOffset = 0f;
         private Coroutine transitionCoroutine;
         private bool poseInitialized;
+
+        // Impulse layer state. The layer rides on top of whatever pose the
+        // state machine (or a scripted shot) authored: each LateUpdate it
+        // detects external writes, adopts them as the new base, and re-applies
+        // its decaying offset - so shakes compose with transitions instead of
+        // fighting them.
+        private Camera cameraComponent;
+        private float trauma;
+        private Vector3 kickOffset;
+        private float kickDuration;
+        private float kickTimer;
+        private float fovKickAmount;
+        private float fovKickDuration;
+        private float fovKickTimer;
+        private float baseFov;
+        private bool fovApplied;
+        private Vector3 impulseBasePos;
+        private Quaternion impulseBaseRot = Quaternion.identity;
+        private Vector3 lastWrittenPos;
+        private Quaternion lastWrittenRot = Quaternion.identity;
+        private bool impulseWasApplied;
 
         public CameraStateType CurrentState => currentState;
 
@@ -96,6 +124,7 @@ namespace RingSport.Core
             }
 
             Instance = this;
+            cameraComponent = GetComponent<Camera>();
         }
 
         private void Start()
@@ -193,6 +222,114 @@ namespace RingSport.Core
             }
 
             transitionCoroutine = StartCoroutine(TransitionToState(targetState, targetPos, targetRot));
+        }
+
+        /// <summary>Add screenshake trauma (0..1, accumulates and clamps). Amplitude = trauma squared.</summary>
+        public void AddShake(float amount)
+        {
+            trauma = Mathf.Clamp01(trauma + amount);
+        }
+
+        /// <summary>
+        /// Directional camera punch in camera-local space (e.g. Vector3.down
+        /// for a landing dip): applies the full offset instantly, then eases
+        /// back to rest over the duration.
+        /// </summary>
+        public void AddKick(Vector3 localOffset, float duration = 0.3f)
+        {
+            kickOffset = localOffset;
+            kickDuration = Mathf.Max(0.01f, duration);
+            kickTimer = 0f;
+        }
+
+        /// <summary>FOV punch (degrees, +widens): instant pop, eased return.</summary>
+        public void AddFovKick(float degrees, float duration = 0.5f)
+        {
+            if (cameraComponent == null)
+                cameraComponent = GetComponent<Camera>();
+            if (cameraComponent == null)
+                return;
+
+            if (!fovApplied)
+                baseFov = cameraComponent.fieldOfView;
+            fovKickAmount = degrees;
+            fovKickDuration = Mathf.Max(0.01f, duration);
+            fovKickTimer = 0f;
+        }
+
+        private void LateUpdate()
+        {
+            float dt = Time.unscaledDeltaTime;
+
+            trauma = Mathf.Max(0f, trauma - traumaDecayPerSecond * dt);
+            if (kickTimer < kickDuration)
+                kickTimer += dt;
+
+            UpdateFovKick(dt);
+
+            bool active = trauma > 0f || kickTimer < kickDuration;
+            if (!active && !impulseWasApplied)
+                return;
+
+            // Adopt any pose written since our last frame (a transition tick,
+            // a scripted shot, SetStateImmediate) as the new base.
+            Vector3 currentPos = transform.localPosition;
+            Quaternion currentRot = transform.localRotation;
+            if (!impulseWasApplied ||
+                (currentPos - lastWrittenPos).sqrMagnitude > 1e-8f ||
+                Quaternion.Angle(currentRot, lastWrittenRot) > 0.005f)
+            {
+                impulseBasePos = currentPos;
+                impulseBaseRot = currentRot;
+            }
+
+            Vector3 offset = Vector3.zero;
+            float roll = 0f;
+
+            if (trauma > 0f)
+            {
+                float shake = trauma * trauma;
+                float t = Time.unscaledTime * shakeFrequency;
+                offset += new Vector3(
+                    Mathf.PerlinNoise(t, 0.3f) * 2f - 1f,
+                    Mathf.PerlinNoise(t, 7.7f) * 2f - 1f,
+                    0f) * (shakePositionAmplitude * shake);
+                roll = (Mathf.PerlinNoise(t, 13.1f) * 2f - 1f) * shakeRollAmplitude * shake;
+            }
+
+            if (kickTimer < kickDuration)
+            {
+                float remain = 1f - Mathf.Clamp01(kickTimer / kickDuration);
+                offset += kickOffset * (remain * remain);
+            }
+
+            bool applying = offset.sqrMagnitude > 1e-10f || Mathf.Abs(roll) > 1e-4f;
+            transform.localPosition = impulseBasePos + offset;
+            transform.localRotation = impulseBaseRot * Quaternion.Euler(0f, 0f, roll);
+            lastWrittenPos = transform.localPosition;
+            lastWrittenRot = transform.localRotation;
+            impulseWasApplied = applying;
+        }
+
+        private void UpdateFovKick(float dt)
+        {
+            if (cameraComponent == null)
+                return;
+
+            if (fovKickTimer >= fovKickDuration)
+            {
+                if (fovApplied)
+                {
+                    cameraComponent.fieldOfView = baseFov;
+                    fovApplied = false;
+                }
+                return;
+            }
+
+            fovKickTimer += dt;
+            float remain = 1f - Mathf.Clamp01(fovKickTimer / fovKickDuration);
+            cameraComponent.fieldOfView = baseFov + fovKickAmount * (remain * remain);
+            fovApplied = true;
         }
 
         private CameraStateData GetStateData(CameraStateType stateType)

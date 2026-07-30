@@ -55,7 +55,7 @@ namespace RingSport.Level
 
             // Same points as the large coin it replaced
             LevelManager.Instance?.AddScore(pointValue);
-            LevelManager.Instance?.PlayCollectSound(collectSound);
+            LevelManager.Instance?.PlayCollectSound(collectSound, comboPitch: true);
 
             CollectBurstVFX.PlayLoveNote(transform.position);
 

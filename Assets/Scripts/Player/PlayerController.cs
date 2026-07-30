@@ -50,6 +50,8 @@ namespace RingSport.Player
         private float lastInputTime = -1f;
         private float inputCooldown = 0.2f;
         private float pendingJumpRequestTime = float.NegativeInfinity;
+        private bool wasAirborne;
+        private float airborneTime;
 
         // Stamina system for sprint management
         private PlayerStaminaSystem staminaSystem;
@@ -60,6 +62,9 @@ namespace RingSport.Player
         [SerializeField] [Range(0f, 1f)] private float footstepVolume = 0.5f;
         [SerializeField] private float baseFootstepPitch = 1.0f;
         [SerializeField] private float sprintPitchMultiplier = 1.3f;
+        [Tooltip("One-shot thump on touchdown after real air time (temporary clip - see SOUND_EFFECTS.md).")]
+        [SerializeField] private AudioClip landSound;
+        [SerializeField] [Range(0f, 1f)] private float landVolume = 0.5f;
 
         private AudioSource sfxAudioSource;
         private AudioSource footstepAudioSource;
@@ -224,6 +229,21 @@ namespace RingSport.Player
                 : Time.deltaTime;
 
             HandleGroundCheck();
+
+            // Landing feedback (dust, squash, thump, camera dip) after real air
+            // time - purely audiovisual, never gates input (fairness model)
+            if (isGrounded)
+            {
+                if (wasAirborne && airborneTime >= 0.15f)
+                    OnLanded();
+                wasAirborne = false;
+                airborneTime = 0f;
+            }
+            else
+            {
+                wasAirborne = true;
+                airborneTime += deltaTime;
+            }
 
             // Fire a buffered jump the moment we're grounded again - a swipe in
             // the last part of a jump would otherwise be silently dropped
@@ -435,6 +455,21 @@ namespace RingSport.Player
                 sfxAudioSource.PlayOneShot(jumpSound);
         }
 
+        private void OnLanded()
+        {
+            playerAnimator?.PulseSquash(0.12f, 0.16f);
+
+            // Dust at the feet: bottom of the capsule
+            Vector3 dustPos = transform.position + characterController.center
+                - Vector3.up * (characterController.height * 0.5f - 0.05f);
+            ImpactVFX.PlayDust(dustPos, 9);
+
+            if (landSound != null && sfxAudioSource != null)
+                sfxAudioSource.PlayOneShot(landSound, landVolume);
+
+            CameraStateMachine.Instance?.AddKick(Vector3.down * 0.07f, 0.22f);
+        }
+
         private void OnMobileSprint()
         {
             Debug.Log("Mobile sprint started!");
@@ -515,6 +550,8 @@ namespace RingSport.Player
             isJumpEnabled = true;
             isLaneChangeEnabled = true;
             pendingJumpRequestTime = float.NegativeInfinity;
+            wasAirborne = false;
+            airborneTime = 0f;
 
             // Disable CharacterController to allow direct position change
             characterController.enabled = false;

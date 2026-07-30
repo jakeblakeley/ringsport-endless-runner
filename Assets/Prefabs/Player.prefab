@@ -5260,6 +5260,8 @@ MonoBehaviour:
   footstepVolume: 0.5
   baseFootstepPitch: 1
   sprintPitchMultiplier: 1.3
+  landSound: {fileID: 8300000, guid: d0de8be97d1d746d1a2c1780c5e165b1, type: 3}
+  landVolume: 0.5
 --- !u!114 &4625475260876631699
 MonoBehaviour:
   m_ObjectHideFlags: 0

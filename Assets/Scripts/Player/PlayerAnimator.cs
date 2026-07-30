@@ -96,6 +96,10 @@ namespace RingSport.Player
         private Transform modelTransform;
         private Vector3 modelBasePosition;
         private Quaternion modelBaseRotation;
+        private Vector3 modelBaseScale = Vector3.one;
+        private float squashTimer = float.MaxValue;
+        private float squashAmount;
+        private float squashDuration = 0.16f;
         private bool isClambering;
         private float clamberOffsetWeight;
         private float clamberTargetProgress;
@@ -133,6 +137,7 @@ namespace RingSport.Player
             modelTransform = animator.transform;
             modelBasePosition = modelTransform.localPosition;
             modelBaseRotation = modelTransform.localRotation;
+            modelBaseScale = modelTransform.localScale;
 
             // Time.timeScale is 0 during countdowns, mini-levels and game over,
             // so the animator must run on unscaled time or it freezes exactly
@@ -236,6 +241,26 @@ namespace RingSport.Player
             modelTransform.localRotation = modelBaseRotation *
                 Quaternion.Euler(currentJumpPitch + dodgePitch, currentFacingYaw + currentDodgeYaw + currentLaneYaw, dodgeRoll);
 
+            // Landing squash: deepest on impact, eased recovery, volume roughly
+            // preserved by widening while flattening
+            if (squashTimer < squashDuration)
+            {
+                squashTimer += deltaTime;
+                if (squashTimer >= squashDuration)
+                {
+                    modelTransform.localScale = modelBaseScale;
+                }
+                else
+                {
+                    float w = 1f - Mathf.Clamp01(squashTimer / squashDuration);
+                    w *= w;
+                    modelTransform.localScale = new Vector3(
+                        modelBaseScale.x * (1f + squashAmount * 0.6f * w),
+                        modelBaseScale.y * (1f - squashAmount * w),
+                        modelBaseScale.z * (1f + squashAmount * 0.6f * w));
+                }
+            }
+
             // Home screen: liven the idle with an occasional one-shot flourish
             if (flourishesEnabled && !IsTurning && Time.unscaledTime >= nextFlourishTime)
             {
@@ -338,6 +363,27 @@ namespace RingSport.Player
         {
             if (animator != null)
                 animator.speed = paused ? 0f : 1f;
+        }
+
+        /// <summary>
+        /// Scales the whole animator's playback (slow-mo beats like the
+        /// finish-line moment). 1 = normal. Reset by ResetToLocomotion.
+        /// </summary>
+        public void SetAnimatorTimeScale(float scale)
+        {
+            if (animator != null)
+                animator.speed = Mathf.Max(0f, scale);
+        }
+
+        /// <summary>
+        /// One-shot squash-and-stretch pulse on the model (landings): flattens
+        /// by amount immediately, recovers over duration. Purely visual.
+        /// </summary>
+        public void PulseSquash(float amount = 0.12f, float duration = 0.16f)
+        {
+            squashAmount = amount;
+            squashDuration = Mathf.Max(0.02f, duration);
+            squashTimer = 0f;
         }
 
         /// <summary>
@@ -479,6 +525,9 @@ namespace RingSport.Player
             currentLaneYaw = 0f;
             currentJumpPitch = 0f;
             externalModelOffset = Vector3.zero;
+            squashTimer = float.MaxValue;
+            if (modelTransform != null)
+                modelTransform.localScale = modelBaseScale;
             // Facing deliberately persists through resets - mini-level retries
             // keep the dog toward the camera; SetFacing owns turning back
             if (modelTransform != null)

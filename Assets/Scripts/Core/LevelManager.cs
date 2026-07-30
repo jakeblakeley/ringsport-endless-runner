@@ -1,5 +1,9 @@
+using System.Collections;
+using TMPro;
 using UnityEngine;
+using RingSport.Effects;
 using RingSport.Level;
+using RingSport.Player;
 using RingSport.UI;
 
 namespace RingSport.Core
@@ -9,7 +13,7 @@ namespace RingSport.Core
         public static LevelManager Instance { get; private set; }
 
         [Header("Level Settings")]
-        [SerializeField] private int maxLevels = 9;
+        [SerializeField] private int maxLevels = 8;
 
         [Header("End Game Settings")]
         [Tooltip("Time before level end to trigger end game behavior (despawn distant obstacles)")]
@@ -27,8 +31,25 @@ namespace RingSport.Core
         [Header("Audio Settings")]
         [SerializeField] private AudioClip[] levelCompleteSounds;
         [SerializeField] private float sfxVolume = 1.0f;
+        [Tooltip("Seconds between pickups that keeps the coin-train pitch ladder climbing; a longer gap resets it.")]
+        [SerializeField] private float collectComboWindow = 0.6f;
+
+        [Header("Finish Line Moment")]
+        [Tooltip("Banner font for FINISH! (BarlowCondensed, wired by Tools/RingSport/Setup Juice Polish).")]
+        [SerializeField] private TMP_FontAsset bannerFont;
+        [Tooltip("World speed factor during the finish-line slow-mo beat.")]
+        [SerializeField] private float finishSlowMoFactor = 0.4f;
+        [Tooltip("Total length of the finish-line beat before the reward screen.")]
+        [SerializeField] private float finishMomentSeconds = 0.85f;
 
         private AudioSource sfxAudioSource;
+        private AudioSource collectAudioSource; // pitch-laddered, so stings on sfxAudioSource stay at pitch 1
+        private float lastCollectTime = float.NegativeInfinity;
+        private int collectComboStep;
+        private bool finishMomentActive;
+
+        /// <summary>True during the finish-line celebration beat (blocks deaths).</summary>
+        public bool FinishMomentActive => finishMomentActive;
 
         private int currentLevel = 1;
         private float levelTimer = 0f;
@@ -70,6 +91,10 @@ namespace RingSport.Core
             sfxAudioSource = gameObject.AddComponent<AudioSource>();
             sfxAudioSource.playOnAwake = false;
             sfxAudioSource.volume = sfxVolume;
+
+            collectAudioSource = gameObject.AddComponent<AudioSource>();
+            collectAudioSource.playOnAwake = false;
+            collectAudioSource.volume = sfxVolume;
         }
 
         private void Update()
@@ -191,14 +216,12 @@ namespace RingSport.Core
             }
         }
 
-        public void EndLevel()
+        public void EndLevel(bool playSting = true)
         {
-            // Play random level complete sound
-            if (levelCompleteSounds != null && levelCompleteSounds.Length > 0 && sfxAudioSource != null)
-            {
-                AudioClip randomClip = levelCompleteSounds[Random.Range(0, levelCompleteSounds.Length)];
-                sfxAudioSource.PlayOneShot(randomClip);
-            }
+            // Play random level complete sound (the finish moment already
+            // played it when the line was crossed)
+            if (playSting)
+                PlayLevelCompleteSting();
 
             // In-run mini level levels already played their mini level in-run
             // (the chase ends just before the finish line), so skip the arena
@@ -215,7 +238,16 @@ namespace RingSport.Core
             // This allows any bonus points from mini levels to be included
 
             // Trigger mini level state (mini level will then transition to LevelComplete)
-            GameManager.Instance?.SetState(GameState.MiniLevel);
+            GameManager.Instance?.TransitionToState(GameState.MiniLevel);
+        }
+
+        private void PlayLevelCompleteSting()
+        {
+            if (levelCompleteSounds != null && levelCompleteSounds.Length > 0 && sfxAudioSource != null)
+            {
+                AudioClip randomClip = levelCompleteSounds[Random.Range(0, levelCompleteSounds.Length)];
+                sfxAudioSource.PlayOneShot(randomClip);
+            }
         }
 
         /// <summary>
@@ -231,7 +263,58 @@ namespace RingSport.Core
 
             hasReachedFinishLine = true;
             Debug.Log("Finish line reached - completing level!");
-            EndLevel();
+
+            // Chase levels end on their own choreography (the catch/stop beat
+            // already played) - no extra celebration on top
+            if (inRunMiniLevel != null && inRunTriggered)
+            {
+                EndLevel();
+                return;
+            }
+
+            StartCoroutine(FinishMomentRoutine());
+        }
+
+        /// <summary>
+        /// The finish-line beat: FINISH! banner + confetti + FOV pop + a soft
+        /// slow-mo, then the level actually ends. Slow-mo uses the scroll
+        /// override + animator speed (never Time.timeScale - the animator runs
+        /// on unscaled time). Deaths are blocked while this plays.
+        /// </summary>
+        private IEnumerator FinishMomentRoutine()
+        {
+            finishMomentActive = true;
+            PlayLevelCompleteSting();
+
+            var player = Object.FindAnyObjectByType<PlayerController>();
+
+            ScreenBanner.Show("FINISH!", new Color(1f, 0.84f, 0.25f), 0.7f, 150f, bannerFont);
+            if (player != null)
+                ImpactVFX.PlayConfettiBurst(player.transform.position + Vector3.up * 1.6f);
+            CameraStateMachine.Instance?.AddFovKick(6f, 0.6f);
+
+            // Ease the world and the dog's gait down together
+            float startSpeed = LevelScroller.Instance != null ? LevelScroller.Instance.GetScrollSpeed() : 0f;
+            const float rampSeconds = 0.15f;
+            float elapsed = 0f;
+            while (elapsed < rampSeconds)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float k = Juice.OutCubic(Mathf.Clamp01(elapsed / rampSeconds));
+                LevelScroller.Instance?.SetSpeedOverride(startSpeed * Mathf.Lerp(1f, finishSlowMoFactor, k));
+                player?.Animations?.SetAnimatorTimeScale(Mathf.Lerp(1f, 0.55f, k));
+                yield return null;
+            }
+
+            yield return new WaitForSecondsRealtime(Mathf.Max(0f, finishMomentSeconds - rampSeconds));
+
+            player?.Animations?.SetAnimatorTimeScale(1f);
+            LevelScroller.Instance?.ClearSpeedOverride();
+            finishMomentActive = false;
+
+            // Bail if something yanked the state mid-beat (debug jumps)
+            if (GameManager.Instance?.CurrentState == GameState.Playing)
+                EndLevel(playSting: false);
         }
 
         public void AddScore(int points)
@@ -240,10 +323,35 @@ namespace RingSport.Core
             UIManager.Instance?.UpdateScore(ScoreManager.Instance?.DisplayScore ?? 0);
         }
 
-        public void PlayCollectSound(AudioClip clip)
+        /// <summary>
+        /// Plays a pickup/feedback clip. comboPitch=true (coins, love notes)
+        /// climbs a semitone per quick successive pickup - coin trains sing -
+        /// resetting after collectComboWindow. Mini-level stings pass false and
+        /// stay at normal pitch on a separate source.
+        /// </summary>
+        public void PlayCollectSound(AudioClip clip, bool comboPitch = false)
         {
-            if (clip != null && sfxAudioSource != null)
-                sfxAudioSource.PlayOneShot(clip, sfxVolume);
+            if (clip == null)
+                return;
+
+            if (!comboPitch)
+            {
+                if (sfxAudioSource != null)
+                    sfxAudioSource.PlayOneShot(clip, sfxVolume);
+                return;
+            }
+
+            if (collectAudioSource == null)
+                return;
+
+            if (Time.unscaledTime - lastCollectTime <= collectComboWindow)
+                collectComboStep = Mathf.Min(collectComboStep + 1, 7);
+            else
+                collectComboStep = 0;
+            lastCollectTime = Time.unscaledTime;
+
+            collectAudioSource.pitch = Mathf.Pow(2f, collectComboStep / 12f);
+            collectAudioSource.PlayOneShot(clip, sfxVolume);
         }
 
         public void AddDistance(float distance)
@@ -260,7 +368,7 @@ namespace RingSport.Core
                 Debug.Log($"[LevelManager] Advancing to level {currentLevel}. Retries NOT reset: {retriesRemaining} remaining");
                 // Don't call StartGame() as it resets progress including retries
                 // Instead, directly transition to Playing state
-                GameManager.Instance?.SetState(GameState.Playing);
+                GameManager.Instance?.TransitionToState(GameState.Playing);
             }
             else
             {
@@ -279,11 +387,7 @@ namespace RingSport.Core
         /// </summary>
         public void CompleteInRunMiniLevel()
         {
-            if (levelCompleteSounds != null && levelCompleteSounds.Length > 0 && sfxAudioSource != null)
-            {
-                AudioClip randomClip = levelCompleteSounds[Random.Range(0, levelCompleteSounds.Length)];
-                sfxAudioSource.PlayOneShot(randomClip);
-            }
+            PlayLevelCompleteSting();
 
             inRunMiniLevel?.NotifyLevelEndReached();
             ScoreManager.Instance?.FinalizeLevelScore();
@@ -304,7 +408,7 @@ namespace RingSport.Core
             currentLevel = Mathf.Clamp(level, 1, maxLevels);
             pendingInRunEntry = true;
             Debug.Log($"[LevelManager] Starting level {currentLevel} at its in-run mini level");
-            GameManager.Instance?.SetState(GameState.Playing);
+            GameManager.Instance?.TransitionToState(GameState.Playing);
         }
 
         /// <summary>

@@ -67,9 +67,9 @@ namespace RingSport.Level
             if (meshRenderer != null)
                 meshRenderer.enabled = false;
 
-            // Add points to score and play sound
+            // Add points to score and play sound (coin trains climb the pitch ladder)
             LevelManager.Instance?.AddScore(pointValue);
-            LevelManager.Instance?.PlayCollectSound(collectSound);
+            LevelManager.Instance?.PlayCollectSound(collectSound, comboPitch: true);
 
             CollectBurstVFX.PlayCoin(transform.position, isLargeCoin);
 

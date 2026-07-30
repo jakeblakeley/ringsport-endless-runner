@@ -1,7 +1,9 @@
+using System.Collections;
 using UnityEngine;
 using RingSport.UI;
 using RingSport.Level;
 using RingSport.Player;
+using RingSport.Effects;
 
 namespace RingSport.Core
 {
@@ -35,13 +37,23 @@ namespace RingSport.Core
 
         [Header("Audio Settings")]
         [SerializeField] private AudioClip gameOverSound;
+        [Tooltip("Impact thud at the exact moment of a run death (temporary clip - see SOUND_EFFECTS.md).")]
+        [SerializeField] private AudioClip deathImpactSound;
         [SerializeField] [Range(0f, 1f)] private float musicVolume = 0.5f;
         [SerializeField] [Range(0f, 1f)] private float ambientVolume = 0.3f;
         [SerializeField] [Range(0f, 1f)] private float sfxVolume = 1.0f;
 
+        [Header("Death Feel")]
+        [Tooltip("Seconds the world freezes on the hit (scroll pinned, dog frozen mid-pose) before the ragdoll launches.")]
+        [SerializeField] private float deathHitStopSeconds = 0.09f;
+        [Tooltip("Seconds before the game over panel fades in, letting the ragdoll (run deaths) or the fail banner (mini levels) read first.")]
+        [SerializeField] private float gameOverPanelDelay = 1.0f;
+
         private AudioSource musicAudioSource;
         private AudioSource ambientAudioSource;
         private AudioSource sfxAudioSource;
+        private Coroutine musicFadeRoutine;
+        private bool deathSequenceRunning;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         // When set, HandleMiniLevelState launches this mini level instead of the
@@ -121,6 +133,18 @@ namespace RingSport.Core
             SetState(GameState.Home);
         }
 
+        /// <summary>
+        /// SetState wrapped in a quick fade-to-black, hiding the hard screen
+        /// swap and the world resets behind it (player teleport, camera snap).
+        /// If a fade is already covering the screen, the swap runs immediately
+        /// under it. Death does NOT come through here - TriggerGameOver has
+        /// its own impact beat.
+        /// </summary>
+        public void TransitionToState(GameState newState)
+        {
+            ScreenFader.Instance.FadeSwap(() => SetState(newState));
+        }
+
         public void SetState(GameState newState)
         {
             previousState = currentState;
@@ -178,7 +202,7 @@ namespace RingSport.Core
             UIManager.Instance?.ShowHomeScreen();
 
             // Stop location audio when returning home
-            StopLocationAudio();
+            StopLocationAudio(0.3f);
 
             // Load first level's location and start scene for home screen visuals
             LevelGenerator.Instance?.LoadHomeScene();
@@ -194,6 +218,7 @@ namespace RingSport.Core
 
             // Reset any paused states from previous game over (e.g., palisade minigame failure)
             LevelScroller.Instance?.Resume();
+            LevelScroller.Instance?.ClearSpeedOverride();
             var player = Object.FindAnyObjectByType<PlayerController>();
             player?.ResetPosition();
             player?.ResumeMovement();
@@ -254,7 +279,7 @@ namespace RingSport.Core
                 CameraStateMachine.Instance?.SetState(CameraStateType.Start);
 
             // Stop location audio during mini level
-            StopLocationAudio();
+            StopLocationAudio(0.3f);
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (debugMiniLevelOverride.HasValue)
@@ -339,12 +364,12 @@ namespace RingSport.Core
             CameraStateMachine.Instance?.SetState(CameraStateType.Start);
 
             // Stop location audio on level complete
-            StopLocationAudio();
+            StopLocationAudio(0.3f);
 
             // Show reward screen
             int level = LevelManager.Instance?.CurrentLevel ?? 1;
             int levelScore = ScoreManager.Instance?.CurrentScore ?? 0;
-            int maxLevels = LevelManager.Instance?.MaxLevels ?? 9;
+            int maxLevels = LevelManager.Instance?.MaxLevels ?? 8;
 
             Debug.Log($"[GameManager] HandleLevelCompleteState - Level: {level}, LevelScore: {levelScore}");
 
@@ -364,6 +389,11 @@ namespace RingSport.Core
             }
 
             UIManager.Instance?.ShowRewardScreen(level, levelScore, nextLevelName, nextLevelLocation);
+
+            // The last level's finish line ends the game: reveal the secret
+            // note (big love note + confetti) on top of the reward screen
+            if (level >= maxLevels)
+                UIManager.Instance?.ShowSecretNote();
         }
 
         private void HandleGameOverState()
@@ -377,10 +407,22 @@ namespace RingSport.Core
             var player = Object.FindAnyObjectByType<PlayerController>();
             player?.PlayDeathAnimation();
 
-            UIManager.Instance?.ShowGameOver();
+            // Music ducks out instead of cutting; the panel holds back so the
+            // ragdoll (run deaths) or the fail banner (mini levels) can read,
+            // then fades in together with the game-over sting.
+            StopLocationAudio(0.35f);
+            StartCoroutine(ShowGameOverDelayed());
+        }
 
-            // Stop location audio and play game over sound
-            StopLocationAudio();
+        private IEnumerator ShowGameOverDelayed()
+        {
+            yield return new WaitForSecondsRealtime(gameOverPanelDelay);
+
+            // The state may have moved on (debug jumps) while we waited
+            if (currentState != GameState.GameOver)
+                yield break;
+
+            UIManager.Instance?.ShowGameOver();
 
             if (gameOverSound != null && sfxAudioSource != null)
                 sfxAudioSource.PlayOneShot(gameOverSound);
@@ -397,7 +439,7 @@ namespace RingSport.Core
 
             Debug.Log("[GameManager] StartGame called - this resets progress!");
             LevelManager.Instance?.ResetProgress();
-            SetState(GameState.Playing);
+            TransitionToState(GameState.Playing);
         }
 
         public void RestartLevel()
@@ -405,7 +447,7 @@ namespace RingSport.Core
             Debug.Log("[GameManager] RestartLevel called");
             // Finalize score from the failed attempt before restarting
             ScoreManager.Instance?.FinalizeLevelScore();
-            SetState(GameState.Playing);
+            TransitionToState(GameState.Playing);
         }
 
         public void ReturnToHome()
@@ -414,12 +456,12 @@ namespace RingSport.Core
             ScoreManager.Instance?.FinalizeLevelScore();
             // Save high score before returning home (if player quits mid-run)
             ScoreManager.Instance?.CheckAndSaveHighScore();
-            SetState(GameState.Home);
+            TransitionToState(GameState.Home);
         }
 
         public void CompleteLevel()
         {
-            SetState(GameState.LevelComplete);
+            TransitionToState(GameState.LevelComplete);
         }
 
         /// <summary>
@@ -427,17 +469,51 @@ namespace RingSport.Core
         /// </summary>
         public void CompleteMiniLevel()
         {
-            SetState(GameState.LevelComplete);
+            TransitionToState(GameState.LevelComplete);
         }
 
         public void TriggerGameOver()
         {
-            // Consume a retry when the player dies
-            if (LevelManager.Instance != null)
-            {
-                LevelManager.Instance.UseRetry();
-            }
+            // A hit during an already-running death (or the finish-line
+            // celebration beat) can't kill the player twice
+            if (currentState == GameState.GameOver || deathSequenceRunning)
+                return;
+            if (LevelManager.Instance != null && LevelManager.Instance.FinishMomentActive)
+                return;
 
+            // Consume a retry when the player dies
+            LevelManager.Instance?.UseRetry();
+
+            StartCoroutine(DeathImpactSequence());
+        }
+
+        /// <summary>
+        /// The impact beat of a run death: shake + red flash + thud, then a
+        /// short hit-stop before the ragdoll takes over. Time.timeScale is NOT
+        /// used - the animator runs on unscaled time - so the freeze is the
+        /// scroll-override + movement-pause + animator-pause trio (same
+        /// pattern as the face attack's bullet time).
+        /// </summary>
+        private IEnumerator DeathImpactSequence()
+        {
+            deathSequenceRunning = true;
+
+            CameraStateMachine.Instance?.AddShake(0.55f);
+            ScreenFader.Instance.Flash(new Color(0.85f, 0.12f, 0.1f), 0.35f, 0.05f, 0.32f);
+            if (deathImpactSound != null && sfxAudioSource != null)
+                sfxAudioSource.PlayOneShot(deathImpactSound);
+
+            var player = Object.FindAnyObjectByType<PlayerController>();
+            LevelScroller.Instance?.SetSpeedOverride(0f);
+            player?.PauseMovement();
+            player?.Animations?.SetAnimatorPaused(true);
+
+            yield return new WaitForSecondsRealtime(deathHitStopSeconds);
+
+            player?.Animations?.SetAnimatorPaused(false);
+            LevelScroller.Instance?.ClearSpeedOverride();
+
+            deathSequenceRunning = false;
             SetState(GameState.GameOver);
         }
 
@@ -446,6 +522,9 @@ namespace RingSport.Core
         /// </summary>
         public void TriggerMiniLevelGameOver()
         {
+            if (currentState == GameState.GameOver || deathSequenceRunning)
+                return;
+
             Debug.Log($"[GameManager] TriggerMiniLevelGameOver called - isInMiniLevelContext before: {isInMiniLevelContext}");
 
             // Consume a retry when the player fails mini-level
@@ -465,45 +544,121 @@ namespace RingSport.Core
         {
             Debug.Log("[GameManager] RestartMiniLevel called");
             // Does NOT finalize score - player keeps their running section score
-            SetState(GameState.MiniLevel);
+            TransitionToState(GameState.MiniLevel);
         }
 
         /// <summary>
-        /// Play location-specific music and ambient sounds
+        /// Play location-specific music and ambient sounds (0.5s fade-in
+        /// instead of a hard start).
         /// </summary>
         public void PlayLocationAudio(AudioClip music, AudioClip ambient)
         {
+            if (musicFadeRoutine != null)
+            {
+                StopCoroutine(musicFadeRoutine);
+                musicFadeRoutine = null;
+            }
+
+            bool anyStarted = false;
+
             if (music != null && musicAudioSource != null)
             {
                 musicAudioSource.clip = music;
-                musicAudioSource.volume = musicVolume;
+                musicAudioSource.volume = 0f;
                 musicAudioSource.Play();
+                anyStarted = true;
                 Debug.Log($"Playing music: {music.name} at volume {musicVolume}");
             }
 
             if (ambient != null && ambientAudioSource != null)
             {
                 ambientAudioSource.clip = ambient;
-                ambientAudioSource.volume = ambientVolume;
+                ambientAudioSource.volume = 0f;
                 ambientAudioSource.Play();
-                Debug.Log($"Playing ambient: {ambient.name} at volume {ambientVolume}");
+                anyStarted = true;
             }
-            else if (ambient == null)
+
+            if (anyStarted)
+                musicFadeRoutine = StartCoroutine(FadeLocationAudioIn(0.5f));
+        }
+
+        private IEnumerator FadeLocationAudioIn(float duration)
+        {
+            float elapsed = 0f;
+            while (elapsed < duration)
             {
-                Debug.Log("No ambient sound assigned for this location");
+                elapsed += Time.unscaledDeltaTime;
+                float f = Mathf.Clamp01(elapsed / duration);
+                if (musicAudioSource != null && musicAudioSource.isPlaying)
+                    musicAudioSource.volume = musicVolume * f;
+                if (ambientAudioSource != null && ambientAudioSource.isPlaying)
+                    ambientAudioSource.volume = ambientVolume * f;
+                yield return null;
             }
+
+            if (musicAudioSource != null && musicAudioSource.isPlaying)
+                musicAudioSource.volume = musicVolume;
+            if (ambientAudioSource != null && ambientAudioSource.isPlaying)
+                ambientAudioSource.volume = ambientVolume;
+            musicFadeRoutine = null;
         }
 
         /// <summary>
-        /// Stop all location audio (music and ambient)
+        /// Stop all location audio (music and ambient). fadeSeconds > 0 fades
+        /// out instead of hard-cutting.
         /// </summary>
-        public void StopLocationAudio()
+        public void StopLocationAudio(float fadeSeconds = 0f)
         {
-            if (musicAudioSource != null && musicAudioSource.isPlaying)
-                musicAudioSource.Stop();
+            if (musicFadeRoutine != null)
+            {
+                StopCoroutine(musicFadeRoutine);
+                musicFadeRoutine = null;
+            }
 
-            if (ambientAudioSource != null && ambientAudioSource.isPlaying)
+            if (fadeSeconds <= 0f)
+            {
+                if (musicAudioSource != null && musicAudioSource.isPlaying)
+                    musicAudioSource.Stop();
+                if (ambientAudioSource != null && ambientAudioSource.isPlaying)
+                    ambientAudioSource.Stop();
+                RestoreLocationVolumes();
+                return;
+            }
+
+            musicFadeRoutine = StartCoroutine(FadeLocationAudioOut(fadeSeconds));
+        }
+
+        private IEnumerator FadeLocationAudioOut(float duration)
+        {
+            float startMusic = musicAudioSource != null ? musicAudioSource.volume : 0f;
+            float startAmbient = ambientAudioSource != null ? ambientAudioSource.volume : 0f;
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float f = 1f - Mathf.Clamp01(elapsed / duration);
+                if (musicAudioSource != null)
+                    musicAudioSource.volume = startMusic * f;
+                if (ambientAudioSource != null)
+                    ambientAudioSource.volume = startAmbient * f;
+                yield return null;
+            }
+
+            if (musicAudioSource != null)
+                musicAudioSource.Stop();
+            if (ambientAudioSource != null)
                 ambientAudioSource.Stop();
+            RestoreLocationVolumes();
+            musicFadeRoutine = null;
+        }
+
+        private void RestoreLocationVolumes()
+        {
+            if (musicAudioSource != null)
+                musicAudioSource.volume = musicVolume;
+            if (ambientAudioSource != null)
+                ambientAudioSource.volume = ambientVolume;
         }
     }
 }

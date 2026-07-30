@@ -42,6 +42,11 @@ namespace RingSport.DebugTools
                 return;
             }
 
+            // IMGUI draws above every canvas - stay hidden while the secret
+            // note overlay owns the screen
+            if (UIManager.Instance != null && UIManager.Instance.IsSecretNoteOpen)
+                return;
+
             if (headerStyle == null)
             {
                 headerStyle = new GUIStyle(GUI.skin.label)
@@ -87,7 +92,7 @@ namespace RingSport.DebugTools
         {
             GUILayout.Label("Levels", headerStyle);
 
-            int maxLevels = LevelManager.Instance != null ? LevelManager.Instance.MaxLevels : 9;
+            int maxLevels = LevelManager.Instance != null ? LevelManager.Instance.MaxLevels : 8;
             for (int level = 1; level <= maxLevels; level++)
             {
                 LevelConfig config = LevelGenerator.Instance?.GetLevelConfig(level);
@@ -150,6 +155,12 @@ namespace RingSport.DebugTools
             {
                 LoveNoteManager.ClearAllProgress();
                 UIManager.Instance?.RefreshHomeLoveNotes();
+            }
+
+            if (GUILayout.Button("Show Secret Note", GUILayout.Height(28f)))
+            {
+                isOpen = false;
+                UIManager.Instance?.ShowSecretNote();
             }
         }
 
