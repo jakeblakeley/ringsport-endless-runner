@@ -28,7 +28,7 @@ namespace RingSport.Editor
     public static class WorldSceneryBuilder
     {
         // Bump to force the auto-run to re-apply the build
-        private const int BuildVersion = 9;
+        private const int BuildVersion = 10;
         private const string VersionPrefKey = "RingSport.WorldSceneryBuilder.Version";
 
         private const string ArcShaderName = "Custom/Mobile/ArcEffect";
@@ -1078,8 +1078,34 @@ namespace RingSport.Editor
                 ConfigureBurst(CreateChildPs(beacon, "SparkBurst"), sparkMat);
                 ConfigurePulse(CreateChildPs(beacon, "GlowPulse"), glowMat);
 
+                // Bigger, calmer note: +25% visual (0.5 -> 0.625), matching
+                // pickup radius, hover kept but no spin
+                Transform visual = contents.transform.Find("Visual");
+                if (visual != null)
+                    visual.localScale = Vector3.one * 0.625f;
+
+                // Pickup is a capsule trigger on the root - grow it with the
+                // visual (absolute values so builder re-runs stay idempotent)
+                foreach (CapsuleCollider capsule in contents.GetComponentsInChildren<CapsuleCollider>(true))
+                {
+                    capsule.radius = 0.625f;
+                    capsule.height = 2.5f;
+                }
+
+                var animation = contents.GetComponentInChildren<CollectibleAnimation>(true);
+                if (animation != null)
+                {
+                    var animSo = new SerializedObject(animation);
+                    SerializedProperty rotProp = animSo.FindProperty("rotationSpeed");
+                    if (rotProp != null)
+                    {
+                        rotProp.floatValue = 0f;
+                        animSo.ApplyModifiedPropertiesWithoutUndo();
+                    }
+                }
+
                 PrefabUtility.SaveAsPrefabAsset(contents, prefabPath);
-                Log("Love note beacon added (SparkBurst + GlowPulse behind the note)");
+                Log("Love note beacon added (white burst, 0.625 scale, spin off)");
             }
             finally
             {
