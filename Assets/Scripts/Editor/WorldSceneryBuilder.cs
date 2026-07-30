@@ -28,7 +28,7 @@ namespace RingSport.Editor
     public static class WorldSceneryBuilder
     {
         // Bump to force the auto-run to re-apply the build
-        private const int BuildVersion = 8;
+        private const int BuildVersion = 9;
         private const string VersionPrefKey = "RingSport.WorldSceneryBuilder.Version";
 
         private const string ArcShaderName = "Custom/Mobile/ArcEffect";
@@ -163,6 +163,9 @@ namespace RingSport.Editor
 
                 // ---- 5f. Love note attention beacon ----
                 BuildLoveNoteBeacon();
+
+                // ---- 5g. Collectibles never cast shadows (mobile fill-rate) ----
+                DisableCollectibleShadows();
 
                 // ---- 6. Remove stale materials from earlier builds ----
                 foreach (string stale in new[]
@@ -733,14 +736,16 @@ namespace RingSport.Editor
         // Back row only: runtime floors cover z>=0 from the first frame (home
         // screen included), and a forward pad row sits coplanar with them with
         // offset UVs - that overlap shimmers now that the ground is textured.
+        // Centre z=-6: a 12-unit tile then spans -12..0 and meets the first
+        // runtime tile edge-to-edge (z=-7 left a 1-unit void strip at the start).
         private static readonly Vector3[] MainPadPositions =
         {
-            new Vector3(0f, 0f, -7f),
+            new Vector3(0f, 0f, -6f),
         };
 
         private static readonly Vector3[] SidePadPositions =
         {
-            new Vector3(12f, 0f, -7f), new Vector3(-12f, 0f, -7f),
+            new Vector3(12f, 0f, -6f), new Vector3(-12f, 0f, -6f),
         };
 
         private static GameObject BuildStartScene(string world, List<StartSceneItem> items, Dictionary<string, GameObject> prefabs)
@@ -778,7 +783,11 @@ namespace RingSport.Editor
                     {
                         GameObject tile = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
                         tile.transform.localPosition = pos;
-                        tile.transform.localRotation = Quaternion.identity;
+                        // Runtime right-side floors spawn rotated 180 on Y; match
+                        // so the texture orientation is continuous at the z=0 seam
+                        tile.transform.localRotation = pos.x > 0.1f
+                            ? Quaternion.Euler(0f, 180f, 0f)
+                            : Quaternion.identity;
                         tile.transform.localScale = Vector3.one * 1.2f;
                         // The pad must not scroll on its own - the root moves it
                         foreach (ScrollableObject s in tile.GetComponentsInChildren<ScrollableObject>())
@@ -1040,8 +1049,8 @@ namespace RingSport.Editor
                 return;
             }
 
-            Material sparkMat = CreateParticleMat("Arc_VFX_NoteBurst", particleShader, sparkTex, new Color(1f, 0.5f, 0.78f, 1f));
-            Material glowMat = CreateParticleMat("Arc_VFX_NoteGlow", particleShader, glowTex, new Color(1f, 0.55f, 0.8f, 0.55f));
+            Material sparkMat = CreateParticleMat("Arc_VFX_NoteBurst", particleShader, sparkTex, Color.white);
+            Material glowMat = CreateParticleMat("Arc_VFX_NoteGlow", particleShader, glowTex, new Color(1f, 1f, 1f, 0.6f));
 
             GameObject contents = PrefabUtility.LoadPrefabContents(prefabPath);
             try
@@ -1108,11 +1117,11 @@ namespace RingSport.Editor
             ParticleSystem.MainModule main = ps.main;
             main.loop = true;
             main.duration = 1f;
-            main.startLifetime = 0.55f;
-            main.startSpeed = new ParticleSystem.MinMaxCurve(2.6f, 3.6f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.3f, 0.55f);
+            main.startLifetime = 0.65f;
+            main.startSpeed = new ParticleSystem.MinMaxCurve(3.4f, 4.6f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.35f, 0.6f);
             main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
-            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.45f, 0.75f), Color.white);
+            main.startColor = Color.white;
             main.simulationSpace = ParticleSystemSimulationSpace.Local;
             main.maxParticles = 48;
             main.playOnAwake = true;
@@ -1147,10 +1156,10 @@ namespace RingSport.Editor
             ParticleSystem.MainModule main = ps.main;
             main.loop = true;
             main.duration = 1f;
-            main.startLifetime = 0.7f;
+            main.startLifetime = 0.75f;
             main.startSpeed = 0f;
-            main.startSize = 0.9f;
-            main.startColor = new Color(1f, 0.55f, 0.8f, 0.55f);
+            main.startSize = 1.1f;
+            main.startColor = new Color(1f, 1f, 1f, 0.5f);
             main.simulationSpace = ParticleSystemSimulationSpace.Local;
             main.maxParticles = 6;
             main.playOnAwake = true;
@@ -1164,7 +1173,7 @@ namespace RingSport.Editor
             // Rings that swell outward and fade - reads as a beacon from far away
             ParticleSystem.SizeOverLifetimeModule size = ps.sizeOverLifetime;
             size.enabled = true;
-            size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.5f, 1f, 2.2f));
+            size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.5f, 1f, 3.0f));
 
             ParticleSystem.ColorOverLifetimeModule col = ps.colorOverLifetime;
             col.enabled = true;
@@ -1179,6 +1188,38 @@ namespace RingSport.Editor
             renderer.renderMode = ParticleSystemRenderMode.Billboard;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
+        }
+
+        private static void DisableCollectibleShadows()
+        {
+            int changedPrefabs = 0;
+            foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/Prefabs/Collectibles" }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                GameObject contents = PrefabUtility.LoadPrefabContents(path);
+                try
+                {
+                    bool changed = false;
+                    foreach (Renderer r in contents.GetComponentsInChildren<Renderer>(true))
+                    {
+                        if (r.shadowCastingMode != UnityEngine.Rendering.ShadowCastingMode.Off)
+                        {
+                            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                            changed = true;
+                        }
+                    }
+                    if (changed)
+                    {
+                        PrefabUtility.SaveAsPrefabAsset(contents, path);
+                        changedPrefabs++;
+                    }
+                }
+                finally
+                {
+                    PrefabUtility.UnloadPrefabContents(contents);
+                }
+            }
+            Log($"Collectible shadows disabled on {changedPrefabs} prefab(s)");
         }
 
         // ------------------------------------------------------------------
