@@ -89,6 +89,9 @@ namespace RingSport.UI
         [SerializeField] private float scoreRollSeconds = 0.35f;
         [Tooltip("NEW HIGH SCORE reveal sting (temporary clip - see SOUND_EFFECTS.md).")]
         [SerializeField] private AudioClip newHighScoreSound;
+        [Tooltip("Slow attention breathe on the home screen's NEW love-note badge while unseen notes wait.")]
+        [SerializeField] private float badgePulseAmount = 0.08f;
+        [SerializeField] private float badgePulseHz = 0.7f;
 
         private Coroutine countdownCoroutine;
         private AudioSource uiAudioSource;
@@ -124,6 +127,8 @@ namespace RingSport.UI
         private bool livesColorCaptured;
         private Coroutine livesFlashRoutine;
         private Coroutine homeIdleRoutine;
+        private Coroutine badgePulseRoutine;
+        private Vector3 badgeBaseScale;
         private bool lastBadgeShown;
 
         // Reward screen is reused as a level intro (location + level name + start).
@@ -290,11 +295,70 @@ namespace RingSport.UI
                 bool show = LoveNoteManager.HasUnseenNotes;
                 loveNotesNewBadge.SetActive(show);
 
-                // Bounce the NEW badge in when it first appears
-                if (show && !lastBadgeShown && homeScreen != null && homeScreen.activeInHierarchy)
-                    Juice.PunchScale(loveNotesNewBadge.transform, 0.45f, 0.3f);
+                if (show)
+                {
+                    // Slow attention breathe while unseen notes wait; OutBack
+                    // bounce-in the first time the badge appears
+                    bool introPop = !lastBadgeShown && homeScreen != null && homeScreen.activeInHierarchy;
+                    StartBadgePulse(introPop);
+                }
+                else
+                {
+                    StopBadgePulse();
+                }
                 lastBadgeShown = show;
             }
+        }
+
+        private void StartBadgePulse(bool introPop)
+        {
+            if (badgePulseRoutine != null)
+                StopCoroutine(badgePulseRoutine);
+            badgePulseRoutine = StartCoroutine(BadgePulseRoutine(introPop));
+        }
+
+        private void StopBadgePulse()
+        {
+            if (badgePulseRoutine != null)
+            {
+                StopCoroutine(badgePulseRoutine);
+                badgePulseRoutine = null;
+            }
+            if (loveNotesNewBadge != null && badgeBaseScale != Vector3.zero)
+                loveNotesNewBadge.transform.localScale = badgeBaseScale;
+        }
+
+        private IEnumerator BadgePulseRoutine(bool introPop)
+        {
+            var target = loveNotesNewBadge.transform;
+            if (badgeBaseScale == Vector3.zero)
+                badgeBaseScale = target.localScale;
+
+            if (introPop)
+            {
+                const float introSeconds = 0.35f;
+                float elapsed = 0f;
+                while (elapsed < introSeconds)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    float k = Juice.OutBack(Mathf.Clamp01(elapsed / introSeconds));
+                    target.localScale = badgeBaseScale * Mathf.LerpUnclamped(0.2f, 1f, k);
+                    yield return null;
+                }
+            }
+
+            // Slow breathe, phase-aligned so it grows from rest first
+            float pulseTime = 0f;
+            while (loveNotesNewBadge != null && loveNotesNewBadge.activeInHierarchy)
+            {
+                pulseTime += Time.unscaledDeltaTime;
+                float pulse = 1f + badgePulseAmount * Mathf.Sin(pulseTime * Mathf.PI * 2f * badgePulseHz);
+                target.localScale = badgeBaseScale * pulse;
+                yield return null;
+            }
+
+            target.localScale = badgeBaseScale;
+            badgePulseRoutine = null;
         }
 
         /// <summary>

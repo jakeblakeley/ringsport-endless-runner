@@ -5,6 +5,7 @@ Shader "Custom/Mobile/ArcEffect"
         [Header(Base Properties)]
         _BaseMap ("Base Texture", 2D) = "white" {}
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
+        _Cutoff ("Alpha Cutoff (0 = opaque)", Range(0, 1)) = 0
 
         [Header(Arc Effect Settings)]
         _ArcStrength ("Arc Strength", Range(0, 50)) = 1.0
@@ -93,6 +94,7 @@ Shader "Custom/Mobile/ArcEffect"
                 half4 _BaseColor;
                 half _Smoothness;
                 half _Metallic;
+                half _Cutoff;
             CBUFFER_END
 
             // Calculate arc offset
@@ -147,6 +149,10 @@ Shader "Custom/Mobile/ArcEffect"
                 half4 baseMap = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
                 half4 albedo = baseMap * _BaseColor;
 
+                // Cutout support for foliage cards; _Cutoff 0 keeps opaque
+                // materials (floors, solid props) branch-free in practice
+                clip(albedo.a - _Cutoff);
+
                 // Setup lighting
                 InputData inputData = (InputData)0;
                 inputData.positionWS = input.positionWS;
@@ -154,7 +160,9 @@ Shader "Custom/Mobile/ArcEffect"
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS);
                 inputData.fogCoord = input.fogFactor;
-                inputData.bakedGI = SAMPLE_GI(0, 0, inputData.normalWS);
+                // Ambient/sky contribution - without this, faces the sun misses
+                // (tree undersides, shadowed sides of props) render pitch black
+                inputData.bakedGI = SampleSH(inputData.normalWS) * 0.45;
 
                 // Setup surface data
                 SurfaceData surfaceData = (SurfaceData)0;
@@ -213,6 +221,7 @@ Shader "Custom/Mobile/ArcEffect"
                 half4 _BaseColor;
                 half _Smoothness;
                 half _Metallic;
+                half _Cutoff;
             CBUFFER_END
 
             // Reuse arc effect function
@@ -308,6 +317,7 @@ Shader "Custom/Mobile/ArcEffect"
                 half4 _BaseColor;
                 half _Smoothness;
                 half _Metallic;
+                half _Cutoff;
             CBUFFER_END
 
             void ApplyArcEffect(inout float3 positionWS)

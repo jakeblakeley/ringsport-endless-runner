@@ -72,6 +72,21 @@ namespace RingSport.Core
         /// <summary>True when notes were unlocked since the player last opened the grid.</summary>
         public static bool HasUnseenNotes => UnlockedCount > PlayerPrefs.GetInt(SeenCountPrefKey, 0);
 
+        /// <summary>
+        /// True when this unlocked note hasn't been seen in the grid yet (it
+        /// was unlocked after the last MarkAllSeen). The grid must evaluate
+        /// this BEFORE calling MarkAllSeen - LoveNotesPanel.Rebuild runs
+        /// before Open() marks everything seen, which is what makes the
+        /// per-cell NEW stamps show exactly once.
+        /// </summary>
+        public static bool IsNoteUnseen(int noteIndex)
+        {
+            int unlockPosition = GetUnlockedOrder().IndexOf(noteIndex);
+            if (unlockPosition < 0)
+                return false;
+            return unlockPosition >= PlayerPrefs.GetInt(SeenCountPrefKey, 0);
+        }
+
         public static string GetNoteText(int noteIndex)
         {
             if (noteIndex < 0 || noteIndex >= Notes.Length)

@@ -16,16 +16,17 @@ MonoBehaviour:
   mainFloorPrefab: {fileID: 1462051254498222346, guid: ceac7673a95b847198239acd3782d3ef, type: 3}
   sideFloorPrefab: {fileID: 1462051254498222346, guid: ee6414582ece94d4c80b1c01d43b7093, type: 3}
   finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 0fe4b79c1ecc145449b326ef594205b6, type: 3}
-  startScenePrefab: {fileID: 6597666518565425093, guid: c5f4376fc6bab441aa80f3a5e9dd161b, type: 3}
+  startScenePrefab: {fileID: 1044169080172239605, guid: 65052ef061fe24f5c88247f434408a86, type: 3}
   sceneryPrefabs:
-  - {fileID: 8489945017951798651, guid: 343cfa8f68aea44b9a66e58c2d5b9b2b, type: 3}
-  - {fileID: 3331292244305782605, guid: 871d817582967485c92a690160bd0b8c, type: 3}
-  - {fileID: 7959957112906387362, guid: 9c87fb69122a44ce095879a44c40c6ee, type: 3}
-  - {fileID: 8957011775704472474, guid: ce856465627fc4dd28fca72d6673388a, type: 3}
-  - {fileID: 5411888475498954246, guid: 620aae177997e41f89ce877cded0fc29, type: 3}
+  - {fileID: 3290703289443570359, guid: 732ff96b35ed349e1a3800f6e5529df3, type: 3}
+  - {fileID: 734071549581478457, guid: 0e06d0169897945ad9477717298877e7, type: 3}
+  - {fileID: 8065946497431707864, guid: a705a8269afa94a86bc114821f9fdab3, type: 3}
+  - {fileID: 4610628249054826956, guid: a81fbf4ab7b6847449ad4d879af4e095, type: 3}
+  - {fileID: 4978427028377135051, guid: 70e25162ebe174feca42fa31f2b0d69c, type: 3}
+  - {fileID: 5803189784025084687, guid: 5b0af31e96389421d85329ec9fdf3ec6, type: 3}
   minSceneryPerFloor: 1
-  maxSceneryPerFloor: 5
-  sceneryMinDistance: 1.5
-  sceneryPoolSize: 30
+  maxSceneryPerFloor: 3
+  sceneryMinDistance: 2
+  sceneryPoolSize: 20
   music: {fileID: 0}
   ambientSound: {fileID: 8300000, guid: 5bd05a8c06cd54dda98f0040d032518d, type: 3}

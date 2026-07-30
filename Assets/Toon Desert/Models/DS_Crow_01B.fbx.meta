@@ -1,0 +1,255 @@
+fileFormatVersion: 2
+guid: 793c6f2d7bc30d743b9c1800bce29b56
+ModelImporter:
+  serializedVersion: 19301
+  internalIDToNameTable:
+  - first:
+      1: 100000
+    second: DS_Crow 01_Armature
+  - first:
+      1: 100002
+    second: //RootNode
+  - first:
+      1: 100004
+    second: DS_Crow_01B
+  - first:
+      1: 100006
+    second: Head
+  - first:
+      1: 100008
+    second: Head_end
+  - first:
+      1: 100010
+    second: Legs
+  - first:
+      1: 100012
+    second: Legs_end
+  - first:
+      1: 100014
+    second: Root
+  - first:
+      1: 100016
+    second: Root_end
+  - first:
+      1: 100018
+    second: Tail
+  - first:
+      1: 100020
+    second: Tail_end
+  - first:
+      1: 100022
+    second: Torso
+  - first:
+      1: 100024
+    second: Wing.L
+  - first:
+      1: 100026
+    second: Wing.L_end
+  - first:
+      1: 100028
+    second: Wing.R
+  - first:
+      1: 100030
+    second: Wing.R_end
+  - first:
+      4: 400000
+    second: DS_Crow 01_Armature
+  - first:
+      4: 400002
+    second: //RootNode
+  - first:
+      4: 400004
+    second: DS_Crow_01B
+  - first:
+      4: 400006
+    second: Head
+  - first:
+      4: 400008
+    second: Head_end
+  - first:
+      4: 400010
+    second: Legs
+  - first:
+      4: 400012
+    second: Legs_end
+  - first:
+      4: 400014
+    second: Root
+  - first:
+      4: 400016
+    second: Root_end
+  - first:
+      4: 400018
+    second: Tail
+  - first:
+      4: 400020
+    second: Tail_end
+  - first:
+      4: 400022
+    second: Torso
+  - first:
+      4: 400024
+    second: Wing.L
+  - first:
+      4: 400026
+    second: Wing.L_end
+  - first:
+      4: 400028
+    second: Wing.R
+  - first:
+      4: 400030
+    second: Wing.R_end
+  - first:
+      21: 2100000
+    second: Atlas_1A_D
+  - first:
+      43: 4300000
+    second: DS_Crow_01B
+  - first:
+      74: 7400000
+    second: DS_Crow 01_Armature|1
+  - first:
+      74: 7400002
+    second: DS_Crow 01_Armature|1.001
+  - first:
+      74: 7400004
+    second: DS_Crow 01_Armature|DS_Crow_01_Idle (1)
+  - first:
+      95: 9500000
+    second: //RootNode
+  - first:
+      137: 13700000
+    second: DS_Crow_01B
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Atlas_1A_D
+    second: {fileID: 2100000, guid: 2872ddf9a7c39f545b85e26792d1985b, type: 2}
+  materials:
+    materialImportMode: 1
+    materialName: 0
+    materialSearch: 1
+    materialLocation: 0
+  animations:
+    legacyGenerateAnimations: 4
+    bakeSimulation: 0
+    resampleCurves: 1
+    optimizeGameObjects: 0
+    motionNodeName: 
+    rigImportErrors: 
+    rigImportWarnings: 
+    animationImportErrors: 
+    animationImportWarnings: 
+    animationRetargetingWarnings: 
+    animationDoRetargetingWarnings: 0
+    importAnimatedCustomProperties: 0
+    importConstraints: 0
+    animationCompression: 1
+    animationRotationError: 0.5
+    animationPositionError: 0.5
+    animationScaleError: 0.5
+    animationWrapMode: 0
+    extraExposedTransformPaths: []
+    extraUserProperties: []
+    clipAnimations:
+    - serializedVersion: 16
+      name: DS_Crow 01_Armature|DS_Crow_01_Idle (1)
+      takeName: DS_Crow 01_Armature|DS_Crow_01_Idle
+      internalID: 0
+      firstFrame: 0
+      lastFrame: 96
+      wrapMode: 0
+      orientationOffsetY: 0
+      level: 0
+      cycleOffset: 0
+      loop: 0
+      hasAdditiveReferencePose: 0
+      loopTime: 0
+      loopBlend: 0
+      loopBlendOrientation: 0
+      loopBlendPositionY: 0
+      loopBlendPositionXZ: 0
+      keepOriginalOrientation: 0
+      keepOriginalPositionY: 1
+      keepOriginalPositionXZ: 0
+      heightFromFeet: 0
+      mirror: 0
+      bodyMask: 01000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000
+      curves: []
+      events: []
+      transformMask: []
+      maskType: 3
+      maskSource: {instanceID: 0}
+      additiveReferencePoseFrame: 0
+    isReadable: 1
+  meshes:
+    lODScreenPercentages: []
+    globalScale: 1
+    meshCompression: 0
+    addColliders: 0
+    useSRGBMaterialColor: 1
+    sortHierarchyByName: 1
+    importVisibility: 1
+    importBlendShapes: 1
+    importCameras: 1
+    importLights: 1
+    fileIdsGeneration: 1
+    swapUVChannels: 0
+    generateSecondaryUV: 0
+    useFileUnits: 1
+    keepQuads: 0
+    weldVertices: 1
+    preserveHierarchy: 0
+    skinWeightsMode: 0
+    maxBonesPerVertex: 4
+    minBoneWeight: 0.001
+    meshOptimizationFlags: -1
+    indexFormat: 0
+    secondaryUVAngleDistortion: 8
+    secondaryUVAreaDistortion: 15.000001
+    secondaryUVHardAngle: 88
+    secondaryUVPackMargin: 4
+    useFileScale: 1
+  tangentSpace:
+    normalSmoothAngle: 60
+    normalImportMode: 0
+    tangentImportMode: 3
+    normalCalculationMode: 4
+    legacyComputeAllNormalsFromSmoothingGroupsWhenMeshHasBlendShapes: 0
+    blendShapeNormalImportMode: 1
+    normalSmoothingSource: 0
+  referencedClips: []
+  importAnimation: 1
+  humanDescription:
+    serializedVersion: 3
+    human: []
+    skeleton: []
+    armTwist: 0.5
+    foreArmTwist: 0.5
+    upperLegTwist: 0.5
+    legTwist: 0.5
+    armStretch: 0.05
+    legStretch: 0.05
+    feetSpacing: 0
+    globalScale: 1
+    rootMotionBoneName: 
+    hasTranslationDoF: 0
+    hasExtraRoot: 0
+    skeletonHasParents: 1
+  lastHumanDescriptionAvatarSource: {instanceID: 0}
+  autoGenerateAvatarMappingIfUnspecified: 1
+  animationType: 2
+  humanoidOversampling: 1
+  avatarSetup: 1
+  additionalBone: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 163719
+  packageName: Toon Desert
+  packageVersion: 1.0
+  assetPath: Assets/Toon Desert/Models/DS_Crow_01B.fbx
+  uploadId: 431929

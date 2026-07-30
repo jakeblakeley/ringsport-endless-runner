@@ -13,19 +13,20 @@ MonoBehaviour:
   m_Name: Oregon
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LocationConfig
   location: 2
-  mainFloorPrefab: {fileID: 1462051254498222346, guid: e104286d6fe3d4ff7993306ec6595b2e, type: 3}
-  sideFloorPrefab: {fileID: 1462051254498222346, guid: 5ad2ae2e6438a451682bcceed35ef26d, type: 3}
-  finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 44683ea439a6341d39827a153f18c8cb, type: 3}
-  startScenePrefab: {fileID: 6597666518565425093, guid: c5f4376fc6bab441aa80f3a5e9dd161b, type: 3}
+  mainFloorPrefab: {fileID: 1462051254498222346, guid: a132f3f7e1f434afab407bd14d1d6af5, type: 3}
+  sideFloorPrefab: {fileID: 1462051254498222346, guid: 96b1b33f6b6314760aa6469ada445771, type: 3}
+  finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 89abc7a1d48ff4025afd0d9f4210f19a, type: 3}
+  startScenePrefab: {fileID: 2944195911424996803, guid: 56d8ff070bfd14bc5ab9ce840902cc37, type: 3}
   sceneryPrefabs:
-  - {fileID: 8489945017951798651, guid: 343cfa8f68aea44b9a66e58c2d5b9b2b, type: 3}
-  - {fileID: 3331292244305782605, guid: 871d817582967485c92a690160bd0b8c, type: 3}
-  - {fileID: 7959957112906387362, guid: 9c87fb69122a44ce095879a44c40c6ee, type: 3}
-  - {fileID: 8957011775704472474, guid: ce856465627fc4dd28fca72d6673388a, type: 3}
-  - {fileID: 5411888475498954246, guid: 620aae177997e41f89ce877cded0fc29, type: 3}
+  - {fileID: 5125971515890355327, guid: ff15d4f138d7a4da881d4b52cb0d608a, type: 3}
+  - {fileID: 2321488551133626012, guid: 7cbe1ed4e85e5426d9c9496e6af64615, type: 3}
+  - {fileID: 5262597467377870515, guid: f4cf941aed87642ee820de8a8886eced, type: 3}
+  - {fileID: 8683044956914874601, guid: 9a762482c2f894efa82381292e10ca94, type: 3}
+  - {fileID: 5775199987105398452, guid: 31fed140358b74700a0680727258b224, type: 3}
+  - {fileID: 3247743541718742483, guid: acc8c98af1c544f8598d4ce72e07eb17, type: 3}
   minSceneryPerFloor: 1
-  maxSceneryPerFloor: 5
-  sceneryMinDistance: 1.5
-  sceneryPoolSize: 30
+  maxSceneryPerFloor: 4
+  sceneryMinDistance: 2
+  sceneryPoolSize: 20
   music: {fileID: 0}
   ambientSound: {fileID: 8300000, guid: 075d48b303a644d7eab7e778fb56d609, type: 3}

@@ -10,6 +10,8 @@ namespace RingSport.Level.Spawning
     public class ScenerySpawner
     {
         private GameObject[] sceneryPrefabs;
+        private Vector3[] sceneryBaseScales;
+        private string locationKey = "";
         private int minSceneryPerFloor;
         private int maxSceneryPerFloor;
         private float minDistance;
@@ -22,6 +24,17 @@ namespace RingSport.Level.Spawning
 
         // Poisson Disk Sampling constants
         private const int MAX_ATTEMPTS_PER_POINT = 30;
+
+        // Random per-instance scale variance so repeated prefabs read as individuals
+        private const float MIN_SCALE_VARIANCE = 0.85f;
+        private const float MAX_SCALE_VARIANCE = 1.15f;
+
+        // Keep scenery off the inner edge of side floors so tall props (trees,
+        // cacti) never loom over the play lanes. Normalized to floor width.
+        private const float INNER_EDGE_MARGIN = 0.18f;
+
+        // Sink props slightly so bottoms never float above the curved floor
+        private const float SPAWN_Y_SINK = 0.02f;
 
         public ScenerySpawner(DespawnManager despawnManager, float floorWidth, float floorLength)
         {
@@ -47,6 +60,19 @@ namespace RingSport.Level.Spawning
             maxSceneryPerFloor = locationConfig.MaxSceneryPerFloor;
             minDistance = locationConfig.SceneryMinDistance;
             poolSize = locationConfig.SceneryPoolSize;
+
+            // Pool tags must be location-scoped: pools persist for the whole
+            // session, so a bare index tag would keep serving the previous
+            // location's prefabs after a location change.
+            locationKey = locationConfig.Location.ToString();
+
+            sceneryBaseScales = new Vector3[sceneryPrefabs.Length];
+            for (int i = 0; i < sceneryPrefabs.Length; i++)
+            {
+                sceneryBaseScales[i] = sceneryPrefabs[i] != null
+                    ? sceneryPrefabs[i].transform.localScale
+                    : Vector3.one;
+            }
 
             // Create pools for each scenery prefab
             if (ObjectPooler.Instance != null)
@@ -86,13 +112,22 @@ namespace RingSport.Level.Spawning
             foreach (Vector2 localPos in positions)
             {
                 // Convert local position to world position
-                // localPos is in range [0,1] for x and z within the floor bounds
-                float offsetX = (localPos.x - 0.5f) * floorWidth;
+                // localPos is in range [0,1] for x and z within the floor bounds.
+                // Remap x away from the track-facing edge so props never overhang
+                // the play lanes (inner edge is +x on the left floor, -x on the right).
+                float x = localPos.x;
+                float usable = 0.95f - 0.05f - (INNER_EDGE_MARGIN - 0.05f);
+                if (isRightSide)
+                    x = INNER_EDGE_MARGIN + (x - 0.05f) / 0.9f * usable;
+                else
+                    x = 0.05f + (x - 0.05f) / 0.9f * usable;
+
+                float offsetX = (x - 0.5f) * floorWidth;
                 float offsetZ = (localPos.y - 0.5f) * floorLength;
 
                 Vector3 worldPos = new Vector3(
                     floorCenter.x + offsetX,
-                    floorCenter.y,
+                    floorCenter.y - SPAWN_Y_SINK,
                     floorCenter.z + offsetZ
                 );
 
@@ -106,6 +141,9 @@ namespace RingSport.Level.Spawning
                 GameObject sceneryObj = ObjectPooler.Instance.SpawnFromPool(tag, worldPos, rotation);
                 if (sceneryObj != null)
                 {
+                    // Slight scale variance so repeated prefabs read as individuals
+                    sceneryObj.transform.localScale =
+                        sceneryBaseScales[prefabIndex] * Random.Range(MIN_SCALE_VARIANCE, MAX_SCALE_VARIANCE);
                     despawnManager.RegisterScenery(sceneryObj);
                 }
             }
@@ -232,7 +270,7 @@ namespace RingSport.Level.Spawning
 
         private string GetSceneryPoolTag(int prefabIndex)
         {
-            return $"Scenery_{prefabIndex}";
+            return $"Scenery_{locationKey}_{prefabIndex}";
         }
     }
 }

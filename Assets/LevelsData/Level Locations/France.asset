@@ -13,19 +13,20 @@ MonoBehaviour:
   m_Name: France
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LocationConfig
   location: 3
-  mainFloorPrefab: {fileID: 1462051254498222346, guid: e104286d6fe3d4ff7993306ec6595b2e, type: 3}
-  sideFloorPrefab: {fileID: 1462051254498222346, guid: 5ad2ae2e6438a451682bcceed35ef26d, type: 3}
-  finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 44683ea439a6341d39827a153f18c8cb, type: 3}
-  startScenePrefab: {fileID: 6597666518565425093, guid: c5f4376fc6bab441aa80f3a5e9dd161b, type: 3}
+  mainFloorPrefab: {fileID: 1462051254498222346, guid: 5a0ba0abe68c0426b948fa8ae0fe9ad1, type: 3}
+  sideFloorPrefab: {fileID: 1462051254498222346, guid: f89227aed4af84225bf975861be70242, type: 3}
+  finishLineFloorPrefab: {fileID: 1462051254498222346, guid: a3bd766b16e35461896ebef482776d1e, type: 3}
+  startScenePrefab: {fileID: 9121921356509450937, guid: a609d825af46149b68617fb085f2cd66, type: 3}
   sceneryPrefabs:
-  - {fileID: 8489945017951798651, guid: 343cfa8f68aea44b9a66e58c2d5b9b2b, type: 3}
-  - {fileID: 3331292244305782605, guid: 871d817582967485c92a690160bd0b8c, type: 3}
-  - {fileID: 7959957112906387362, guid: 9c87fb69122a44ce095879a44c40c6ee, type: 3}
-  - {fileID: 8957011775704472474, guid: ce856465627fc4dd28fca72d6673388a, type: 3}
-  - {fileID: 5411888475498954246, guid: 620aae177997e41f89ce877cded0fc29, type: 3}
-  minSceneryPerFloor: 1
+  - {fileID: 5380298912653700503, guid: 3f79821351fe94e48836d7153154de92, type: 3}
+  - {fileID: 8392194665790442665, guid: 1edb8e8a54a35456eb20700ebcc6d264, type: 3}
+  - {fileID: 5866188319422158457, guid: fec20c2b12fea428bafc604179b881b0, type: 3}
+  - {fileID: 8495314459151171331, guid: 5152d8e0e13964e24b0ec5f70b5de9d8, type: 3}
+  - {fileID: 8474442307715571264, guid: 09e1cbd5cdde749dd97947d4cea125e3, type: 3}
+  - {fileID: 3960758115181189897, guid: 7280f5d5e77114563aaf84014547c019, type: 3}
+  minSceneryPerFloor: 2
   maxSceneryPerFloor: 5
   sceneryMinDistance: 1.5
-  sceneryPoolSize: 30
+  sceneryPoolSize: 20
   music: {fileID: 0}
   ambientSound: {fileID: 8300000, guid: 1df86c025236c4c4e9a3ea1d191f64ff, type: 3}

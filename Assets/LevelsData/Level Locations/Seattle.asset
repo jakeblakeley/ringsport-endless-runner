@@ -16,22 +16,17 @@ MonoBehaviour:
   mainFloorPrefab: {fileID: 1462051254498222346, guid: e104286d6fe3d4ff7993306ec6595b2e, type: 3}
   sideFloorPrefab: {fileID: 1462051254498222346, guid: 5ad2ae2e6438a451682bcceed35ef26d, type: 3}
   finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 44683ea439a6341d39827a153f18c8cb, type: 3}
-  startScenePrefab: {fileID: 6597666518565425093, guid: c5f4376fc6bab441aa80f3a5e9dd161b, type: 3}
+  startScenePrefab: {fileID: 4934081000819351176, guid: ccacb2e16d0594f0fbf8a06a9bace8bc, type: 3}
   sceneryPrefabs:
-  - {fileID: 4492788140253398761, guid: b00a69ef2acea4945a83fa13de760647, type: 3}
-  - {fileID: 1583897355313174661, guid: 8506f40dab88e405593d2bef6f9546b2, type: 3}
-  - {fileID: 8260131909806661715, guid: d0283f82eea204f12a3928cdfe395449, type: 3}
-  - {fileID: 2846711779635017092, guid: 5897709c40fb641d684d602609d3ef4d, type: 3}
-  - {fileID: 3279313934634932801, guid: 7b0b3fa799dc04548a301be6b44f576b, type: 3}
-  - {fileID: 7862533027457598171, guid: 3d2ecc139b3134818980db6075e99ce7, type: 3}
-  - {fileID: 6576654555075860125, guid: c5f93acbb7b20429ba6e4cef93ded478, type: 3}
-  - {fileID: 7251943758774493481, guid: 5bd9d7ac246af411fb8eac6697fcf476, type: 3}
-  - {fileID: 6509933743064751742, guid: f6116005328aa4d7fb95e84ecf6777a2, type: 3}
-  - {fileID: 906591600361499829, guid: f632dc264a46a48b9b1ba5a4c1c21f11, type: 3}
-  - {fileID: 1487672732027152291, guid: da42aa724958b42a4a84968a2ad088b1, type: 3}
+  - {fileID: 2521535624220441458, guid: 808d4e36b372848cca8f9b4fa3bb1703, type: 3}
+  - {fileID: 5179967902584868010, guid: 5b8112fed0e9a4d64b74b96e7b2acdf2, type: 3}
+  - {fileID: 7132676521024376593, guid: 1fef700dc64434842a696874cde43e50, type: 3}
+  - {fileID: 8195877020307463201, guid: 16df1a103831844b9b2ff3d6923f4c7b, type: 3}
+  - {fileID: 8838939516635165359, guid: 6c5946f1f5827496b96738bf800c6aae, type: 3}
+  - {fileID: 8596477016679866446, guid: aa0bb1e973fb9402eb8cc4b95c7c5df3, type: 3}
   minSceneryPerFloor: 1
-  maxSceneryPerFloor: 5
-  sceneryMinDistance: 1.5
-  sceneryPoolSize: 30
+  maxSceneryPerFloor: 4
+  sceneryMinDistance: 2.5
+  sceneryPoolSize: 20
   music: {fileID: 0}
   ambientSound: {fileID: 8300000, guid: 1554b0f17e3e44936b87247ac9255dd8, type: 3}
