@@ -150,10 +150,12 @@ namespace RingSport.Level.Spawning
 
                 if (shouldSpawnFinishLine)
                 {
-                    // Spawn finish line floor from prefab (slightly higher to avoid z-fighting)
+                    // Spawn finish line floor from prefab, raised to avoid z-fighting.
+                    // 0.03 rather than 0.01: the tile spawns ~80+ units out where the
+                    // arc dips it heavily and mobile depth precision is at its worst.
                     if (finishLineFloorPrefab != null)
                     {
-                        Vector3 finishLinePosition = new Vector3(spawnPosition.x, spawnPosition.y + 0.01f, spawnPosition.z);
+                        Vector3 finishLinePosition = new Vector3(spawnPosition.x, spawnPosition.y + 0.03f, spawnPosition.z);
                         floorTile = Object.Instantiate(finishLineFloorPrefab, finishLinePosition, Quaternion.identity);
                         floorTile.transform.localScale = Vector3.one * floorScale;
                         finishLineFloorInstance = floorTile; // Save reference for cleanup

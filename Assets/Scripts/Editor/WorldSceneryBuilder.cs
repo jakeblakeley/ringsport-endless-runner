@@ -28,7 +28,7 @@ namespace RingSport.Editor
     public static class WorldSceneryBuilder
     {
         // Bump to force the auto-run to re-apply the build
-        private const int BuildVersion = 7;
+        private const int BuildVersion = 8;
         private const string VersionPrefKey = "RingSport.WorldSceneryBuilder.Version";
 
         private const string ArcShaderName = "Custom/Mobile/ArcEffect";
@@ -156,6 +156,14 @@ namespace RingSport.Editor
                 //          legacy floor material defined (strength 20/100) ----
                 ApplyArcControllerValues(20f, 100f);
 
+                // ---- 5e. Despawn margin: tiles despawned when their CENTER passed
+                //          player-10, leaving the far edge visible at the bottom of
+                //          the frame as it popped. -18 hides a 12-unit tile fully. ----
+                ApplyDespawnDistance(-18f);
+
+                // ---- 5f. Love note attention beacon ----
+                BuildLoveNoteBeacon();
+
                 // ---- 6. Remove stale materials from earlier builds ----
                 foreach (string stale in new[]
                          {
@@ -206,6 +214,8 @@ namespace RingSport.Editor
                     new SceneryDef { SourcePath = $"{TS}/Rocks/Rock_Boulder_1B.prefab", Name = "Rock_Boulder_1B", TargetSize = 1.0f },
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_03A.prefab", Name = "TEM_Grass_Patch_03A", TargetSize = 1.1f, Mode = SizeMode.Footprint, TwoSided = true, Tint = new Color(0.48f, 0.62f, 0.46f), TintSuffix = "_Forest" },
                     new SceneryDef { SourcePath = $"{TS}/Vegetation/Mushrooms/Mushroom_1A.prefab", Name = "Mushroom_1A", TargetSize = 0.3f },
+                    new SceneryDef { SourcePath = $"{TS}/Vegetation/Plants/Fern_2A.prefab", Name = "Fern_2A", TargetSize = 0.5f, TwoSided = true },
+                    new SceneryDef { SourcePath = $"{TS}/Vegetation/Mushrooms/Mushroom_1C.prefab", Name = "Mushroom_1C", TargetSize = 0.28f },
                     new SceneryDef { SourcePath = $"{TS}/Props/Signpost_1A.prefab", Name = "Signpost_1A", TargetSize = 1.6f, InSpawnList = false },
                 },
                 ["France"] = new List<SceneryDef>
@@ -218,6 +228,7 @@ namespace RingSport.Editor
                     new SceneryDef { SourcePath = $"{TEM}/Rocks/TEM_Rock_Small_01A.prefab", Name = "TEM_Rock_Small_01A", TargetSize = 0.5f },
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_05A.prefab", Name = "TEM_Grass_Patch_05A", TargetSize = 1.1f, Mode = SizeMode.Footprint, TwoSided = true },
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Flowers_Patch_03A.prefab", Name = "TEM_Flowers_Patch_03A", TargetSize = 1.3f, Mode = SizeMode.Footprint, TwoSided = true },
+                    new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_02A.prefab", Name = "TEM_Grass_Patch_02A", TargetSize = 1.1f, Mode = SizeMode.Footprint, TwoSided = true },
                 },
                 ["Arizona"] = new List<SceneryDef>
                 {
@@ -229,6 +240,8 @@ namespace RingSport.Editor
                     new SceneryDef { SourcePath = $"{DS}/Rocks/Rocks/DS_Rock_Large_01A.prefab", Name = "DS_Rock_Large_01A", TargetSize = 1.5f },
                     new SceneryDef { SourcePath = $"{DS}/Vegetation/DS_Plant_Dry_03A.prefab", Name = "DS_Plant_Dry_03A", TargetSize = 0.5f },
                     new SceneryDef { SourcePath = $"{DS}/Rocks/Rocks/DS_Rock_Small_02A.prefab", Name = "DS_Rock_Small_02A", TargetSize = 0.35f },
+                    new SceneryDef { SourcePath = $"{DS}/Vegetation/DS_Cactus_Small_05A.prefab", Name = "DS_Cactus_Small_05A", TargetSize = 0.7f },
+                    new SceneryDef { SourcePath = $"{DS}/Vegetation/DS_Plant_Dry_02A.prefab", Name = "DS_Plant_Dry_02A", TargetSize = 0.5f },
                 },
                 ["Oregon"] = new List<SceneryDef>
                 {
@@ -240,6 +253,8 @@ namespace RingSport.Editor
                     new SceneryDef { SourcePath = $"{TS}/Rocks/Rock_Medium_1A.prefab", Name = "Rock_Medium_1A", TargetSize = 0.8f },
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_02A.prefab", Name = "TEM_Grass_Patch_02A", TargetSize = 1.1f, Mode = SizeMode.Footprint, TwoSided = true, Tint = new Color(1f, 0.88f, 0.6f), TintSuffix = "_Gold" },
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_05A.prefab", Name = "TEM_Grass_Patch_05A", TargetSize = 1.0f, Mode = SizeMode.Footprint, TwoSided = true, Tint = new Color(1f, 0.88f, 0.6f), TintSuffix = "_Gold" },
+                    new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_03A.prefab", Name = "TEM_Grass_Patch_03A", TargetSize = 1.0f, Mode = SizeMode.Footprint, TwoSided = true, Tint = new Color(1f, 0.88f, 0.6f), TintSuffix = "_Gold" },
+                    new SceneryDef { SourcePath = $"{TS}/Rocks/Rock_Small_1A.prefab", Name = "Rock_Small_1A", TargetSize = 0.45f },
                     new SceneryDef { SourcePath = $"{TS}/Props/Fence_2A.prefab", Name = "Fence_2A", TargetSize = 1.0f, InSpawnList = false },
                     new SceneryDef { SourcePath = $"{TS}/Props/Wood_Stack_1A.prefab", Name = "Wood_Stack_1A", TargetSize = 0.8f, InSpawnList = false },
                 },
@@ -715,15 +730,17 @@ namespace RingSport.Editor
         // Centre column uses the main floor, side columns the side floor - the
         // runtime spawner overlaps this pad from z=0 and coplanar tiles only
         // stay invisible when prefab AND material match per column.
+        // Back row only: runtime floors cover z>=0 from the first frame (home
+        // screen included), and a forward pad row sits coplanar with them with
+        // offset UVs - that overlap shimmers now that the ground is textured.
         private static readonly Vector3[] MainPadPositions =
         {
-            new Vector3(0f, 0f, -7f), new Vector3(0f, 0f, 5f),
+            new Vector3(0f, 0f, -7f),
         };
 
         private static readonly Vector3[] SidePadPositions =
         {
-            new Vector3(12f, 0f, -7f), new Vector3(12f, 0f, 5f),
-            new Vector3(-12f, 0f, -7f), new Vector3(-12f, 0f, 5f),
+            new Vector3(12f, 0f, -7f), new Vector3(-12f, 0f, -7f),
         };
 
         private static GameObject BuildStartScene(string world, List<StartSceneItem> items, Dictionary<string, GameObject> prefabs)
@@ -804,10 +821,10 @@ namespace RingSport.Editor
         {
             var spawnTuning = new Dictionary<string, (int min, int max, float dist, int pool)>
             {
-                ["Seattle"] = (2, 5, 2.0f, 20),
-                ["France"] = (3, 6, 1.4f, 20),
-                ["Arizona"] = (2, 4, 1.8f, 20),
-                ["Oregon"] = (2, 5, 1.8f, 20),
+                ["Seattle"] = (3, 6, 1.8f, 30),
+                ["France"] = (4, 7, 1.3f, 30),
+                ["Arizona"] = (2, 5, 1.7f, 30),
+                ["Oregon"] = (3, 6, 1.7f, 30),
             };
 
             // Per-location light mood: fog color/density + skybox. Seattle keeps
@@ -975,6 +992,193 @@ namespace RingSport.Editor
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(controller.gameObject.scene);
             UnityEditor.SceneManagement.EditorSceneManager.SaveScene(controller.gameObject.scene);
             Log($"ArcEffectController set to strength {strength}, distance {distance} (scene saved)");
+        }
+
+        private static void ApplyDespawnDistance(float distance)
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                Log("Despawn distance update skipped (play mode) - rerun the builder from the Tools menu");
+                return;
+            }
+
+            var generator = UnityEngine.Object.FindFirstObjectByType<LevelGenerator>();
+            if (generator == null)
+            {
+                Log("LevelGenerator not found in the open scene - open the game scene and rerun Tools/RingSport/Build World Scenery");
+                return;
+            }
+
+            var so = new SerializedObject(generator);
+            SerializedProperty prop = so.FindProperty("despawnDistance");
+            if (prop == null || Mathf.Approximately(prop.floatValue, distance))
+                return;
+
+            prop.floatValue = distance;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(generator);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(generator.gameObject.scene);
+            UnityEditor.SceneManagement.EditorSceneManager.SaveScene(generator.gameObject.scene);
+            Log($"LevelGenerator despawnDistance set to {distance} (scene saved)");
+        }
+
+        /// <summary>
+        /// A hard-to-miss radial beacon behind the love note: spark rays that
+        /// shoot outward from the centre plus a soft pulsing glow. Uses the
+        /// Generic_ParticlesUnlit_Arc graph so the effect curves with the world
+        /// and stays glued to the note at spawn distance.
+        /// </summary>
+        private static void BuildLoveNoteBeacon()
+        {
+            const string prefabPath = "Assets/Prefabs/Collectibles/LoveNote.prefab";
+            var particleShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Shaders/ShaderGraphs/Generic_ParticlesUnlit_Arc.shadergraph");
+            var sparkTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Textures/VFX/SparkStar.png");
+            var glowTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Textures/VFX/SoftGlow.png");
+            if (particleShader == null || sparkTex == null || glowTex == null)
+            {
+                LogError("Love note beacon: missing particle shader graph or VFX textures");
+                return;
+            }
+
+            Material sparkMat = CreateParticleMat("Arc_VFX_NoteBurst", particleShader, sparkTex, new Color(1f, 0.5f, 0.78f, 1f));
+            Material glowMat = CreateParticleMat("Arc_VFX_NoteGlow", particleShader, glowTex, new Color(1f, 0.55f, 0.8f, 0.55f));
+
+            GameObject contents = PrefabUtility.LoadPrefabContents(prefabPath);
+            try
+            {
+                // Centre the beacon on the note visual
+                Bounds bounds = new Bounds(contents.transform.position, Vector3.zero);
+                Renderer[] renderers = contents.GetComponentsInChildren<Renderer>();
+                if (renderers.Length > 0)
+                {
+                    bounds = renderers[0].bounds;
+                    foreach (Renderer r in renderers.Skip(1))
+                        bounds.Encapsulate(r.bounds);
+                }
+                Vector3 centreLocal = contents.transform.InverseTransformPoint(bounds.center);
+
+                Transform old = contents.transform.Find("AttentionBeacon");
+                if (old != null)
+                    UnityEngine.Object.DestroyImmediate(old.gameObject);
+
+                var beacon = new GameObject("AttentionBeacon");
+                beacon.transform.SetParent(contents.transform, false);
+                // +Z is away from the camera - the note occludes the burst centre
+                beacon.transform.localPosition = centreLocal + new Vector3(0f, 0f, 0.2f);
+
+                ConfigureBurst(CreateChildPs(beacon, "SparkBurst"), sparkMat);
+                ConfigurePulse(CreateChildPs(beacon, "GlowPulse"), glowMat);
+
+                PrefabUtility.SaveAsPrefabAsset(contents, prefabPath);
+                Log("Love note beacon added (SparkBurst + GlowPulse behind the note)");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(contents);
+            }
+        }
+
+        private static Material CreateParticleMat(string name, Shader shader, Texture2D tex, Color tint)
+        {
+            string path = $"{WorldMatFolder}/{name}.mat";
+            Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                mat = new Material(shader);
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            mat.shader = shader;
+            if (mat.HasProperty("_Albedo_Map")) mat.SetTexture("_Albedo_Map", tex);
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tint);
+            if (mat.HasProperty("_Alpha_Clip_Threshold")) mat.SetFloat("_Alpha_Clip_Threshold", 0f);
+            mat.enableInstancing = true;
+            EditorUtility.SetDirty(mat);
+            return mat;
+        }
+
+        private static ParticleSystem CreateChildPs(GameObject parent, string name)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent.transform, false);
+            return go.AddComponent<ParticleSystem>();
+        }
+
+        private static void ConfigureBurst(ParticleSystem ps, Material mat)
+        {
+            ParticleSystem.MainModule main = ps.main;
+            main.loop = true;
+            main.duration = 1f;
+            main.startLifetime = 0.55f;
+            main.startSpeed = new ParticleSystem.MinMaxCurve(2.6f, 3.6f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.3f, 0.55f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.45f, 0.75f), Color.white);
+            main.simulationSpace = ParticleSystemSimulationSpace.Local;
+            main.maxParticles = 48;
+            main.playOnAwake = true;
+
+            ParticleSystem.EmissionModule emission = ps.emission;
+            emission.rateOverTime = 18f;
+
+            // Circle facing the camera: particles fly radially outward from the centre
+            ParticleSystem.ShapeModule shape = ps.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius = 0.03f;
+            shape.radiusThickness = 0f;
+
+            ParticleSystem.ColorOverLifetimeModule col = ps.colorOverLifetime;
+            col.enabled = true;
+            var grad = new Gradient();
+            grad.SetKeys(
+                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.9f, 0.6f), new GradientAlphaKey(0f, 1f) });
+            col.color = grad;
+
+            var renderer = ps.GetComponent<ParticleSystemRenderer>();
+            renderer.sharedMaterial = mat;
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+        }
+
+        private static void ConfigurePulse(ParticleSystem ps, Material mat)
+        {
+            ParticleSystem.MainModule main = ps.main;
+            main.loop = true;
+            main.duration = 1f;
+            main.startLifetime = 0.7f;
+            main.startSpeed = 0f;
+            main.startSize = 0.9f;
+            main.startColor = new Color(1f, 0.55f, 0.8f, 0.55f);
+            main.simulationSpace = ParticleSystemSimulationSpace.Local;
+            main.maxParticles = 6;
+            main.playOnAwake = true;
+
+            ParticleSystem.EmissionModule emission = ps.emission;
+            emission.rateOverTime = 2.5f;
+
+            ParticleSystem.ShapeModule shape = ps.shape;
+            shape.enabled = false;
+
+            // Rings that swell outward and fade - reads as a beacon from far away
+            ParticleSystem.SizeOverLifetimeModule size = ps.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.5f, 1f, 2.2f));
+
+            ParticleSystem.ColorOverLifetimeModule col = ps.colorOverLifetime;
+            col.enabled = true;
+            var grad = new Gradient();
+            grad.SetKeys(
+                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(0.8f, 0f), new GradientAlphaKey(0f, 1f) });
+            col.color = grad;
+
+            var renderer = ps.GetComponent<ParticleSystemRenderer>();
+            renderer.sharedMaterial = mat;
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
         }
 
         // ------------------------------------------------------------------

@@ -18,6 +18,23 @@ namespace RingSport.Core
         /// </summary>
         public const float MegaCoinReplaceChance = 0.01f;
 
+        /// <summary>
+        /// Debug: every large coin spawns as a love note, ignoring the unlock
+        /// state. Toggled from the debug menu; never persisted, so it resets on
+        /// every app start (and release builds have no way to turn it on).
+        /// </summary>
+        public static bool DebugForceSpawnAll;
+
+        /// <summary>
+        /// Roll whether a large coin should spawn as a love note instead.
+        /// </summary>
+        public static bool RollMegaCoinReplace()
+        {
+            if (DebugForceSpawnAll)
+                return true;
+            return HasLockedNotes && Random.value < MegaCoinReplaceChance;
+        }
+
         // One entry per note. The index is the note's identity in saved data,
         // so edit text freely but only ADD new notes at the end of the list.
         private static readonly string[] Notes =

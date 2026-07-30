@@ -18374,7 +18374,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: a1e7dd2d933c747cb9caebb50b6105da, type: 2}
   - {fileID: 11400000, guid: c7420c8232a2e4b70862f1a9ec4ced12, type: 2}
   spawnDistance: 100
-  despawnDistance: -10
+  despawnDistance: -18
   player: {fileID: 1473303864}
   endGameDespawnDistance: 80
   floorTileLength: 10

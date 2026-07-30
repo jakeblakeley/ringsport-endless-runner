@@ -246,8 +246,7 @@ namespace RingSport.Level.Spawning
             bool isMega = Random.value < context.CurrentConfig.MegaCollectibleSpawnRatio;
 
             // A large coin can spawn as a love note instead while locked notes remain
-            bool isLoveNote = isMega && LoveNoteManager.HasLockedNotes &&
-                Random.value < LoveNoteManager.MegaCoinReplaceChance;
+            bool isLoveNote = isMega && LoveNoteManager.RollMegaCoinReplace();
 
             string poolTag = isLoveNote ? PoolTags.LoveNote
                 : isMega ? PoolTags.MegaCollectible
@@ -402,8 +401,7 @@ namespace RingSport.Level.Spawning
                 bool isMega = Random.value < context.CurrentConfig.MegaCollectibleSpawnRatio;
 
                 // A large coin can spawn as a love note instead while locked notes remain
-                bool isLoveNote = isMega && LoveNoteManager.HasLockedNotes &&
-                    Random.value < LoveNoteManager.MegaCoinReplaceChance;
+                bool isLoveNote = isMega && LoveNoteManager.RollMegaCoinReplace();
 
                 string poolTag = isLoveNote ? PoolTags.LoveNote
                     : isMega ? PoolTags.MegaCollectible

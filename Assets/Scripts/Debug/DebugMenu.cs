@@ -145,6 +145,12 @@ namespace RingSport.DebugTools
                 UIManager.Instance?.ShowHomeScreen(); // refresh high score text
             }
 
+            bool forceNotes = LoveNoteManager.DebugForceSpawnAll;
+            if (GUILayout.Button($"Love Note Spawns 100%: {(forceNotes ? "ON" : "OFF")}", GUILayout.Height(28f)))
+            {
+                LoveNoteManager.DebugForceSpawnAll = !forceNotes;
+            }
+
             if (GUILayout.Button($"Unlock Love Note ({LoveNoteManager.UnlockedCount}/{LoveNoteManager.TotalCount})", GUILayout.Height(28f)))
             {
                 LoveNoteManager.TryCollectRandomLockedNote(out _);

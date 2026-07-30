@@ -26,10 +26,12 @@ MonoBehaviour:
   - {fileID: 8596477016679866446, guid: aa0bb1e973fb9402eb8cc4b95c7c5df3, type: 3}
   - {fileID: 8441980596089288550, guid: c65c96b343b4741a5b38538688220525, type: 3}
   - {fileID: 2213592739122079866, guid: 440ac9b2cceb04ca2bcf9a8321735e49, type: 3}
-  minSceneryPerFloor: 2
-  maxSceneryPerFloor: 5
-  sceneryMinDistance: 2
-  sceneryPoolSize: 20
+  - {fileID: 7167237018603857874, guid: 4b2118b546fdd4e108af6d0f7a9baefb, type: 3}
+  - {fileID: 4571607287811539997, guid: 01804740f03914d73b48dd4e50a11062, type: 3}
+  minSceneryPerFloor: 3
+  maxSceneryPerFloor: 6
+  sceneryMinDistance: 1.8
+  sceneryPoolSize: 30
   overrideAtmosphere: 1
   fogColor: {r: 0.5396, g: 0.7997, b: 0.8113, a: 1}
   fogDensity: 0.04
