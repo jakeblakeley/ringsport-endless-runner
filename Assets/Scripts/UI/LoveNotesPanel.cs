@@ -114,7 +114,7 @@ namespace RingSport.UI
             var rt = (RectTransform)badgeGO.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
             rt.pivot = new Vector2(1f, 1f);
-            rt.sizeDelta = new Vector2(62f, 28f);
+            rt.sizeDelta = new Vector2(124f, 56f);
             rt.anchoredPosition = new Vector2(-6f, -6f);
             rt.localRotation = Quaternion.Euler(0f, 0f, 6f); // slight stamp tilt
 
@@ -132,7 +132,7 @@ namespace RingSport.UI
 
             var tmp = textGO.AddComponent<TextMeshProUGUI>();
             tmp.text = "NEW";
-            tmp.fontSize = 17f;
+            tmp.fontSize = 34f;
             tmp.fontStyle = FontStyles.Bold;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = Color.white;

@@ -24,9 +24,15 @@ MonoBehaviour:
   - {fileID: 8195877020307463201, guid: 16df1a103831844b9b2ff3d6923f4c7b, type: 3}
   - {fileID: 8838939516635165359, guid: 6c5946f1f5827496b96738bf800c6aae, type: 3}
   - {fileID: 8596477016679866446, guid: aa0bb1e973fb9402eb8cc4b95c7c5df3, type: 3}
-  minSceneryPerFloor: 1
-  maxSceneryPerFloor: 4
-  sceneryMinDistance: 2.5
+  - {fileID: 8441980596089288550, guid: c65c96b343b4741a5b38538688220525, type: 3}
+  - {fileID: 2213592739122079866, guid: 440ac9b2cceb04ca2bcf9a8321735e49, type: 3}
+  minSceneryPerFloor: 2
+  maxSceneryPerFloor: 5
+  sceneryMinDistance: 2
   sceneryPoolSize: 20
+  overrideAtmosphere: 1
+  fogColor: {r: 0.5396, g: 0.7997, b: 0.8113, a: 1}
+  fogDensity: 0.04
+  skyboxMaterial: {fileID: 2100000, guid: 4dfd11b20db5b45c5a3ae55bae6f81de, type: 2}
   music: {fileID: 0}
   ambientSound: {fileID: 8300000, guid: 1554b0f17e3e44936b87247ac9255dd8, type: 3}

@@ -7,10 +7,12 @@ Shader "Custom/Mobile/ArcEffect"
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
         _Cutoff ("Alpha Cutoff (0 = opaque)", Range(0, 1)) = 0
 
-        [Header(Arc Effect Settings)]
-        _ArcStrength ("Arc Strength", Range(0, 50)) = 1.0
-        _ArcDistance ("Arc Distance", Range(10, 100)) = 50.0
-        _PlayerPosition ("Player Position", Vector) = (0, 0, 0, 0)
+        // Arc parameters are intentionally NOT material properties: they are
+        // global uniforms driven by ArcEffectController (Shader.SetGlobal*).
+        // Declaring them here made every material's serialized value override
+        // the globals, so floors and scenery curved on different arcs and
+        // distant props appeared to float. Global-only also keeps the shader
+        // SRP-batcher compatible.
 
         [Header(Lighting)]
         _Smoothness ("Smoothness", Range(0, 1)) = 0.5

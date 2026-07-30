@@ -167,6 +167,7 @@ namespace RingSport.Level
                 floorSpawner.SetSideFloorPrefab(currentConfig.LocationConfig.SideFloorPrefab);
                 floorSpawner.SetFinishLineFloorPrefab(currentConfig.LocationConfig.FinishLineFloorPrefab);
                 floorSpawner.ConfigureScenery(currentConfig.LocationConfig);
+                ApplyLocationAtmosphere(currentConfig.LocationConfig);
                 Debug.Log($"Location: {currentConfig.Location}, Floor prefabs set from LocationConfig");
             }
             else
@@ -203,6 +204,27 @@ namespace RingSport.Level
                 despawnManager.RegisterStartScene(startScene);
                 Debug.Log($"Start scene instantiated at origin: {currentConfig.LocationConfig.StartScenePrefab.name}");
             }
+        }
+
+        /// <summary>
+        /// Apply the location's fog and skybox (each world has its own light mood)
+        /// </summary>
+        private void ApplyLocationAtmosphere(LocationConfig locationConfig)
+        {
+            if (locationConfig == null || !locationConfig.OverrideAtmosphere)
+                return;
+
+            RenderSettings.fogColor = locationConfig.FogColor;
+            RenderSettings.fogDensity = locationConfig.FogDensity;
+
+            if (locationConfig.SkyboxMaterial != null && RenderSettings.skybox != locationConfig.SkyboxMaterial)
+            {
+                RenderSettings.skybox = locationConfig.SkyboxMaterial;
+                // Ambient comes from the skybox; rebuild the ambient probe once per swap
+                DynamicGI.UpdateEnvironment();
+            }
+
+            Debug.Log($"Atmosphere applied for {locationConfig.Location}: fog {locationConfig.FogColor} d={locationConfig.FogDensity}, skybox {(locationConfig.SkyboxMaterial != null ? locationConfig.SkyboxMaterial.name : "unchanged")}");
         }
 
         /// <summary>
@@ -329,6 +351,7 @@ namespace RingSport.Level
                 floorSpawner.SetSideFloorPrefab(currentConfig.LocationConfig.SideFloorPrefab);
                 floorSpawner.SetFinishLineFloorPrefab(null); // No finish line for home screen
                 floorSpawner.ConfigureScenery(currentConfig.LocationConfig);
+                ApplyLocationAtmosphere(currentConfig.LocationConfig);
             }
             else
             {

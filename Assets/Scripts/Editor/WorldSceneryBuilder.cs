@@ -28,7 +28,7 @@ namespace RingSport.Editor
     public static class WorldSceneryBuilder
     {
         // Bump to force the auto-run to re-apply the build
-        private const int BuildVersion = 5;
+        private const int BuildVersion = 7;
         private const string VersionPrefKey = "RingSport.WorldSceneryBuilder.Version";
 
         private const string ArcShaderName = "Custom/Mobile/ArcEffect";
@@ -145,6 +145,17 @@ namespace RingSport.Editor
                 // ---- 5. LocationConfig wiring ----
                 WireLocationConfigs(worldPrefabs, startScenes);
 
+                // ---- 5b. Ring 1 Leg 1 plays in Oregon ----
+                RemapLevelLocation("Assets/LevelsData/Level Data/Level2 - Ring 1 Leg 1.asset",
+                    Location.Oregon, "Assets/LevelsData/Level Locations/Oregon.asset");
+
+                // ---- 5c. Performance: GPU instancing + capped atlas sizes ----
+                ApplyPerformanceSettings();
+
+                // ---- 5d. Arc curvature is global-only now; keep the look the
+                //          legacy floor material defined (strength 20/100) ----
+                ApplyArcControllerValues(20f, 100f);
+
                 // ---- 6. Remove stale materials from earlier builds ----
                 foreach (string stale in new[]
                          {
@@ -193,6 +204,8 @@ namespace RingSport.Editor
                     new SceneryDef { SourcePath = $"{TS}/Vegetation/Plants/Fern_1A.prefab", Name = "Fern_1A", TargetSize = 0.55f, TwoSided = true },
                     new SceneryDef { SourcePath = $"{TS}/Vegetation/Trees/Tree_Log_1A.prefab", Name = "Tree_Log_1A", TargetSize = 0.5f },
                     new SceneryDef { SourcePath = $"{TS}/Rocks/Rock_Boulder_1B.prefab", Name = "Rock_Boulder_1B", TargetSize = 1.0f },
+                    new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_03A.prefab", Name = "TEM_Grass_Patch_03A", TargetSize = 1.1f, Mode = SizeMode.Footprint, TwoSided = true, Tint = new Color(0.48f, 0.62f, 0.46f), TintSuffix = "_Forest" },
+                    new SceneryDef { SourcePath = $"{TS}/Vegetation/Mushrooms/Mushroom_1A.prefab", Name = "Mushroom_1A", TargetSize = 0.3f },
                     new SceneryDef { SourcePath = $"{TS}/Props/Signpost_1A.prefab", Name = "Signpost_1A", TargetSize = 1.6f, InSpawnList = false },
                 },
                 ["France"] = new List<SceneryDef>
@@ -203,6 +216,8 @@ namespace RingSport.Editor
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Flower_Bush_01A.prefab", Name = "TEM_Flower_Bush_01A", TargetSize = 0.9f },
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Tree_01A.prefab", Name = "TEM_Tree_01A", TargetSize = 4.5f },
                     new SceneryDef { SourcePath = $"{TEM}/Rocks/TEM_Rock_Small_01A.prefab", Name = "TEM_Rock_Small_01A", TargetSize = 0.5f },
+                    new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_05A.prefab", Name = "TEM_Grass_Patch_05A", TargetSize = 1.1f, Mode = SizeMode.Footprint, TwoSided = true },
+                    new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Flowers_Patch_03A.prefab", Name = "TEM_Flowers_Patch_03A", TargetSize = 1.3f, Mode = SizeMode.Footprint, TwoSided = true },
                 },
                 ["Arizona"] = new List<SceneryDef>
                 {
@@ -212,6 +227,8 @@ namespace RingSport.Editor
                     new SceneryDef { SourcePath = $"{DS}/Vegetation/DS_Dry_Bush_01A.prefab", Name = "DS_Dry_Bush_01A", TargetSize = 0.7f, TwoSided = true },
                     new SceneryDef { SourcePath = $"{DS}/Vegetation/DS_Plant_Dry_01A.prefab", Name = "DS_Plant_Dry_01A", TargetSize = 0.55f },
                     new SceneryDef { SourcePath = $"{DS}/Rocks/Rocks/DS_Rock_Large_01A.prefab", Name = "DS_Rock_Large_01A", TargetSize = 1.5f },
+                    new SceneryDef { SourcePath = $"{DS}/Vegetation/DS_Plant_Dry_03A.prefab", Name = "DS_Plant_Dry_03A", TargetSize = 0.5f },
+                    new SceneryDef { SourcePath = $"{DS}/Rocks/Rocks/DS_Rock_Small_02A.prefab", Name = "DS_Rock_Small_02A", TargetSize = 0.35f },
                 },
                 ["Oregon"] = new List<SceneryDef>
                 {
@@ -221,6 +238,8 @@ namespace RingSport.Editor
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Bush_02A.prefab", Name = "TEM_Bush_02A", TargetSize = 1.1f },
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_04A.prefab", Name = "TEM_Grass_Patch_04A", TargetSize = 1.2f, Mode = SizeMode.Footprint, TwoSided = true, Tint = new Color(1f, 0.88f, 0.6f), TintSuffix = "_Gold" },
                     new SceneryDef { SourcePath = $"{TS}/Rocks/Rock_Medium_1A.prefab", Name = "Rock_Medium_1A", TargetSize = 0.8f },
+                    new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_02A.prefab", Name = "TEM_Grass_Patch_02A", TargetSize = 1.1f, Mode = SizeMode.Footprint, TwoSided = true, Tint = new Color(1f, 0.88f, 0.6f), TintSuffix = "_Gold" },
+                    new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_05A.prefab", Name = "TEM_Grass_Patch_05A", TargetSize = 1.0f, Mode = SizeMode.Footprint, TwoSided = true, Tint = new Color(1f, 0.88f, 0.6f), TintSuffix = "_Gold" },
                     new SceneryDef { SourcePath = $"{TS}/Props/Fence_2A.prefab", Name = "Fence_2A", TargetSize = 1.0f, InSpawnList = false },
                     new SceneryDef { SourcePath = $"{TS}/Props/Wood_Stack_1A.prefab", Name = "Wood_Stack_1A", TargetSize = 0.8f, InSpawnList = false },
                 },
@@ -349,13 +368,13 @@ namespace RingSport.Editor
 
         private static void BuildGroundMaterials(Shader arcShader)
         {
-            string grass1A = $"{TSTex}/TNA_Grass_1A_D.psd";
-            string grass1C = $"{TSTex}/TNA_Grass_1C_D.psd";
-            string dirt1A = $"{TSTex}/TNA_Dirt_1A_D.psd";
-            string dirt1B = $"{TSTex}/TNA_Dirt_1B_D.psd";
-            string sand1A = $"{TSTex}/TNA_Sand_1A_D.psd";
-            string dust1A = $"{TSTex}/TNA_Dust_1A_D.psd";
-            string dust1B = $"{TSTex}/TNA_Dust_1B_D.psd";
+            string grass1A = $"{TSTex}/TNA_Grass_1A_D.png";
+            string grass1C = $"{TSTex}/TNA_Grass_1C_D.png";
+            string dirt1A = $"{TSTex}/TNA_Dirt_1A_D.png";
+            string dirt1B = $"{TSTex}/TNA_Dirt_1B_D.png";
+            string sand1A = $"{TSTex}/TNA_Sand_1A_D.png";
+            string dust1A = $"{TSTex}/TNA_Dust_1A_D.png";
+            string dust1B = $"{TSTex}/TNA_Dust_1B_D.png";
 
             // Existing materials keep their GUIDs (floor prefabs stay wired) but
             // get renamed and re-textured.
@@ -693,9 +712,16 @@ namespace RingSport.Editor
         // StartScene build
         // ------------------------------------------------------------------
 
-        private static readonly Vector3[] FloorPadPositions =
+        // Centre column uses the main floor, side columns the side floor - the
+        // runtime spawner overlaps this pad from z=0 and coplanar tiles only
+        // stay invisible when prefab AND material match per column.
+        private static readonly Vector3[] MainPadPositions =
         {
             new Vector3(0f, 0f, -7f), new Vector3(0f, 0f, 5f),
+        };
+
+        private static readonly Vector3[] SidePadPositions =
+        {
             new Vector3(12f, 0f, -7f), new Vector3(12f, 0f, 5f),
             new Vector3(-12f, 0f, -7f), new Vector3(-12f, 0f, 5f),
         };
@@ -707,9 +733,15 @@ namespace RingSport.Editor
             string floorName = world == "Seattle" ? "Seattle Floor"
                 : world == "Arizona" ? "ArizonaFloor"
                 : $"{world} Floor";
+            string sideFloorName = world == "Seattle" ? "Seattle Floor Sides 1"
+                : world == "Arizona" ? "Arizona Floor Sides"
+                : $"{world} Floor Sides";
             GameObject floorPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{FloorPrefabFolder}/{floorName}.prefab");
+            GameObject sideFloorPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{FloorPrefabFolder}/{sideFloorName}.prefab");
             if (floorPrefab == null)
                 LogError($"StartScene {world}: floor prefab '{floorName}' not found");
+            if (sideFloorPrefab == null)
+                LogError($"StartScene {world}: side floor prefab '{sideFloorName}' not found");
 
             GameObject root = new GameObject($"StartScene_{world}");
             try
@@ -717,12 +749,17 @@ namespace RingSport.Editor
                 root.tag = "Floor";
                 root.AddComponent<ScrollableObject>();
 
-                if (floorPrefab != null)
+                foreach ((GameObject prefab, Vector3[] positions) in new[]
+                         {
+                             (floorPrefab, MainPadPositions),
+                             (sideFloorPrefab, SidePadPositions),
+                         })
                 {
-                    // Same 3x2 pad as the original StartScene1
-                    foreach (Vector3 pos in FloorPadPositions)
+                    if (prefab == null)
+                        continue;
+                    foreach (Vector3 pos in positions)
                     {
-                        GameObject tile = (GameObject)PrefabUtility.InstantiatePrefab(floorPrefab, root.transform);
+                        GameObject tile = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
                         tile.transform.localPosition = pos;
                         tile.transform.localRotation = Quaternion.identity;
                         tile.transform.localScale = Vector3.one * 1.2f;
@@ -767,10 +804,20 @@ namespace RingSport.Editor
         {
             var spawnTuning = new Dictionary<string, (int min, int max, float dist, int pool)>
             {
-                ["Seattle"] = (1, 4, 2.5f, 20),
-                ["France"] = (2, 5, 1.5f, 20),
-                ["Arizona"] = (1, 3, 2.0f, 20),
-                ["Oregon"] = (1, 4, 2.0f, 20),
+                ["Seattle"] = (2, 5, 2.0f, 20),
+                ["France"] = (3, 6, 1.4f, 20),
+                ["Arizona"] = (2, 4, 1.8f, 20),
+                ["Oregon"] = (2, 5, 1.8f, 20),
+            };
+
+            // Per-location light mood: fog color/density + skybox. Seattle keeps
+            // the scene's current values; the rest warm up or brighten.
+            var atmosphere = new Dictionary<string, (Color fog, float density, string skybox)>
+            {
+                ["Seattle"] = (new Color(0.5396f, 0.7997f, 0.8113f), 0.04f, "Assets/Materials/Test Skybox.mat"),
+                ["Arizona"] = (new Color(0.85f, 0.7f, 0.52f), 0.04f, "Assets/Toon Desert/Skyboxes/DS_Skybox_Afternoon_01A.mat"),
+                ["Oregon"] = (new Color(0.84f, 0.83f, 0.66f), 0.028f, "Assets/Toon Series/Toon Nature Assets/Skyboxes/Skybox_Afternoon_1B.mat"),
+                ["France"] = (new Color(0.72f, 0.8f, 0.7f), 0.035f, "Assets/Toon Enchanted Meadow/Skybox/TEM_Skybox_01A/TEM_Skybox_01A.mat"),
             };
 
             foreach (string world in worldPrefabs.Keys)
@@ -805,6 +852,15 @@ namespace RingSport.Editor
                 so.FindProperty("sceneryMinDistance").floatValue = dist;
                 so.FindProperty("sceneryPoolSize").intValue = pool;
 
+                (Color fog, float density, string skyboxPath) = atmosphere[world];
+                so.FindProperty("overrideAtmosphere").boolValue = true;
+                so.FindProperty("fogColor").colorValue = fog;
+                so.FindProperty("fogDensity").floatValue = density;
+                var skybox = AssetDatabase.LoadAssetAtPath<Material>(skyboxPath);
+                if (skybox == null)
+                    LogError($"Skybox not found for {world}: {skyboxPath}");
+                so.FindProperty("skyboxMaterial").objectReferenceValue = skybox;
+
                 if (world == "France" || world == "Oregon")
                 {
                     so.FindProperty("mainFloorPrefab").objectReferenceValue =
@@ -819,6 +875,106 @@ namespace RingSport.Editor
                 EditorUtility.SetDirty(config);
                 Log($"LocationConfig wired: {world} ({spawnList.Count} scenery prefabs, scenery {min}-{max}/floor, minDist {dist})");
             }
+        }
+
+        // ------------------------------------------------------------------
+        // Level remap / performance / scene tweaks
+        // ------------------------------------------------------------------
+
+        private static void RemapLevelLocation(string levelAssetPath, Location location, string locationConfigPath)
+        {
+            var level = AssetDatabase.LoadAssetAtPath<ScriptableObject>(levelAssetPath);
+            var config = AssetDatabase.LoadAssetAtPath<LocationConfig>(locationConfigPath);
+            if (level == null || config == null)
+            {
+                LogError($"Level remap failed: {levelAssetPath} -> {locationConfigPath}");
+                return;
+            }
+
+            var so = new SerializedObject(level);
+            so.FindProperty("location").enumValueIndex = (int)location;
+            so.FindProperty("locationConfig").objectReferenceValue = config;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(level);
+            Log($"Level remapped: {Path.GetFileNameWithoutExtension(levelAssetPath)} -> {location}");
+        }
+
+        private static void ApplyPerformanceSettings()
+        {
+            // GPU instancing on every arc material: repeated scenery (pines,
+            // cacti, grass) batches on WebGL2 where the SRP batcher is
+            // unavailable; the SRP batcher covers WebGPU/Metal.
+            int instanced = 0;
+            foreach (string folder in new[] { WorldMatFolder, FloorMatFolder })
+            {
+                foreach (string guid in AssetDatabase.FindAssets("t:Material", new[] { folder }))
+                {
+                    var mat = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
+                    if (mat != null && !mat.enableInstancing)
+                    {
+                        mat.enableInstancing = true;
+                        EditorUtility.SetDirty(mat);
+                        instanced++;
+                    }
+                }
+            }
+            Log($"GPU instancing enabled on {instanced} material(s)");
+
+            // Toon atlases are flat-colour art - 1024 is indistinguishable in
+            // game and much cheaper for mobile WebGL memory + download
+            string[] atlasPaths =
+            {
+                "Assets/Toon Enchanted Meadow/Textures/TEM_Atlas_Vegetation_1A.tga",
+                "Assets/Toon Enchanted Meadow/Textures/TEM_Atlas_Vegetation_1B.tga",
+                "Assets/Toon Enchanted Meadow/Textures/TEM_Atlas_Vegetation_1A.png",
+                "Assets/Toon Enchanted Meadow/Textures/TEM_Atlas_Vegetation_1B.png",
+                "Assets/Toon Enchanted Meadow/Textures/TEM_Atlas_1A.png",
+                "Assets/Toon Desert/Textures/Atlas_1A_D.png",
+                "Assets/Toon Series/Toon Nature Assets/Textures/Atlas_1A_D.png",
+            };
+            foreach (string path in atlasPaths)
+            {
+                var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+                if (importer == null)
+                    continue;
+                if (importer.maxTextureSize > 1024)
+                {
+                    importer.maxTextureSize = 1024;
+                    importer.SaveAndReimport();
+                    Log($"Texture capped to 1024: {Path.GetFileName(path)}");
+                }
+            }
+        }
+
+        private static void ApplyArcControllerValues(float strength, float distance)
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                Log("Arc controller update skipped (play mode) - rerun the builder from the Tools menu");
+                return;
+            }
+
+            var controller = UnityEngine.Object.FindFirstObjectByType<ArcEffectController>();
+            if (controller == null)
+            {
+                Log("Arc controller not found in the open scene - open the game scene and rerun Tools/RingSport/Build World Scenery");
+                return;
+            }
+
+            var so = new SerializedObject(controller);
+            SerializedProperty strengthProp = so.FindProperty("arcStrength");
+            SerializedProperty distanceProp = so.FindProperty("arcDistance");
+            if (Mathf.Approximately(strengthProp.floatValue, strength) &&
+                Mathf.Approximately(distanceProp.floatValue, distance))
+                return;
+
+            strengthProp.floatValue = strength;
+            distanceProp.floatValue = distance;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(controller);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(controller.gameObject.scene);
+            UnityEditor.SceneManagement.EditorSceneManager.SaveScene(controller.gameObject.scene);
+            Log($"ArcEffectController set to strength {strength}, distance {distance} (scene saved)");
         }
 
         // ------------------------------------------------------------------

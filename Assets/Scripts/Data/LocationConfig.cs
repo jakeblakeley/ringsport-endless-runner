@@ -38,6 +38,19 @@ namespace RingSport.Level
         [Tooltip("Pool size per scenery prefab type")]
         [SerializeField] [Range(10, 100)] private int sceneryPoolSize = 30;
 
+        [Header("Atmosphere")]
+        [Tooltip("Apply this location's fog and skybox when it loads")]
+        [SerializeField] private bool overrideAtmosphere = false;
+
+        [Tooltip("Fog color for this location (exp2 fog)")]
+        [SerializeField] private Color fogColor = new Color(0.54f, 0.8f, 0.81f);
+
+        [Tooltip("Fog density for this location")]
+        [SerializeField] [Range(0.005f, 0.1f)] private float fogDensity = 0.04f;
+
+        [Tooltip("Optional skybox for this location; null keeps the current skybox")]
+        [SerializeField] private Material skyboxMaterial;
+
         [Header("Audio")]
         [Tooltip("Background music for this location")]
         [SerializeField] private AudioClip music;
@@ -55,6 +68,10 @@ namespace RingSport.Level
         public int MaxSceneryPerFloor => maxSceneryPerFloor;
         public float SceneryMinDistance => sceneryMinDistance;
         public int SceneryPoolSize => sceneryPoolSize;
+        public bool OverrideAtmosphere => overrideAtmosphere;
+        public Color FogColor => fogColor;
+        public float FogDensity => fogDensity;
+        public Material SkyboxMaterial => skyboxMaterial;
         public AudioClip Music => music;
         public AudioClip AmbientSound => ambientSound;
     }
