@@ -71,6 +71,9 @@ namespace RingSport.Level
             return scrollSpeed;
         }
 
+        /// <summary>True while a scripted sequence is pinning the scroll speed.</summary>
+        public bool HasSpeedOverride => speedOverride >= 0f;
+
         /// <summary>Pin the world scroll to an exact speed (sprint and level multipliers ignored).</summary>
         public void SetSpeedOverride(float speed)
         {

@@ -51,6 +51,9 @@ namespace RingSport.Player
         [SerializeField] private float laneTurnAngle = 30f;
         [Tooltip("How fast the body turns into and back out of the lane-change direction, degrees/sec.")]
         [SerializeField] private float laneTurnSpeed = 400f;
+        [Tooltip("Quick roll-bank pulse into the direction of a running lane change (degrees) - a lighter cousin of the mini-level dodge bank.")]
+        [SerializeField] private float laneBankAngle = 8f;
+        [SerializeField] private float laneBankDuration = 0.3f;
 
         [Header("Jump Pitch")]
         [Tooltip("Degrees of nose-up/nose-down per m/s of vertical velocity while airborne (Malbers-style pitch along the jump arc).")]
@@ -106,6 +109,8 @@ namespace RingSport.Player
         private float clamberCurrentTime;
         private float dodgeTiltTimer = float.MaxValue;
         private float dodgeTiltSign;
+        private float laneBankTimer = float.MaxValue;
+        private float laneBankSign;
         private float currentDodgeYaw;
         private float laneYawStrafe;
         private float currentLaneYaw;
@@ -238,8 +243,19 @@ namespace RingSport.Player
             float laneYawTarget = laneTurnAngle * Mathf.Sign(laneYawStrafe) * laneWeight;
             currentLaneYaw = Mathf.MoveTowards(currentLaneYaw, laneYawTarget, laneTurnSpeed * deltaTime);
 
+            // Running lane-change roll-bank pulse (same envelope shape as the
+            // dodge bank, smaller and quicker)
+            float laneBankRoll = 0f;
+            if (laneBankTimer < laneBankDuration)
+            {
+                laneBankTimer += deltaTime;
+                float bankN = Mathf.Clamp01(laneBankTimer / laneBankDuration);
+                laneBankRoll = laneBankAngle * laneBankSign *
+                    (SmoothEdge(0f, 0.15f, bankN) * (1f - SmoothEdge(0.35f, 1f, bankN)));
+            }
+
             modelTransform.localRotation = modelBaseRotation *
-                Quaternion.Euler(currentJumpPitch + dodgePitch, currentFacingYaw + currentDodgeYaw + currentLaneYaw, dodgeRoll);
+                Quaternion.Euler(currentJumpPitch + dodgePitch, currentFacingYaw + currentDodgeYaw + currentLaneYaw, dodgeRoll + laneBankRoll);
 
             // Landing squash: deepest on impact, eased recovery, volume roughly
             // preserved by widening while flattening
@@ -467,6 +483,17 @@ namespace RingSport.Player
             dodgeTiltTimer = 0f;
         }
 
+        /// <summary>
+        /// Quick roll-bank pulse for a running lane change (the discrete dodge
+        /// states stay mini-level only). toRight is WORLD space.
+        /// </summary>
+        public void PulseLaneBank(bool toRight)
+        {
+            // Right bank dips the right side: negative roll, same as the dodge
+            laneBankSign = toRight ? -1f : 1f;
+            laneBankTimer = 0f;
+        }
+
         public void TriggerDeath()
         {
             if (animator == null)
@@ -520,6 +547,7 @@ namespace RingSport.Player
             clamberTargetProgress = 0f;
             clamberCurrentTime = 0f;
             dodgeTiltTimer = float.MaxValue;
+            laneBankTimer = float.MaxValue;
             currentDodgeYaw = 0f;
             laneYawStrafe = 0f;
             currentLaneYaw = 0f;

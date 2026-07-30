@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections;
 using System.Collections.Generic;
+using RingSport.Effects;
 using RingSport.Level;
 using RingSport.Core;
 using RingSport.Player;
@@ -167,10 +168,15 @@ namespace RingSport.UI
         [Header("Audio")]
         [SerializeField] private AudioClip tapSound;
         [SerializeField] private AudioClip catchSound;
+        [Tooltip("Accelerating urgency tick while the frozen tap window drains (temporary clip - see SOUND_EFFECTS.md).")]
+        [SerializeField] private AudioClip windowTickSound;
+        [Tooltip("Decoy scream layered onto the catch (temporary clip - see SOUND_EFFECTS.md).")]
+        [SerializeField] private AudioClip catchScreamSound;
 
         // Runtime state
         private FacePhase phase = FacePhase.Inactive;
         private float phaseTimer;
+        private float nextWindowTickIn;
         private int difficulty;
         private bool chaseActive;
         private PlayerController playerController;
@@ -723,6 +729,10 @@ namespace RingSport.UI
             ShowBanner("ATTACK THE RIGHT LIMB!", Color.white,
                 RevealSeconds + TapWindowSeconds[difficulty] - 0.2f, 76f);
 
+            // Bullet time gets quiet: the music drops to a whisper until the
+            // window resolves (the urgency tick lives in UpdateWindow)
+            GameManager.Instance?.SetMusicDuck(true);
+
             Debug.Log($"[MiniLevelFaceAttack] Time frozen mid-pounce - correct limb: {QteLimbs[correctTargetIndex]}");
         }
 
@@ -806,11 +816,21 @@ namespace RingSport.UI
         {
             phase = FacePhase.Window;
             phaseTimer = 0f;
+            nextWindowTickIn = 0f;
             StampWrongTargets();
         }
 
         private void UpdateWindow(float dt)
         {
+            // Urgency tick accelerates as the frozen window drains
+            nextWindowTickIn -= dt;
+            if (nextWindowTickIn <= 0f && windowTickSound != null)
+            {
+                float progress = Mathf.Clamp01(phaseTimer / TapWindowSeconds[difficulty]);
+                LevelManager.Instance?.PlayPitchedSound(windowTickSound, Mathf.Lerp(0.85f, 1.25f, progress), 0.35f);
+                nextWindowTickIn = Mathf.Lerp(0.45f, 0.16f, progress);
+            }
+
             if (phaseTimer >= TapWindowSeconds[difficulty])
                 FailQte("TOO SLOW!");
         }
@@ -831,6 +851,16 @@ namespace RingSport.UI
             LevelManager.Instance?.AddScore(TapBonusPoints);
             if (tapSound != null)
                 LevelManager.Instance?.PlayCollectSound(tapSound);
+
+            // Bite impact: white burst on the picked limb + a camera hit,
+            // and the music comes back up out of the duck
+            Vector3 limbPos = decoyHuman != null
+                ? decoyHuman.GetLimbPosition(QteLimbs[correctTargetIndex])
+                : FallbackLimbPosition(correctTargetIndex);
+            CollectBurstVFX.PlayLife(limbPos);
+            CameraStateMachine.Instance?.AddShake(0.25f);
+            GameManager.Instance?.SetMusicDuck(false);
+
             HideQteTargets();
 
             // Time snaps back: the leap resumes, the world speed ramps up and
@@ -955,6 +985,11 @@ namespace RingSport.UI
             LevelManager.Instance?.AddScore(CatchBonusPoints);
             if (catchSound != null)
                 LevelManager.Instance?.PlayCollectSound(catchSound);
+            if (catchScreamSound != null)
+                LevelManager.Instance?.PlayCollectSound(catchScreamSound);
+            if (decoyRoot != null)
+                ImpactVFX.PlayDust(decoyRoot.transform.position + Vector3.up * 1.1f, 12);
+            CameraStateMachine.Instance?.AddShake(0.3f);
             ShowBanner("GOT HIM!", Color.white, 1.4f, 110f);
 
             AttachDecoyToMouth();
@@ -1006,6 +1041,7 @@ namespace RingSport.UI
         {
             phase = FacePhase.Failed;
             HideQteTargets();
+            GameManager.Instance?.SetMusicDuck(false);
             ShowBanner(message, xColor, 1.6f, 110f);
 
             Debug.Log($"[MiniLevelFaceAttack] Failed encounter {currentEncounter + 1}: {message}");

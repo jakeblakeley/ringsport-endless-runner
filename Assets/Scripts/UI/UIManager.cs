@@ -7,6 +7,7 @@ using RingSport.Player;
 using RingSport.Level;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 
 namespace RingSport.UI
 {
@@ -86,6 +87,8 @@ namespace RingSport.UI
         [SerializeField] [Range(0f, 1f)] private float uiSfxVolume = 0.9f;
         [Tooltip("Seconds for the HUD score to roll up to its target after a pickup.")]
         [SerializeField] private float scoreRollSeconds = 0.35f;
+        [Tooltip("NEW HIGH SCORE reveal sting (temporary clip - see SOUND_EFFECTS.md).")]
+        [SerializeField] private AudioClip newHighScoreSound;
 
         private Coroutine countdownCoroutine;
         private AudioSource uiAudioSource;
@@ -95,6 +98,16 @@ namespace RingSport.UI
         private CanvasGroup gameOverGroup;
         private Coroutine gameOverFadeRoutine;
         private int lastLoveNoteCount;
+
+        // Reward-screen entrance choreography + game-over retry pulse
+        private readonly List<Coroutine> rewardEntranceRoutines = new List<Coroutine>();
+        private readonly Dictionary<RectTransform, Vector2> entranceBasePositions = new Dictionary<RectTransform, Vector2>();
+        private readonly Dictionary<RectTransform, Vector3> entranceBaseScales = new Dictionary<RectTransform, Vector3>();
+        private Coroutine rewardCountUpRoutine;
+        private Coroutine highScorePulseRoutine;
+        private Coroutine retryPulseRoutine;
+        private Vector3 newHighScoreBaseScale;
+        private Vector3 retryButtonBaseScale;
 
         // Reward screen is reused as a level intro (location + level name + start).
         // While set, the "Next Level" button starts the current level instead of
@@ -162,6 +175,8 @@ namespace RingSport.UI
         public void HideAllScreens()
         {
             isLevelIntro = false;
+            StopRewardEntrance();
+            StopRetryPulse();
             if (homeScreen != null) homeScreen.SetActive(false);
             if (gameHUD != null) gameHUD.SetActive(false);
             if (rewardScreen != null) rewardScreen.SetActive(false);
@@ -225,7 +240,10 @@ namespace RingSport.UI
                 loveNoteHudCountText.text = $"x{count}";
 
             if (increased && loveNoteHudCounter != null && loveNoteHudCounter.activeInHierarchy)
+            {
                 Juice.PunchScale(loveNoteHudCounter.transform, 0.28f, 0.22f);
+                Juice.PunchRotation(loveNoteHudCounter.transform, 10f, 0.4f);
+            }
 
             if (gameOverLoveNoteCounter != null)
                 gameOverLoveNoteCounter.SetActive(show);
@@ -378,24 +396,205 @@ namespace RingSport.UI
 
                     Debug.Log($"[UIManager] RewardScreen - Total: {totalScore}, High: {highScore}, IsNew: {isNewHighScore}");
 
+                    // NEW HIGH SCORE reveals after the count-up lands
+                    if (newHighScoreIndicator != null)
+                        newHighScoreIndicator.SetActive(false);
+
+                    // Total rolls up from what it was before this level banked
                     if (rewardTotalScoreText != null)
-                        rewardTotalScoreText.text = $"{totalScore}";
+                        rewardCountUpRoutine = StartCoroutine(RollRewardScore(
+                            Mathf.Max(0, totalScore - score), totalScore, isNewHighScore));
+                    else if (isNewHighScore)
+                        RevealNewHighScore();
 
                     if (rewardHighScoreText != null)
                         rewardHighScoreText.text = $"High Score: {highScore}";
-
-                    // Show "NEW HIGH SCORE!" indicator if applicable
-                    if (newHighScoreIndicator != null)
-                    {
-                        newHighScoreIndicator.SetActive(isNewHighScore);
-                        Debug.Log($"[UIManager] Setting newHighScoreIndicator active to: {isNewHighScore}");
-                    }
-                    else
-                    {
-                        Debug.LogWarning("[UIManager] newHighScoreIndicator is NULL! Please assign it in the Inspector.");
-                    }
                 }
+
+                PlayRewardEntrance();
             }
+        }
+
+        /// <summary>Staggered entrance for the reward screen's elements.</summary>
+        private void PlayRewardEntrance()
+        {
+            float delay = 0.08f;
+            AnimateEntrance(rewardCompleteBanner, delay, popScale: true);
+            AnimateEntrance(rewardTotalScoreText != null ? rewardTotalScoreText.gameObject : null, delay += 0.09f);
+            AnimateEntrance(rewardHighScoreText != null ? rewardHighScoreText.gameObject : null, delay += 0.09f);
+            AnimateEntrance(nextLevelLocationText != null ? nextLevelLocationText.gameObject : null, delay += 0.09f);
+            AnimateEntrance(nextLevelNameText != null ? nextLevelNameText.gameObject : null, delay += 0.05f);
+            AnimateEntrance(returnHomeButton != null ? returnHomeButton.gameObject : null, delay += 0.09f);
+            AnimateEntrance(nextLevelButton != null ? nextLevelButton.gameObject : null, delay += 0.06f);
+        }
+
+        private void AnimateEntrance(GameObject go, float delay, bool popScale = false)
+        {
+            if (go == null || !go.activeInHierarchy)
+                return;
+
+            var rt = go.transform as RectTransform;
+            if (rt == null)
+                return;
+
+            var cg = go.GetComponent<CanvasGroup>();
+            if (cg == null)
+                cg = go.AddComponent<CanvasGroup>();
+
+            if (!entranceBasePositions.TryGetValue(rt, out Vector2 basePos))
+            {
+                basePos = rt.anchoredPosition;
+                entranceBasePositions[rt] = basePos;
+                entranceBaseScales[rt] = rt.localScale;
+            }
+
+            rewardEntranceRoutines.Add(StartCoroutine(
+                EntranceRoutine(rt, cg, basePos, entranceBaseScales[rt], delay, popScale)));
+        }
+
+        private IEnumerator EntranceRoutine(RectTransform rt, CanvasGroup cg, Vector2 basePos, Vector3 baseScale, float delay, bool popScale)
+        {
+            const float riseDistance = 26f;
+            const float duration = 0.28f;
+            Vector2 fromPos = basePos - new Vector2(0f, riseDistance);
+
+            cg.alpha = 0f;
+            rt.anchoredPosition = fromPos;
+            if (popScale)
+                rt.localScale = baseScale * 0.85f;
+
+            float wait = 0f;
+            while (wait < delay)
+            {
+                wait += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float n = Mathf.Clamp01(elapsed / duration);
+                cg.alpha = n;
+                rt.anchoredPosition = Vector2.Lerp(fromPos, basePos, Juice.OutCubic(n));
+                if (popScale)
+                    rt.localScale = baseScale * Mathf.LerpUnclamped(0.85f, 1f, Juice.OutBack(n));
+                yield return null;
+            }
+
+            cg.alpha = 1f;
+            rt.anchoredPosition = basePos;
+            rt.localScale = baseScale;
+        }
+
+        private void StopRewardEntrance()
+        {
+            foreach (var routine in rewardEntranceRoutines)
+            {
+                if (routine != null)
+                    StopCoroutine(routine);
+            }
+            rewardEntranceRoutines.Clear();
+
+            if (rewardCountUpRoutine != null)
+            {
+                StopCoroutine(rewardCountUpRoutine);
+                rewardCountUpRoutine = null;
+            }
+            if (highScorePulseRoutine != null)
+            {
+                StopCoroutine(highScorePulseRoutine);
+                highScorePulseRoutine = null;
+            }
+
+            // Restore anything an interrupted entrance left mid-flight
+            foreach (var pair in entranceBasePositions)
+            {
+                if (pair.Key == null)
+                    continue;
+                pair.Key.anchoredPosition = pair.Value;
+                if (entranceBaseScales.TryGetValue(pair.Key, out Vector3 baseScale))
+                    pair.Key.localScale = baseScale;
+                var cg = pair.Key.GetComponent<CanvasGroup>();
+                if (cg != null)
+                    cg.alpha = 1f;
+            }
+
+            if (newHighScoreIndicator != null && newHighScoreBaseScale != Vector3.zero)
+                newHighScoreIndicator.transform.localScale = newHighScoreBaseScale;
+        }
+
+        private IEnumerator RollRewardScore(int from, int to, bool revealHighScore)
+        {
+            const float duration = 0.8f;
+            int milestone = 0;
+            float elapsed = 0f;
+
+            rewardTotalScoreText.text = $"{from}";
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float k = Juice.OutExpo(Mathf.Clamp01(elapsed / duration));
+                rewardTotalScoreText.text = $"{Mathf.RoundToInt(Mathf.Lerp(from, to, k))}";
+
+                // Subtle rising ticks at the quarter marks
+                while (milestone < 4 && k >= (milestone + 1) * 0.25f)
+                {
+                    milestone++;
+                    PlayUiSound(countdownTickSound, 0.9f + 0.12f * milestone, 0.35f);
+                }
+                yield return null;
+            }
+
+            rewardTotalScoreText.text = $"{to}";
+            rewardCountUpRoutine = null;
+
+            if (revealHighScore)
+                RevealNewHighScore();
+        }
+
+        private void RevealNewHighScore()
+        {
+            if (newHighScoreIndicator == null)
+            {
+                Debug.LogWarning("[UIManager] newHighScoreIndicator is NULL! Please assign it in the Inspector.");
+                return;
+            }
+
+            newHighScoreIndicator.SetActive(true);
+            PlayUiSound(newHighScoreSound);
+
+            if (highScorePulseRoutine != null)
+                StopCoroutine(highScorePulseRoutine);
+            highScorePulseRoutine = StartCoroutine(HighScorePulse());
+        }
+
+        private IEnumerator HighScorePulse()
+        {
+            var target = newHighScoreIndicator.transform;
+            if (newHighScoreBaseScale == Vector3.zero)
+                newHighScoreBaseScale = target.localScale;
+
+            // OutBack pop-in, then a celebratory breathe while visible
+            const float introSeconds = 0.35f;
+            float elapsed = 0f;
+            while (elapsed < introSeconds)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float k = Juice.OutBack(Mathf.Clamp01(elapsed / introSeconds));
+                target.localScale = newHighScoreBaseScale * Mathf.LerpUnclamped(0.2f, 1f, k);
+                yield return null;
+            }
+
+            while (newHighScoreIndicator != null && newHighScoreIndicator.activeInHierarchy)
+            {
+                float pulse = 1f + 0.05f * Mathf.Sin(Time.unscaledTime * Mathf.PI * 2f * 1.5f);
+                target.localScale = newHighScoreBaseScale * pulse;
+                yield return null;
+            }
+
+            target.localScale = newHighScoreBaseScale;
+            highScorePulseRoutine = null;
         }
 
         public void ShowGameOver()
@@ -492,7 +691,46 @@ namespace RingSport.UI
                         Debug.LogWarning("[UIManager] gameOverNewHighScoreIndicator is NULL! Please assign it in the Inspector.");
                     }
                 }
+
+                // Retry is the loop's most important button - give it a pulse
+                StartRetryPulse();
             }
+        }
+
+        private void StartRetryPulse()
+        {
+            StopRetryPulse();
+            if (retryButton == null || !retryButton.gameObject.activeInHierarchy)
+                return;
+            retryPulseRoutine = StartCoroutine(RetryPulse());
+        }
+
+        private void StopRetryPulse()
+        {
+            if (retryPulseRoutine != null)
+            {
+                StopCoroutine(retryPulseRoutine);
+                retryPulseRoutine = null;
+            }
+            if (retryButton != null && retryButtonBaseScale != Vector3.zero)
+                retryButton.transform.localScale = retryButtonBaseScale;
+        }
+
+        private IEnumerator RetryPulse()
+        {
+            var target = retryButton.transform;
+            if (retryButtonBaseScale == Vector3.zero)
+                retryButtonBaseScale = target.localScale;
+
+            while (retryButton != null && retryButton.gameObject.activeInHierarchy)
+            {
+                float pulse = 1f + 0.05f * Mathf.Sin(Time.unscaledTime * Mathf.PI * 2f * 1.2f);
+                target.localScale = retryButtonBaseScale * pulse;
+                yield return null;
+            }
+
+            target.localScale = retryButtonBaseScale;
+            retryPulseRoutine = null;
         }
 
         public void UpdateScore(int score)
@@ -502,7 +740,7 @@ namespace RingSport.UI
 
             // Pickup pop on the counter, then Update() rolls the number up
             if (score > targetScore && gameHUD != null && gameHUD.activeInHierarchy)
-                Juice.PunchScale(scoreText.transform, 0.18f, 0.16f);
+                Juice.PunchScale(scoreText.transform, 0.32f, 0.2f);
 
             targetScore = score;
             scoreRolling = true;
@@ -662,13 +900,13 @@ namespace RingSport.UI
             countdownCoroutine = null;
         }
 
-        private void PlayUiSound(AudioClip clip, float pitch = 1f)
+        private void PlayUiSound(AudioClip clip, float pitch = 1f, float volumeScale = 1f)
         {
             if (clip == null || uiAudioSource == null)
                 return;
 
             uiAudioSource.pitch = pitch;
-            uiAudioSource.PlayOneShot(clip, uiSfxVolume);
+            uiAudioSource.PlayOneShot(clip, uiSfxVolume * volumeScale);
         }
 
         private IEnumerator FadeInGameOverPanel(float duration)

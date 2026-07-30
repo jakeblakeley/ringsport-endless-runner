@@ -13,9 +13,10 @@ namespace RingSport.Core
     {
         /// <summary>
         /// Chance that a large (mega) coin spawns as a love note instead, while
-        /// locked notes remain.
+        /// locked notes remain. 1% - bumped from 0.5%, which never surfaced in
+        /// playtests.
         /// </summary>
-        public const float MegaCoinReplaceChance = 0.005f;
+        public const float MegaCoinReplaceChance = 0.01f;
 
         // One entry per note. The index is the note's identity in saved data,
         // so edit text freely but only ADD new notes at the end of the list.

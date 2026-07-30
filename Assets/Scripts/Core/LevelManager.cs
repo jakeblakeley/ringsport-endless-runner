@@ -37,10 +37,10 @@ namespace RingSport.Core
         [Header("Finish Line Moment")]
         [Tooltip("Banner font for FINISH! (BarlowCondensed, wired by Tools/RingSport/Setup Juice Polish).")]
         [SerializeField] private TMP_FontAsset bannerFont;
-        [Tooltip("World speed factor during the finish-line slow-mo beat.")]
-        [SerializeField] private float finishSlowMoFactor = 0.4f;
-        [Tooltip("Total length of the finish-line beat before the reward screen.")]
-        [SerializeField] private float finishMomentSeconds = 0.85f;
+        [Tooltip("Seconds the run-out deceleration takes - world speed ramps to zero while the dog's gait blends down to idle.")]
+        [SerializeField] private float finishStopSeconds = 0.9f;
+        [Tooltip("Beat held at the full stop (idle pose + dust read) before the reward screen.")]
+        [SerializeField] private float finishSettleSeconds = 0.45f;
 
         private AudioSource sfxAudioSource;
         private AudioSource collectAudioSource; // pitch-laddered, so stings on sfxAudioSource stay at pitch 1
@@ -276,10 +276,12 @@ namespace RingSport.Core
         }
 
         /// <summary>
-        /// The finish-line beat: FINISH! banner + confetti + FOV pop + a soft
-        /// slow-mo, then the level actually ends. Slow-mo uses the scroll
-        /// override + animator speed (never Time.timeScale - the animator runs
-        /// on unscaled time). Deaths are blocked while this plays.
+        /// The finish-line beat: FINISH! banner + confetti + FOV pop, then a
+        /// run-out stop. There's no slide clip in the Wolf Lite set, so this
+        /// is the stop attack's recipe: the world speed ramps to zero while
+        /// PauseMovement blends the gait run -> trot -> idle, with a dust puff
+        /// and a short settle at the stop. Never Time.timeScale (the animator
+        /// runs unscaled); deaths are blocked while this plays.
         /// </summary>
         private IEnumerator FinishMomentRoutine()
         {
@@ -288,27 +290,55 @@ namespace RingSport.Core
 
             var player = Object.FindAnyObjectByType<PlayerController>();
 
-            ScreenBanner.Show("FINISH!", new Color(1f, 0.84f, 0.25f), 0.7f, 150f, bannerFont);
+            ScreenBanner.Show("FINISH!", new Color(1f, 0.84f, 0.25f), 0.8f, 150f, bannerFont);
             if (player != null)
                 ImpactVFX.PlayConfettiBurst(player.transform.position + Vector3.up * 1.6f);
             CameraStateMachine.Instance?.AddFovKick(6f, 0.6f);
 
-            // Ease the world and the dog's gait down together
             float startSpeed = LevelScroller.Instance != null ? LevelScroller.Instance.GetScrollSpeed() : 0f;
-            const float rampSeconds = 0.15f;
             float elapsed = 0f;
-            while (elapsed < rampSeconds)
+            bool gaitDropped = false;
+            while (elapsed < finishStopSeconds)
             {
                 elapsed += Time.unscaledDeltaTime;
-                float k = Juice.OutCubic(Mathf.Clamp01(elapsed / rampSeconds));
-                LevelScroller.Instance?.SetSpeedOverride(startSpeed * Mathf.Lerp(1f, finishSlowMoFactor, k));
-                player?.Animations?.SetAnimatorTimeScale(Mathf.Lerp(1f, 0.55f, k));
+                float k = Mathf.Clamp01(elapsed / finishStopSeconds);
+                LevelScroller.Instance?.SetSpeedOverride(startSpeed * (1f - Juice.OutQuad(k)));
+
+                // Drop the gait toward idle partway through the brake - but
+                // only once grounded, so a finish-line jump never freezes the
+                // dog mid-air
+                if (!gaitDropped && k >= 0.3f && player != null && player.IsGrounded)
+                {
+                    player.PauseMovement();
+                    gaitDropped = true;
+                }
                 yield return null;
             }
+            LevelScroller.Instance?.SetSpeedOverride(0f);
 
-            yield return new WaitForSecondsRealtime(Mathf.Max(0f, finishMomentSeconds - rampSeconds));
+            // Still airborne? Let gravity land the dog first, then settle
+            float groundWait = 0f;
+            while (!gaitDropped && player != null && groundWait < 0.6f)
+            {
+                if (player.IsGrounded)
+                {
+                    player.PauseMovement();
+                    gaitDropped = true;
+                    break;
+                }
+                groundWait += Time.unscaledDeltaTime;
+                yield return null;
+            }
+            if (!gaitDropped && player != null)
+                player.PauseMovement();
 
-            player?.Animations?.SetAnimatorTimeScale(1f);
+            if (player != null)
+                ImpactVFX.PlayDust(player.FeetPosition, 7, 0.8f);
+
+            yield return new WaitForSecondsRealtime(finishSettleSeconds);
+
+            // Never leak the pause into the next state (Food Refusal needs movement)
+            player?.ResumeMovement();
             LevelScroller.Instance?.ClearSpeedOverride();
             finishMomentActive = false;
 
@@ -352,6 +382,19 @@ namespace RingSport.Core
 
             collectAudioSource.pitch = Mathf.Pow(2f, collectComboStep / 12f);
             collectAudioSource.PlayOneShot(clip, sfxVolume);
+        }
+
+        /// <summary>
+        /// One-shot at an explicit pitch (mini-level urgency ticks). Shares the
+        /// pickup source, so pitch is set per play.
+        /// </summary>
+        public void PlayPitchedSound(AudioClip clip, float pitch, float volumeScale = 1f)
+        {
+            if (clip == null || collectAudioSource == null)
+                return;
+
+            collectAudioSource.pitch = pitch;
+            collectAudioSource.PlayOneShot(clip, sfxVolume * volumeScale);
         }
 
         public void AddDistance(float distance)

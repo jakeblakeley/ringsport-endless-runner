@@ -52,6 +52,12 @@ namespace RingSport.Effects
             sizeMin = 0.12f, sizeMax = 0.26f, lifeMin = 0.35f, lifeMax = 0.55f,
             originJitter = 0.22f, flashSize = 1.1f
         };
+        [SerializeField] private BurstTier nearMiss = new BurstTier
+        {
+            sparkCount = 6, speedMin = 1.6f, speedMax = 2.8f,
+            sizeMin = 0.07f, sizeMax = 0.13f, lifeMin = 0.2f, lifeMax = 0.32f,
+            originJitter = 0.18f, flashSize = 0.4f
+        };
 
         [Header("Colors")]
         [SerializeField] private Color coinColor = new Color(0.962f, 0.96f, 0.422f);     // matches TestCoin.mat yellow
@@ -105,6 +111,13 @@ namespace RingSport.Effects
         {
             if (Instance != null)
                 Instance.PlayBurst(position, Instance.lifeColor, Instance.largeCoin);
+        }
+
+        /// <summary>Small white glint for clean near-miss obstacle clears.</summary>
+        public static void PlayNearMiss(Vector3 position)
+        {
+            if (Instance != null)
+                Instance.PlayBurst(position, Color.white, Instance.nearMiss);
         }
 
         private void PlayBurst(Vector3 position, Color color, BurstTier tier)

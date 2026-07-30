@@ -43,6 +43,17 @@ namespace RingSport.Effects
             JuiceRunner.Instance.PunchScale(target, punch, duration);
         }
 
+        /// <summary>
+        /// Damped-sine rotation wiggle around Z (counter fly-in flourish).
+        /// Non-compounding like PunchScale.
+        /// </summary>
+        public static void PunchRotation(Transform target, float degrees = 10f, float duration = 0.4f)
+        {
+            if (target == null)
+                return;
+            JuiceRunner.Instance.PunchRotation(target, degrees, duration);
+        }
+
         /// <summary>Run a coroutine on the shared juice host (survives screen swaps).</summary>
         public static Coroutine Run(IEnumerator routine)
         {
@@ -74,7 +85,14 @@ namespace RingSport.Effects
             public Coroutine routine;
         }
 
+        private class RotationState
+        {
+            public Quaternion restRotation;
+            public Coroutine routine;
+        }
+
         private readonly Dictionary<Transform, PunchState> punches = new Dictionary<Transform, PunchState>();
+        private readonly Dictionary<Transform, RotationState> rotations = new Dictionary<Transform, RotationState>();
 
         private void Awake()
         {
@@ -133,6 +151,49 @@ namespace RingSport.Effects
             if (target != null)
                 target.localScale = state.restScale;
             punches.Remove(target);
+        }
+
+        public void PunchRotation(Transform target, float degrees, float duration)
+        {
+            if (!isActiveAndEnabled)
+                return;
+
+            if (rotations.TryGetValue(target, out var state))
+            {
+                if (state.routine != null)
+                    StopCoroutine(state.routine);
+            }
+            else
+            {
+                state = new RotationState { restRotation = target.localRotation };
+                rotations[target] = state;
+            }
+
+            state.routine = StartCoroutine(RotationRoutine(target, state, degrees, duration));
+        }
+
+        private IEnumerator RotationRoutine(Transform target, RotationState state, float degrees, float duration)
+        {
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                if (target == null)
+                {
+                    rotations.Remove(target);
+                    yield break;
+                }
+
+                elapsed += Time.unscaledDeltaTime;
+                float n = Mathf.Clamp01(elapsed / duration);
+                float decay = (1f - n) * (1f - n);
+                float z = degrees * Mathf.Sin(n * Mathf.PI * 3f) * decay;
+                target.localRotation = state.restRotation * Quaternion.Euler(0f, 0f, z);
+                yield return null;
+            }
+
+            if (target != null)
+                target.localRotation = state.restRotation;
+            rotations.Remove(target);
         }
     }
 }

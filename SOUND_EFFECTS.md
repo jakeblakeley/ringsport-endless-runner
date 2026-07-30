@@ -20,6 +20,15 @@ empty fields, so replacing a temp clip in the Inspector sticks.
 | Face-attack catch | `Decoy bite/bite-tackle.wav` | Keep; layer `decoy-scream2.wav` | `MiniLevelFaceAttack.DoCatch` |
 | Food-refusal collect | `Reward/reward-collect.wav` | Distinct chime so it doesn't read as a coin | `MiniLevelFoodRefusal.OnCollectibleCollected` |
 | Death sting (existing) | `Meme/meme-dundundun.wav` (now delayed to panel) | Keep | `GameManager.ShowGameOverDelayed` |
+| Flee/face catch scream layer | `Decoy bite/decoy-scream1.wav` / `decoy-scream2.wav` | Keep | `MiniLevelFleeAttack.DoCatch` / `MiniLevelFaceAttack.DoCatch` |
+| Face-attack window tick | `Reward/reward-pop.wav` (accelerating, pitched 0.85→1.25) | Dry clock tick or heartbeat | `MiniLevelFaceAttack.UpdateWindow` |
+| Palisade wall hit | `UI/ui-impact2.wav` | Wood thud + dog scrabble | `PalisadeMinigame.StartMinigame` |
+| Palisade tap thock | `Dog/dog-footsteps5.wav` (pitch rises with progress) | Short woody thock | `PalisadeMinigame.OnTapFeedback` |
+| Palisade timer tick | `Reward/reward-pop.wav` (pitch 0.9) | Urgent clock tick | `PalisadeMinigame.Update` (under 1.5s) |
+| Palisade success | `Dog/dog-bark.wav` | Keep | `PalisadeMinigame.AnimateAndResume` |
+| NEW HIGH SCORE reveal | `Meme/meme-taduh.wav` | Bright fanfare sting | `UIManager.RevealNewHighScore` |
+| Secret-note reveal | `Meme/meme-taduh.wav` | Paper unfold + warm fanfare (this is the emotional payoff — worth a real clip) | `SecretNotePanel.Open` |
+| Love-note pickup | `Reward/reward-squeaker1.wav` (no longer shares the mega coin's squeaker2) | Unique romantic chime | `LoveNoteCollectible.Collect` |
 
 ## Needed — no clip in the repo fits yet
 
@@ -27,11 +36,10 @@ empty fields, so replacing a temp clip in the Inspector sticks.
 |---|---|---|
 | Death whimper layer | Dog yelp/whimper, 2 variants | `GameManager.DeathImpactSequence` |
 | Finish line | Crowd cheer + party horn under the confetti (currently only the random meme sting) | `LevelManager.FinishMomentRoutine` |
-| Love-note pickup | Unique romantic chime (currently shares the mega-coin squeaker) | `LoveNoteCollectible.Collect` (Tier 2) |
-| Near-miss whoosh | Airy whoosh, pitch by clearance | `Obstacle.OnPlayerCollision` success branch (Tier 2) |
-| Face-attack bullet time | Riser into the freeze + heartbeat/tick loop while the window drains | `MiniLevelFaceAttack.EnterReveal` (Tier 2) |
-| Secret-note finale | Paper unfold + fanfare + confetti pops | `SecretNotePanel.Open` (Tier 2) |
-| Palisade | Wall-hit thud, per-tap thock (rising), timer tick under 1.5s | `PalisadeMinigame` (Tier 2) |
+| Near-miss whoosh | Airy whoosh, pitch by clearance (glint particle is in; sound still missing) | `Obstacle.OnPlayerCollision` success branch |
+| Face-attack freeze riser | Whoosh/riser into the bullet-time freeze (tick + music duck are in; the entry hit isn't) | `MiniLevelFaceAttack.EnterReveal` |
+| Lane-change whoosh | Very soft swipe whoosh per lane change (bank animation is in) | `PlayerController.NotifyLaneChange` |
+| Confetti pops | Small paper-pop layer under both confetti moments | `LevelManager.FinishMomentRoutine`, `SecretNotePanel.Open` |
 | Simon Says | Per-pose tone ladder, correct chime, wrong buzz | `MiniLevelPositionsSimonSays` (Tier 3) |
 | Steak splat / whoosh | Splat on hit, whoosh per near-missed steak | `MiniLevelFoodRefusal` (Tier 3) |
 | UI button click | Global soft click on every button press | future `JuicyButton` (Tier 3) |

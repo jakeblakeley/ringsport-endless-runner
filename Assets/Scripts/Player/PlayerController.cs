@@ -75,6 +75,9 @@ namespace RingSport.Player
 
         public float ForwardSpeed => staminaSystem.IsSprinting ? forwardSpeed * sprintMultiplier : forwardSpeed;
         public bool IsGrounded => isGrounded;
+        /// <summary>World position at the bottom of the capsule (dust bursts land here).</summary>
+        public Vector3 FeetPosition => transform.position + characterController.center
+            - Vector3.up * (characterController.height * 0.5f - 0.05f);
         public PlayerAnimator Animations => playerAnimator;
         /// <summary>Current target lane: -1 left, 0 center, 1 right.</summary>
         public int CurrentLane => currentLane;
@@ -336,10 +339,12 @@ namespace RingSport.Player
 
         private void NotifyLaneChange(bool toRight)
         {
-            // During normal runs the locomotion strafe lean covers lane changes;
-            // in mini-levels (dodging steaks) play a discrete sideways dodge.
+            // Mini-levels (dodging steaks) play a discrete sideways dodge; the
+            // normal run gets a quick roll-bank pulse on top of the strafe lean.
             if (gameManager?.CurrentState == GameState.MiniLevel)
                 playerAnimator?.TriggerDodge(toRight);
+            else
+                playerAnimator?.PulseLaneBank(toRight);
         }
 
         private void UpdateAnimation()
@@ -453,16 +458,17 @@ namespace RingSport.Player
             // Play jump sound
             if (jumpSound != null && sfxAudioSource != null)
                 sfxAudioSource.PlayOneShot(jumpSound);
+
+            // Takeoff garnish: slight vertical stretch + a small dust kick
+            // behind the paws (negative squash = stretch). Visual only.
+            playerAnimator?.PulseSquash(-0.09f, 0.22f);
+            ImpactVFX.PlayDust(FeetPosition, 5, 0.7f);
         }
 
         private void OnLanded()
         {
             playerAnimator?.PulseSquash(0.12f, 0.16f);
-
-            // Dust at the feet: bottom of the capsule
-            Vector3 dustPos = transform.position + characterController.center
-                - Vector3.up * (characterController.height * 0.5f - 0.05f);
-            ImpactVFX.PlayDust(dustPos, 9);
+            ImpactVFX.PlayDust(FeetPosition, 9);
 
             if (landSound != null && sfxAudioSource != null)
                 sfxAudioSource.PlayOneShot(landSound, landVolume);

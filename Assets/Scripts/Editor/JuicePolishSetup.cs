@@ -29,7 +29,7 @@ namespace RingSport.Editor
     public static class JuicePolishSetup
     {
         // Bump to force the auto-run to re-apply the setup
-        private const int SetupVersion = 1;
+        private const int SetupVersion = 2;
         private const string VersionPrefKey = "RingSport.JuicePolishSetup.Version";
 
         private const string TextureFolder = "Assets/Textures/VFX";
@@ -51,6 +51,14 @@ namespace RingSport.Editor
         private const string ClipRewardPop = "Assets/Sounds/Reward/reward-pop.wav";
         private const string ClipRewardBell = "Assets/Sounds/Reward/reward-bell.wav";
         private const string ClipLandThump = "Assets/Sounds/Dog/dog-footsteps3.wav";
+        private const string ClipUiImpact2 = "Assets/Sounds/UI/ui-impact2.wav";
+        private const string ClipThock = "Assets/Sounds/Dog/dog-footsteps5.wav";
+        private const string ClipBark = "Assets/Sounds/Dog/dog-bark.wav";
+        private const string ClipTaduh = "Assets/Sounds/Meme/meme-taduh.wav";
+        private const string ClipScream1 = "Assets/Sounds/Decoy bite/decoy-scream1.wav";
+        private const string ClipScream2 = "Assets/Sounds/Decoy bite/decoy-scream2.wav";
+        private const string ClipSqueaker1 = "Assets/Sounds/Reward/reward-squeaker1.wav";
+        private const string LoveNotePrefabPath = "Assets/Prefabs/Collectibles/LoveNote.prefab";
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()
@@ -105,6 +113,7 @@ namespace RingSport.Editor
             WireSceneAudio();
             WireBannerFont();
             WirePlayerPrefab();
+            WireLoveNotePrefab();
             BuildImpactVFX();
 
             AssetDatabase.SaveAssets();
@@ -125,20 +134,81 @@ namespace RingSport.Editor
 
         private static void WireSceneAudio()
         {
-            WireClip(Object.FindAnyObjectByType<MiniLevelFleeAttack>(FindObjectsInactive.Include), "catchSound", ClipBiteTackle);
+            var fleeAttack = Object.FindAnyObjectByType<MiniLevelFleeAttack>(FindObjectsInactive.Include);
+            WireClip(fleeAttack, "catchSound", ClipBiteTackle);
+            WireClip(fleeAttack, "catchScreamSound", ClipScream1);
+
             WireClip(Object.FindAnyObjectByType<MiniLevelStopAttack>(FindObjectsInactive.Include), "whistleSound", ClipWhistle);
 
             var faceAttack = Object.FindAnyObjectByType<MiniLevelFaceAttack>(FindObjectsInactive.Include);
             WireClip(faceAttack, "tapSound", ClipBiteImpact);
             WireClip(faceAttack, "catchSound", ClipBiteTackle);
+            WireClip(faceAttack, "catchScreamSound", ClipScream2);
+            WireClip(faceAttack, "windowTickSound", ClipRewardPop);
 
             WireClip(Object.FindAnyObjectByType<MiniLevelFoodRefusal>(FindObjectsInactive.Include), "collectSound", ClipRewardCollect);
+
+            var palisade = Object.FindAnyObjectByType<PalisadeMinigame>(FindObjectsInactive.Include);
+            WireClip(palisade, "wallHitSound", ClipUiImpact2);
+            WireClip(palisade, "tapThockSound", ClipThock);
+            WireClip(palisade, "timerTickSound", ClipRewardPop);
+            WireClip(palisade, "successBarkSound", ClipBark);
 
             WireClip(Object.FindAnyObjectByType<GameManager>(FindObjectsInactive.Include), "deathImpactSound", ClipUiImpact);
 
             var uiManager = Object.FindAnyObjectByType<UIManager>(FindObjectsInactive.Include);
             WireClip(uiManager, "countdownTickSound", ClipRewardPop);
             WireClip(uiManager, "countdownGoSound", ClipRewardBell);
+            WireClip(uiManager, "newHighScoreSound", ClipTaduh);
+
+            WireClip(Object.FindAnyObjectByType<SecretNotePanel>(FindObjectsInactive.Include), "revealSound", ClipTaduh);
+        }
+
+        /// <summary>
+        /// The love note shipped sharing the mega coin's squeaker; give it its
+        /// own clip. Deliberately swaps the known-shared clip (a null check
+        /// alone would never fire here) but respects any other custom pick.
+        /// </summary>
+        private static void WireLoveNotePrefab()
+        {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(LoveNotePrefabPath) == null)
+            {
+                Debug.LogWarning($"[JuicePolishSetup] No LoveNote prefab at {LoveNotePrefabPath} - chime not swapped.");
+                return;
+            }
+
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(ClipSqueaker1);
+            if (clip == null)
+            {
+                Debug.LogWarning($"[JuicePolishSetup] Clip not found: {ClipSqueaker1} - love-note chime not swapped.");
+                return;
+            }
+
+            var prefabRoot = PrefabUtility.LoadPrefabContents(LoveNotePrefabPath);
+            try
+            {
+                var collectible = prefabRoot.GetComponent<RingSport.Level.LoveNoteCollectible>();
+                if (collectible == null)
+                    return;
+
+                var serialized = new SerializedObject(collectible);
+                var prop = serialized.FindProperty("collectSound");
+                if (prop == null)
+                    return;
+
+                var current = prop.objectReferenceValue as AudioClip;
+                if (current != null && current.name != "reward-squeaker2")
+                    return; // someone picked a custom clip - leave it
+
+                prop.objectReferenceValue = clip;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                PrefabUtility.SaveAsPrefabAsset(prefabRoot, LoveNotePrefabPath);
+                Debug.Log($"[JuicePolishSetup] LoveNote pickup chime -> {clip.name} (was sharing the mega coin's squeaker).");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(prefabRoot);
+            }
         }
 
         private static void WireBannerFont()

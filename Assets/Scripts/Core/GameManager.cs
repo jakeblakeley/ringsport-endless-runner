@@ -53,7 +53,11 @@ namespace RingSport.Core
         private AudioSource ambientAudioSource;
         private AudioSource sfxAudioSource;
         private Coroutine musicFadeRoutine;
+        private Coroutine duckRoutine;
         private bool deathSequenceRunning;
+
+        /// <summary>True during the run-death impact beat (guards competing scroll overrides).</summary>
+        public bool DeathSequenceRunning => deathSequenceRunning;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         // When set, HandleMiniLevelState launches this mini level instead of the
@@ -558,6 +562,11 @@ namespace RingSport.Core
                 StopCoroutine(musicFadeRoutine);
                 musicFadeRoutine = null;
             }
+            if (duckRoutine != null)
+            {
+                StopCoroutine(duckRoutine);
+                duckRoutine = null;
+            }
 
             bool anyStarted = false;
 
@@ -659,6 +668,50 @@ namespace RingSport.Core
                 musicAudioSource.volume = musicVolume;
             if (ambientAudioSource != null)
                 ambientAudioSource.volume = ambientVolume;
+        }
+
+        /// <summary>
+        /// Duck the location music/ambient to a whisper (the face attack's
+        /// bullet-time window) and back. Bows out whenever a location-audio
+        /// fade owns the volume.
+        /// </summary>
+        public void SetMusicDuck(bool ducked)
+        {
+            if (duckRoutine != null)
+            {
+                StopCoroutine(duckRoutine);
+                duckRoutine = null;
+            }
+            duckRoutine = StartCoroutine(DuckRoutine(ducked ? 0.25f : 1f));
+        }
+
+        private IEnumerator DuckRoutine(float targetFactor)
+        {
+            const float duration = 0.18f;
+            float startMusic = musicAudioSource != null ? musicAudioSource.volume : 0f;
+            float startAmbient = ambientAudioSource != null ? ambientAudioSource.volume : 0f;
+            float targetMusic = musicVolume * targetFactor;
+            float targetAmbient = ambientVolume * targetFactor;
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                if (musicFadeRoutine != null)
+                {
+                    duckRoutine = null;
+                    yield break;
+                }
+
+                elapsed += Time.unscaledDeltaTime;
+                float k = Mathf.Clamp01(elapsed / duration);
+                if (musicAudioSource != null)
+                    musicAudioSource.volume = Mathf.Lerp(startMusic, targetMusic, k);
+                if (ambientAudioSource != null)
+                    ambientAudioSource.volume = Mathf.Lerp(startAmbient, targetAmbient, k);
+                yield return null;
+            }
+
+            duckRoutine = null;
         }
     }
 }

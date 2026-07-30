@@ -1,5 +1,6 @@
 using UnityEngine;
 using RingSport.Core;
+using RingSport.Effects;
 using RingSport.Player;
 using RingSport.UI;
 
@@ -115,6 +116,13 @@ namespace RingSport.Level
                     else
                     {
                         Debug.Log($"Successfully jumped over obstacle! (height: {playerHeight})");
+
+                        // Near-miss reward: a small white glint on the bar the
+                        // dog just cleared (whoosh clip pending - SOUND_EFFECTS.md)
+                        Vector3 barTop = obstacleCollider != null
+                            ? new Vector3(transform.position.x, obstacleCollider.bounds.max.y, transform.position.z)
+                            : transform.position;
+                        CollectBurstVFX.PlayNearMiss(barTop);
                     }
                     break;
 

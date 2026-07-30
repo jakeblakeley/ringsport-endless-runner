@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections;
 using System.Collections.Generic;
+using RingSport.Effects;
 using RingSport.Level;
 using RingSport.Core;
 using RingSport.Player;
@@ -92,6 +93,8 @@ namespace RingSport.UI
 
         [Header("Audio")]
         [SerializeField] private AudioClip catchSound;
+        [Tooltip("Decoy scream layered onto the catch (temporary clip - see SOUND_EFFECTS.md).")]
+        [SerializeField] private AudioClip catchScreamSound;
 
         // Runtime state
         private ChasePhase phase = ChasePhase.Inactive;
@@ -599,6 +602,11 @@ namespace RingSport.UI
             LevelManager.Instance?.AddScore(CatchBonusPoints);
             if (catchSound != null)
                 LevelManager.Instance?.PlayCollectSound(catchSound);
+            if (catchScreamSound != null)
+                LevelManager.Instance?.PlayCollectSound(catchScreamSound);
+            if (decoyRoot != null)
+                ImpactVFX.PlayDust(decoyRoot.transform.position + Vector3.up * 1.1f, 12);
+            CameraStateMachine.Instance?.AddShake(0.3f);
             ShowBanner("CAUGHT!", Color.white, 1.4f);
 
             AttachDecoyToMouth();

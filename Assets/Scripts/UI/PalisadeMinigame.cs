@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using UnityEngine.InputSystem;
 using TMPro;
 using RingSport.Core;
+using RingSport.Effects;
 using RingSport.Player;
 using RingSport.Level;
 using RingSport.Input;
@@ -21,6 +22,15 @@ namespace RingSport.UI
         [Header("Settings")]
         [SerializeField] private float timeLimit = 4f;
 
+        [Header("Juice (temporary clips - see SOUND_EFFECTS.md)")]
+        [SerializeField] private AudioClip wallHitSound;
+        [SerializeField] private AudioClip tapThockSound;
+        [SerializeField] private AudioClip timerTickSound;
+        [SerializeField] private AudioClip successBarkSound;
+        [SerializeField] [Range(0f, 1f)] private float juiceSfxVolume = 0.85f;
+        [Tooltip("Timer turns urgent (red + pulse + ticks) under this many seconds.")]
+        [SerializeField] private float urgencyThreshold = 1.5f;
+
         private PlayerInput playerInput;
         private InputAction sprintAction;
         private MobileInputHandler mobileInputHandler;
@@ -33,12 +43,22 @@ namespace RingSport.UI
         private Vector3 obstaclePosition;
         private float obstacleHeight;
         private PlayerController player;
+        private AudioSource sfxSource;
+        private float startFillAmount;
+        private float targetFill;
+        private float displayedFill;
+        private Color timerBaseColor = Color.white;
+        private bool timerColorCaptured;
+        private int lastTickHalfSecond;
 
         private void Awake()
         {
             // Don't look for PlayerInput here, we'll get it when we need it
             if (minigamePanel != null)
                 minigamePanel.SetActive(false);
+
+            sfxSource = gameObject.AddComponent<AudioSource>();
+            sfxSource.playOnAwake = false;
         }
 
         private void EnsureInputSetup()
@@ -176,13 +196,48 @@ namespace RingSport.UI
             if (timerText != null)
             {
                 timerText.text = $"{Mathf.Max(0f, timeRemaining):F1}s";
+
+                // Urgency: red + pulse + half-second ticks in the last stretch
+                if (timeRemaining <= urgencyThreshold)
+                {
+                    timerText.color = new Color(0.91f, 0.3f, 0.24f);
+                    timerText.transform.localScale =
+                        Vector3.one * (1f + 0.08f * Mathf.Sin(Time.unscaledTime * Mathf.PI * 6f));
+
+                    int halfSecond = Mathf.FloorToInt(Mathf.Max(0f, timeRemaining) * 2f);
+                    if (halfSecond != lastTickHalfSecond)
+                    {
+                        lastTickHalfSecond = halfSecond;
+                        PlayClip(timerTickSound, 0.9f, 0.6f);
+                    }
+                }
+                else
+                {
+                    timerText.color = timerBaseColor;
+                    timerText.transform.localScale = Vector3.one;
+                }
             }
+
+            // Bar + dog climb ease toward the tap target instead of snapping
+            displayedFill = Mathf.MoveTowards(displayedFill, targetFill, 4f * Time.unscaledDeltaTime);
+            if (progressBarRect != null)
+                progressBarRect.anchorMax = new Vector2(displayedFill, progressBarRect.anchorMax.y);
+            player?.Animations?.SetClamberProgress(displayedFill);
 
             // Check for timeout
             if (timeRemaining <= 0f)
             {
                 HandleFailure();
             }
+        }
+
+        private void PlayClip(AudioClip clip, float pitch = 1f, float volumeScale = 1f)
+        {
+            if (clip == null || sfxSource == null)
+                return;
+
+            sfxSource.pitch = pitch;
+            sfxSource.PlayOneShot(clip, juiceSfxVolume * volumeScale);
         }
 
         public void StartMinigame(int tapsRequired, Vector3 obstaclePos, float obstHeight, PlayerController playerController)
@@ -205,6 +260,28 @@ namespace RingSport.UI
 
             // Dog grabs the palisade and hangs on while the player taps
             player?.Animations?.SetClambering(true);
+
+            // Wall-hit impact: thud + shake + dust where the dog grabbed on
+            PlayClip(wallHitSound);
+            CameraStateMachine.Instance?.AddShake(0.3f);
+            if (player != null)
+                ImpactVFX.PlayDust(player.transform.position + Vector3.up * 0.5f, 10);
+
+            // Reset timer urgency visuals and the smoothed bar
+            if (timerText != null)
+            {
+                if (!timerColorCaptured)
+                {
+                    timerBaseColor = timerText.color;
+                    timerColorCaptured = true;
+                }
+                timerText.color = timerBaseColor;
+                timerText.transform.localScale = Vector3.one;
+            }
+            lastTickHalfSecond = int.MaxValue;
+            startFillAmount = Mathf.Lerp(0f, 0.9f, 1f - (requiredTaps / 10f));
+            targetFill = startFillAmount;
+            displayedFill = startFillAmount;
 
             // Subscribe to input BEFORE showing UI
             SubscribeToInput();
@@ -241,6 +318,7 @@ namespace RingSport.UI
 
             currentTaps++;
             UpdateProgressBar();
+            OnTapFeedback();
 
             Debug.Log($"Tap registered! {currentTaps}/{requiredTaps}");
 
@@ -260,6 +338,7 @@ namespace RingSport.UI
 
             currentTaps++;
             UpdateProgressBar();
+            OnTapFeedback();
 
             Debug.Log($"Mobile tap registered! {currentTaps}/{requiredTaps}");
 
@@ -270,33 +349,32 @@ namespace RingSport.UI
             }
         }
 
+        /// <summary>Per-tap juice: rising thock + a small punch on the bar.</summary>
+        private void OnTapFeedback()
+        {
+            float progressPercent = requiredTaps > 0 ? (float)currentTaps / requiredTaps : 1f;
+            PlayClip(tapThockSound, 1f + 0.35f * progressPercent);
+            if (progressBarRect != null && progressBarRect.parent != null)
+                Juice.PunchScale(progressBarRect.parent, 0.08f, 0.12f);
+        }
+
         private void UpdateProgressBar()
         {
-            // Calculate progress: starts low based on required taps, fills to 1.0 when complete
-            // Start percentage inversely proportional to required taps:
-            // 10 taps required = start at 0% (0.0)
-            // 5 taps required = start at ~50% (0.5)
-            // 1 tap required = start at ~90% (0.9)
-            float startFillAmount = Mathf.Lerp(0f, 0.9f, 1f - (requiredTaps / 10f));
-
-            // Current progress from start to 100%
+            // Progress starts low based on required taps and fills to 1.0:
+            // 10 taps = start 0%, 5 taps = ~50%, 1 tap = ~90%. Update() eases
+            // the displayed bar (and the dog's clamber scrub) toward this.
             float progressPercent = requiredTaps > 0 ? (float)currentTaps / requiredTaps : 1f;
-            float currentFillAmount = Mathf.Lerp(startFillAmount, 1f, progressPercent);
-
-            if (progressBarRect != null)
-            {
-                // Scale width using anchorMax for 9-slice compatibility
-                progressBarRect.anchorMax = new Vector2(currentFillAmount, progressBarRect.anchorMax.y);
-                Debug.Log($"Progress bar updated: {currentFillAmount:F2} (taps: {currentTaps}/{requiredTaps})");
-            }
-
-            // Dog's pull-up tracks the same fill the bar shows
-            player?.Animations?.SetClamberProgress(currentFillAmount);
+            targetFill = Mathf.Lerp(startFillAmount, 1f, progressPercent);
         }
 
         private void HandleSuccess()
         {
             isActive = false;
+
+            // Snap the climb to the top before the vault takes over
+            displayedFill = 1f;
+            targetFill = 1f;
+            player?.Animations?.SetClamberProgress(1f);
 
             Debug.Log("Palisade cleared successfully!");
 
@@ -325,6 +403,10 @@ namespace RingSport.UI
             // then slide through the model. Player movement stays paused so
             // gravity doesn't fight the scripted arc.
             LevelScroller.Instance?.Resume();
+
+            // Triumphant bark as the vault fires (landing dust comes from the
+            // regular landing feedback once movement resumes)
+            PlayClip(successBarkSound);
 
             // Animate player over obstacle
             yield return player.StartCoroutine(player.AnimateOverObstacle(obstaclePosition, obstacleHeight));

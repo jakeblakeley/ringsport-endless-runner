@@ -32,6 +32,11 @@ namespace RingSport.UI
         [SerializeField] private float minOpenTimeToDismiss = 0.6f;
         [SerializeField] private float hintDelay = 1.1f;
 
+        [Header("Audio")]
+        [Tooltip("Reveal sting as the note pops in (temporary clip - see SOUND_EFFECTS.md).")]
+        [SerializeField] private AudioClip revealSound;
+        [SerializeField] [Range(0f, 1f)] private float revealVolume = 0.9f;
+
         [Header("Confetti")]
         [Tooltip("Pieces that pop outward from the note when it lands.")]
         [SerializeField] private int burstPieceCount = 36;
@@ -70,6 +75,7 @@ namespace RingSport.UI
         private readonly List<ConfettiPiece> pieces = new List<ConfettiPiece>();
         private float openTime;
         private float scrimTargetAlpha = 0.94f;
+        private AudioSource audioSource;
 
         public bool IsOpen => gameObject.activeSelf;
 
@@ -80,6 +86,9 @@ namespace RingSport.UI
 
             if (dismissButton != null)
                 dismissButton.onClick.AddListener(OnDismissPressed);
+
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
         }
 
         public void Open()
@@ -87,6 +96,9 @@ namespace RingSport.UI
             gameObject.SetActive(true);
             openTime = 0f;
             ApplyEntranceFrame();
+
+            if (revealSound != null && audioSource != null)
+                audioSource.PlayOneShot(revealSound, revealVolume);
 
             EnsureConfettiPieces();
             Rect area = ConfettiArea();
