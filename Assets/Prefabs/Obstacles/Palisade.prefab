@@ -91,6 +91,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 8360291565136786026}
     m_Modifications:
+    - target: {fileID: -4849688790780796803, guid: 75af19308b1954cd9accd00e582c1b20, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 2b005c4d63f8b451e8a61cef847a31bd, type: 2}
     - target: {fileID: -2879493467237723761, guid: 75af19308b1954cd9accd00e582c1b20, type: 3}
       propertyPath: m_Name
       value: palisade

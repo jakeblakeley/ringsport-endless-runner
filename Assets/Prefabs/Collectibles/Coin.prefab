@@ -115,6 +115,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: bitetoy
       objectReference: {fileID: 0}
+    - target: {fileID: -3969040895893616419, guid: dbf5962dcbf6c4b6080d491ce202a84b, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 6378d59b26a3f4e019c84a4848955a88, type: 2}
     - target: {fileID: 3720829011785796738, guid: dbf5962dcbf6c4b6080d491ce202a84b, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0

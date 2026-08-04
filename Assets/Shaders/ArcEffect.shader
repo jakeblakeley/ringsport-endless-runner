@@ -18,6 +18,12 @@ Shader "Custom/Mobile/ArcEffect"
         _Smoothness ("Smoothness", Range(0, 1)) = 0.5
         _Metallic ("Metallic", Range(0, 1)) = 0.0
 
+        // glTF-style packed map (G = roughness, B = metallic) so imported .glb
+        // materials keep their metallic/roughness detail. Off by default: the
+        // shader_feature keeps the extra sample out of every other material.
+        [Toggle(_METALLICROUGHNESSMAP)] _UseMetallicRoughnessMap ("Use Metallic Roughness Map", Float) = 0
+        [NoScaleOffset] _MetallicRoughnessMap ("Metallic (B) Roughness (G)", 2D) = "white" {}
+
         [Header(Rendering)]
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull Mode", Float) = 2
     }
@@ -60,6 +66,9 @@ Shader "Custom/Mobile/ArcEffect"
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
 
+            // Optional glTF packed metallic/roughness map
+            #pragma shader_feature_local_fragment _METALLICROUGHNESSMAP
+
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
@@ -85,6 +94,11 @@ Shader "Custom/Mobile/ArcEffect"
 
             TEXTURE2D(_BaseMap);
             SAMPLER(sampler_BaseMap);
+
+            #ifdef _METALLICROUGHNESSMAP
+                TEXTURE2D(_MetallicRoughnessMap);
+                SAMPLER(sampler_MetallicRoughnessMap);
+            #endif
 
             // Global arc effect parameters (controlled by ArcEffectController)
             float _ArcStrength;
@@ -167,11 +181,23 @@ Shader "Custom/Mobile/ArcEffect"
                 inputData.bakedGI = SampleSH(inputData.normalWS) * 0.45;
 
                 // Setup surface data
+                half metallic = _Metallic;
+                half smoothness = _Smoothness;
+
+                #ifdef _METALLICROUGHNESSMAP
+                    // glTF packing: G = roughness, B = metallic, both multiplied
+                    // by their scalar factors (_Smoothness stores 1 - roughness)
+                    half2 metallicRoughness = SAMPLE_TEXTURE2D(
+                        _MetallicRoughnessMap, sampler_MetallicRoughnessMap, input.uv).gb;
+                    smoothness = 1.0h - (1.0h - _Smoothness) * metallicRoughness.x;
+                    metallic = _Metallic * metallicRoughness.y;
+                #endif
+
                 SurfaceData surfaceData = (SurfaceData)0;
                 surfaceData.albedo = albedo.rgb;
                 surfaceData.alpha = albedo.a;
-                surfaceData.metallic = _Metallic;
-                surfaceData.smoothness = _Smoothness;
+                surfaceData.metallic = metallic;
+                surfaceData.smoothness = smoothness;
                 surfaceData.normalTS = half3(0, 0, 1);
                 surfaceData.occlusion = 1.0;
                 surfaceData.emission = 0;

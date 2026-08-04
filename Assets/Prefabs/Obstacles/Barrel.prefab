@@ -198,6 +198,10 @@ PrefabInstance:
       propertyPath: m_ConstrainProportionsScale
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: -6845378069838147556, guid: 1e91699211a114f0381f7f5978d1ea11, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: b71ba5355d7c3451ebbedf1b4b5482c1, type: 2}
     - target: {fileID: -4450649491492818884, guid: 1e91699211a114f0381f7f5978d1ea11, type: 3}
       propertyPath: m_Name
       value: barrel

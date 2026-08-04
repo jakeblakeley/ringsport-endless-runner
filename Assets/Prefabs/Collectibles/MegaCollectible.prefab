@@ -167,6 +167,10 @@ PrefabInstance:
       propertyPath: m_ConstrainProportionsScale
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 1888554032158471881, guid: 749771d29a49b4060a2f77c64ab50f62, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 35a2be1bd79de4211b270dc9a97c195e, type: 2}
     - target: {fileID: 4251725717830839008, guid: 749771d29a49b4060a2f77c64ab50f62, type: 3}
       propertyPath: m_Name
       value: eclair
