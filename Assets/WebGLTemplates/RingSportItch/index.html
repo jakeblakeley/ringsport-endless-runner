@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+    <title>{{{ PRODUCT_NAME }}}</title>
+    <style>
+      /* Fill whatever box we are dropped into - on itch.io that is the embed
+         iframe, which has no fixed size. Never hard-code canvas pixels here. */
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #14100f;
+        touch-action: none;
+        overscroll-behavior: none;
+      }
+      #unity-container {
+        position: absolute;
+        inset: 0;
+      }
+      #unity-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: #14100f;
+        outline: none;
+      }
+      #unity-loading-bar {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+        width: 240px;
+        text-align: center;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: #f4ece4;
+      }
+      #unity-loading-label {
+        font-size: 14px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        opacity: 0.7;
+        margin-bottom: 12px;
+      }
+      #unity-progress-bar-empty {
+        width: 100%;
+        height: 8px;
+        border-radius: 4px;
+        background: rgba(244, 236, 228, 0.15);
+        overflow: hidden;
+      }
+      #unity-progress-bar-full {
+        width: 0%;
+        height: 100%;
+        border-radius: 4px;
+        background: #f4ece4;
+        transition: width 0.15s ease-out;
+      }
+      #unity-warning {
+        position: absolute;
+        left: 50%;
+        top: 12px;
+        transform: translateX(-50%);
+        z-index: 10;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 13px;
+      }
+      #unity-fullscreen-button {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.35);
+        cursor: pointer;
+        display: none;
+        opacity: 0.35;
+        transition: opacity 0.15s;
+      }
+      #unity-fullscreen-button:hover { opacity: 0.9; }
+      #unity-fullscreen-button::before {
+        content: "";
+        position: absolute;
+        inset: 9px;
+        border: 2px solid #f4ece4;
+        border-radius: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+      <div id="unity-loading-bar">
+        <div id="unity-loading-label">Loading</div>
+        <div id="unity-progress-bar-empty">
+          <div id="unity-progress-bar-full"></div>
+        </div>
+      </div>
+      <div id="unity-warning"> </div>
+      <div id="unity-fullscreen-button" title="Fullscreen"></div>
+    </div>
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+      var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      // Stop arrows/space/page keys from scrolling the itch.io page underneath
+      // the embed while the player is driving the dog.
+      var swallowKeys = [" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown"];
+      window.addEventListener("keydown", function (e) {
+        if (swallowKeys.indexOf(e.key) !== -1) e.preventDefault();
+      }, false);
+
+      function unityShowBanner(msg, type) {
+        var warningBanner = document.querySelector("#unity-warning");
+        function updateBannerVisibility() {
+          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        }
+        var div = document.createElement('div');
+        div.innerHTML = msg;
+        warningBanner.appendChild(div);
+        if (type == 'error') div.style = 'background: #b3261e; color: white; padding: 10px; border-radius: 6px;';
+        else {
+          if (type == 'warning') div.style = 'background: #f2c14e; padding: 10px; border-radius: 6px;';
+          setTimeout(function () {
+            warningBanner.removeChild(div);
+            updateBannerVisibility();
+          }, 5000);
+        }
+        updateBannerVisibility();
+      }
+
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";
+      var config = {
+        arguments: [],
+        dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+        frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_WASM
+        codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+        symbolsUrl: buildUrl + "/{{{ SYMBOLS_FILENAME }}}",
+#endif
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+        productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+        productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+        showBanner: unityShowBanner,
+      };
+
+      // Retina panels otherwise render at 2-3x the pixels for no visual gain on
+      // a stylised low-poly runner, and it is the cheapest frame-rate win there
+      // is on web. Phones render 1:1, desktop is capped at 2x.
+      config.devicePixelRatio = Math.min(window.devicePixelRatio || 1, isMobile ? 1 : 2);
+
+      document.querySelector("#unity-loading-bar").style.display = "block";
+
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = () => {
+        createUnityInstance(canvas, config, (progress) => {
+          document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
+        }).then((unityInstance) => {
+          document.querySelector("#unity-loading-bar").style.display = "none";
+          var fs = document.querySelector("#unity-fullscreen-button");
+          // itch.io draws its own fullscreen chrome on desktop; only offer ours
+          // when the page is not already framed by the itch player.
+          if (!isMobile) fs.style.display = "block";
+          fs.onclick = () => { unityInstance.SetFullscreen(1); };
+          canvas.focus();
+        }).catch((message) => {
+          unityShowBanner(message, 'error');
+        });
+      };
+
+      document.body.appendChild(script);
+    </script>
+  </body>
+</html>

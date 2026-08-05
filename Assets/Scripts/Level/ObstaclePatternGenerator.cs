@@ -9,6 +9,12 @@ namespace RingSport.Level
     /// <summary>
     /// Helper class to create example obstacle patterns
     /// This class can be used to programmatically generate pattern assets in the Unity editor
+    ///
+    /// The zOffsets below describe a pattern's SHAPE, not its final spacing:
+    /// ObstacleSpawner re-spaces every pattern for the level it spawns into, so
+    /// each gap clears the reaction budget at that level's run speed. Offsets
+    /// are only ever widened, never tightened - author the shape you want and
+    /// let the spawner buy the reaction time.
     /// </summary>
     public class ObstaclePatternGenerator
     {
@@ -140,8 +146,9 @@ namespace RingSport.Level
             pattern.minLevel = 3;
             pattern.maxLevel = 6;
             pattern.patternLength = 24f;
-            // Jumps 8u apart: land-and-rejump distance at medium speeds (a 5u
-            // gap is a dead zone - too far for one jump, too close for two)
+            // Jumps 8u apart: land-and-rejump shape (a 5u gap is a dead zone -
+            // too far for one jump, too close for two). The spawner widens this
+            // to the same-lane re-jump budget on faster levels.
             pattern.obstacles = new ObstacleDefinition[]
             {
                 new ObstacleDefinition("ObstacleJump", 0, 0f),
@@ -216,8 +223,8 @@ namespace RingSport.Level
             pattern.minLevel = 6;
             pattern.maxLevel = 9;
             pattern.patternLength = 40f;
-            // 10u between lane switches: at hard-level speeds (18-20 u/s) a 5u
-            // gap left only ~270ms between forced dodges - unreactable
+            // 10u between lane switches; the spawner widens each to the
+            // lane-change budget at the level's speed
             pattern.obstacles = new ObstacleDefinition[]
             {
                 new ObstacleDefinition("ObstacleJump", -1, 0f),
@@ -243,7 +250,7 @@ namespace RingSport.Level
                 new ObstacleDefinition("ObstacleAvoid", -1, 0f),
                 new ObstacleDefinition("ObstacleJump", 0, 0f),  // Passable
                 new ObstacleDefinition("ObstacleAvoid", 1, 0f),
-                // Second obstacle after the forced jump: 14u = dodge room at 18-20 u/s
+                // Second obstacle after the forced jump - dodge room
                 new ObstacleDefinition("ObstaclePylon", 0, 14f)
             };
 
@@ -299,8 +306,8 @@ namespace RingSport.Level
             pattern.minLevel = 7;
             pattern.maxLevel = 9;
             pattern.patternLength = 55f;
-            // Spacing tuned for 18-20 u/s: jumps 8u apart (buffered re-jump),
-            // then 20u to reach the palisade row (move + jump gesture chain)
+            // Jumps 8u apart (buffered re-jump), then 20u to reach the palisade
+            // row (move + jump gesture chain); widened per level by the spawner
             pattern.obstacles = new ObstacleDefinition[]
             {
                 new ObstacleDefinition("ObstacleAvoid", -1, 0f),
