@@ -59,7 +59,7 @@ namespace RingSport.UI
 
             if (contentRoot == null || noteCellTemplate == null)
             {
-                Debug.LogError("[LoveNotesPanel] Content root or cell template not assigned!");
+                GameLog.Error("[LoveNotesPanel] Content root or cell template not assigned!");
                 return;
             }
 

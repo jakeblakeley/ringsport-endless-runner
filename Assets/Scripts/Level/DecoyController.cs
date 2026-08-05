@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using RingSport.Core;
 
 namespace RingSport.Level
 {
@@ -169,7 +170,7 @@ namespace RingSport.Level
             PendingGrabLimb = limb;
             limbChosen = true;
             pendingGrabBone = FindTrackedBone(PrimaryBoneName(limb));
-            Debug.Log($"[DecoyController] Pounce target: {PendingGrabLimb}");
+            GameLog.Info($"[DecoyController] Pounce target: {PendingGrabLimb}");
 
             // The fall clip carries its drop/stumble in root motion; let it own
             // the model's local travel for the topple (locomotion keeps root
@@ -370,14 +371,14 @@ namespace RingSport.Level
             {
                 // Should never happen with the Malbers ragdoll (every DecoyLimb
                 // maps to a rigidbody) - fall back to the whole-model carry
-                Debug.LogWarning($"[DecoyController] No rigidbody found for limb {limb} in the ragdoll - carrying the animated model instead.");
+                GameLog.Warn($"[DecoyController] No rigidbody found for limb {limb} in the ragdoll - carrying the animated model instead.");
                 Destroy(spawnHolder);
                 ragdollInstance = null;
                 transform.position = grabTarget;
                 transform.SetParent(mouth, true);
                 return;
             }
-            Debug.Log($"[DecoyController] Pounce grab: {limb} -> {grabBody.name}");
+            GameLog.Info($"[DecoyController] Pounce grab: {limb} -> {grabBody.name}");
 
             ConfigureBodies(bodies, colliders, joints, grabBody);
 

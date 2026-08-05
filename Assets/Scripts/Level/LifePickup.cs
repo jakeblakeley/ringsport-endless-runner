@@ -58,7 +58,7 @@ namespace RingSport.Level
             if (collectVFX != null)
                 collectVFX.Play();
 
-            Debug.Log($"[LifePickup] Collected! Added {lifeValue} life.");
+            GameLog.Info($"[LifePickup] Collected! Added {lifeValue} life.");
 
             // Destroy after short delay for VFX
             Destroy(gameObject, collectVFX != null ? 0.5f : 0f);

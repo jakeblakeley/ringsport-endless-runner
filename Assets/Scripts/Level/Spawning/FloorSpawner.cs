@@ -22,6 +22,16 @@ namespace RingSport.Level.Spawning
         private List<GameObject> sideFloorInstances = new List<GameObject>(); // Track side floor instances
         private List<GameObject> mainFloorInstances = new List<GameObject>(); // Track main floor instances
 
+        // Floors are pooled per prefab (like scenery): ~10 rows live at once,
+        // three Instantiates per row for a whole level leaked hundreds of dead
+        // GameObjects into the pooler and cost a Destroy burst per level start.
+        private const int MainFloorPoolSize = 20;
+        private const int SideFloorPoolSize = 40;
+        private const int FinishFloorPoolSize = 2;
+        private string mainFloorTag;
+        private string sideFloorTag;
+        private string finishFloorTag;
+
         private SpawnContext context;
         private DespawnManager despawnManager;
         private ScenerySpawner scenerySpawner;
@@ -54,6 +64,7 @@ namespace RingSport.Level.Spawning
         public void SetSideFloorPrefab(GameObject prefab)
         {
             this.sideFloorPrefab = prefab;
+            this.sideFloorTag = EnsureFloorPool(prefab, SideFloorPoolSize);
         }
 
         /// <summary>
@@ -62,6 +73,7 @@ namespace RingSport.Level.Spawning
         public void SetMainFloorPrefab(GameObject prefab)
         {
             this.mainFloorPrefab = prefab;
+            this.mainFloorTag = EnsureFloorPool(prefab, MainFloorPoolSize);
         }
 
         /// <summary>
@@ -70,6 +82,38 @@ namespace RingSport.Level.Spawning
         public void SetFinishLineFloorPrefab(GameObject prefab)
         {
             this.finishLineFloorPrefab = prefab;
+            this.finishFloorTag = EnsureFloorPool(prefab, FinishFloorPoolSize);
+        }
+
+        /// <summary>
+        /// Location-scoped pool per floor prefab (pools persist for the session,
+        /// mirroring the scenery pools). Returns the pool tag, or null.
+        /// </summary>
+        private static string EnsureFloorPool(GameObject prefab, int size)
+        {
+            if (prefab == null || ObjectPooler.Instance == null)
+                return null;
+            string tag = "Floor_" + prefab.name;
+            ObjectPooler.Instance.CreatePoolIfNeeded(tag, prefab, size);
+            return tag;
+        }
+
+        /// <summary>
+        /// Spawn a floor from its pool, falling back to Instantiate if the pool
+        /// is missing or exhausted (fallback instances just park when despawned,
+        /// matching the old behavior).
+        /// </summary>
+        private static GameObject SpawnFloorInstance(string tag, GameObject prefab, Vector3 position, Quaternion rotation)
+        {
+            GameObject instance = null;
+            if (tag != null && ObjectPooler.Instance != null)
+                instance = ObjectPooler.Instance.SpawnFromPool(tag, position, rotation);
+            if (instance == null && prefab != null)
+            {
+                GameLog.Warn($"Floor pool '{tag}' unavailable/exhausted - instantiating {prefab.name}");
+                instance = Object.Instantiate(prefab, position, rotation);
+            }
+            return instance;
         }
 
         /// <summary>
@@ -77,31 +121,25 @@ namespace RingSport.Level.Spawning
         /// </summary>
         public void Initialize()
         {
-            // Destroy previous finish line floor if it exists
+            // Return the previous level's floors to their pools (idempotent:
+            // GenerateLevel's ClearAllPools has usually done this already)
             if (finishLineFloorInstance != null)
             {
-                Object.Destroy(finishLineFloorInstance);
+                ObjectPooler.Instance?.ReturnToPool(finishLineFloorInstance);
                 finishLineFloorInstance = null;
-                Debug.Log("Destroyed previous finish line floor");
             }
 
-            // Destroy all previous side floor instances
             foreach (var sideFloor in sideFloorInstances)
             {
                 if (sideFloor != null)
-                {
-                    Object.Destroy(sideFloor);
-                }
+                    ObjectPooler.Instance?.ReturnToPool(sideFloor);
             }
             sideFloorInstances.Clear();
 
-            // Destroy all previous main floor instances
             foreach (var mainFloor in mainFloorInstances)
             {
                 if (mainFloor != null)
-                {
-                    Object.Destroy(mainFloor);
-                }
+                    ObjectPooler.Instance?.ReturnToPool(mainFloor);
             }
             mainFloorInstances.Clear();
 
@@ -109,8 +147,8 @@ namespace RingSport.Level.Spawning
             nextFloorSpawnZ = 0f;
             hasSpawnedFinishLine = false;
             finishLineSpawnZ = -1f;
-            Debug.Log($"Virtual distance reset to 0. Floor will start spawning from Virtual Z: {nextFloorSpawnZ}");
-            Debug.Log($"With floorTileSpacing={floorTileSpacing}, floors should spawn at: 0, {floorTileSpacing}, {floorTileSpacing*2}, {floorTileSpacing*3}, etc.");
+            GameLog.Info($"Virtual distance reset to 0. Floor will start spawning from Virtual Z: {nextFloorSpawnZ}");
+            GameLog.Info($"With floorTileSpacing={floorTileSpacing}, floors should spawn at: 0, {floorTileSpacing}, {floorTileSpacing*2}, {floorTileSpacing*3}, etc.");
         }
 
         /// <summary>
@@ -120,7 +158,7 @@ namespace RingSport.Level.Spawning
         {
             // Calculate the finish line spawn position based on current player position + distance
             finishLineSpawnZ = context.VirtualDistance + endGameDespawnDistance;
-            Debug.Log($"Finish line floor will spawn at Virtual Z: {finishLineSpawnZ:F2}");
+            GameLog.Info($"Finish line floor will spawn at Virtual Z: {finishLineSpawnZ:F2}");
         }
 
         /// <summary>
@@ -150,29 +188,29 @@ namespace RingSport.Level.Spawning
 
                 if (shouldSpawnFinishLine)
                 {
-                    // Spawn finish line floor from prefab, raised to avoid z-fighting.
+                    // Spawn finish line floor from its pool, raised to avoid z-fighting.
                     // 0.03 rather than 0.01: the tile spawns ~80+ units out where the
                     // arc dips it heavily and mobile depth precision is at its worst.
                     if (finishLineFloorPrefab != null)
                     {
                         Vector3 finishLinePosition = new Vector3(spawnPosition.x, spawnPosition.y + 0.03f, spawnPosition.z);
-                        floorTile = Object.Instantiate(finishLineFloorPrefab, finishLinePosition, Quaternion.identity);
+                        floorTile = SpawnFloorInstance(finishFloorTag, finishLineFloorPrefab, finishLinePosition, Quaternion.identity);
                         floorTile.transform.localScale = Vector3.one * floorScale;
                         finishLineFloorInstance = floorTile; // Save reference for cleanup
                         hasSpawnedFinishLine = true;
-                        Debug.Log($"Finish line floor spawned at World Z: {spawnZ:F2}, Virtual Z: {nextFloorSpawnZ:F2}");
+                        GameLog.Info($"Finish line floor spawned at World Z: {spawnZ:F2}, Virtual Z: {nextFloorSpawnZ:F2}");
                     }
                     else
                     {
-                        Debug.LogError("Finish line floor prefab is not assigned!");
+                        GameLog.Error("Finish line floor prefab is not assigned!");
                     }
                 }
                 else
                 {
-                    // Spawn regular floor from prefab
+                    // Spawn regular floor from its pool
                     if (mainFloorPrefab != null)
                     {
-                        floorTile = Object.Instantiate(mainFloorPrefab, spawnPosition, Quaternion.identity);
+                        floorTile = SpawnFloorInstance(mainFloorTag, mainFloorPrefab, spawnPosition, Quaternion.identity);
                         floorTile.transform.localScale = Vector3.one * floorScale;
                         mainFloorInstances.Add(floorTile);
                     }
@@ -194,14 +232,14 @@ namespace RingSport.Level.Spawning
                     // Spawn side floors (visual only) for all floors including finish line
                     SpawnSideFloors(spawnPosition);
 
-                    Debug.Log($"Floor spawned at World Z: {spawnZ:F2}, Virtual Z: {nextFloorSpawnZ:F2}, TileLength: {floorTileLength}, Spacing: {floorTileSpacing}, extends from {spawnZ - floorTileLength/2f:F2} to {spawnZ + floorTileLength/2f:F2}");
+                    GameLog.Info($"Floor spawned at World Z: {spawnZ:F2}, Virtual Z: {nextFloorSpawnZ:F2}, TileLength: {floorTileLength}, Spacing: {floorTileSpacing}, extends from {spawnZ - floorTileLength/2f:F2} to {spawnZ + floorTileLength/2f:F2}");
 
                     // Increment by spacing distance (not tile length) for next floor
                     nextFloorSpawnZ += floorTileSpacing;
                     spawnAttempts = 0;
                     floorsSpawnedThisFrame++;
 
-                    Debug.Log($"Next floor will spawn at Virtual Z: {nextFloorSpawnZ:F2}");
+                    GameLog.Info($"Next floor will spawn at Virtual Z: {nextFloorSpawnZ:F2}");
 
                     // Stop spawning floors after finish line
                     if (hasSpawnedFinishLine)
@@ -212,14 +250,14 @@ namespace RingSport.Level.Spawning
                 else
                 {
                     // Pool exhausted, stop trying
-                    Debug.LogWarning($"Floor pool exhausted at spawn attempt {spawnAttempts}");
+                    GameLog.Warn($"Floor pool exhausted at spawn attempt {spawnAttempts}");
                     spawnAttempts++;
                 }
             }
 
             if (floorsSpawnedThisFrame > 0 && Time.frameCount % 60 == 0)
             {
-                Debug.Log($"Spawned {floorsSpawnedThisFrame} floor tiles. Virtual distance: {context.VirtualDistance:F2}");
+                GameLog.Info($"Spawned {floorsSpawnedThisFrame} floor tiles. Virtual distance: {context.VirtualDistance:F2}");
             }
         }
 
@@ -238,7 +276,7 @@ namespace RingSport.Level.Spawning
 
             // Spawn left side floor (no rotation)
             Vector3 leftPosition = new Vector3(-floorTileLength, mainFloorPosition.y, mainFloorPosition.z);
-            GameObject leftFloor = Object.Instantiate(sideFloorPrefab, leftPosition, Quaternion.identity);
+            GameObject leftFloor = SpawnFloorInstance(sideFloorTag, sideFloorPrefab, leftPosition, Quaternion.identity);
             leftFloor.transform.localScale = Vector3.one * floorScale;
             sideFloorInstances.Add(leftFloor);
             despawnManager.RegisterFloorTile(leftFloor);
@@ -249,7 +287,7 @@ namespace RingSport.Level.Spawning
             // Spawn right side floor (rotated 180 degrees on Y axis)
             Vector3 rightPosition = new Vector3(floorTileLength, mainFloorPosition.y, mainFloorPosition.z);
             Quaternion rightRotation = Quaternion.Euler(0f, 180f, 0f);
-            GameObject rightFloor = Object.Instantiate(sideFloorPrefab, rightPosition, rightRotation);
+            GameObject rightFloor = SpawnFloorInstance(sideFloorTag, sideFloorPrefab, rightPosition, rightRotation);
             rightFloor.transform.localScale = Vector3.one * floorScale;
             sideFloorInstances.Add(rightFloor);
             despawnManager.RegisterFloorTile(rightFloor);

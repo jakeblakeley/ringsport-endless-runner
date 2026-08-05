@@ -172,6 +172,8 @@ namespace RingSport.UI
         [SerializeField] private AudioClip windowTickSound;
         [Tooltip("Decoy scream layered onto the catch (temporary clip - see SOUND_EFFECTS.md).")]
         [SerializeField] private AudioClip catchScreamSound;
+        [Tooltip("Riser that hits as the world freezes mid-pounce and holds under the limb QTE.")]
+        [SerializeField] private AudioClip freezeRiserSound;
 
         // Runtime state
         private FacePhase phase = FacePhase.Inactive;
@@ -306,7 +308,7 @@ namespace RingSport.UI
         // ------------------------------------------------------------------
         public override void StartGame()
         {
-            Debug.LogWarning("[MiniLevelFaceAttack] StartGame called via arena flow - face attack runs in-run. Completing immediately.");
+            GameLog.Warn("[MiniLevelFaceAttack] StartGame called via arena flow - face attack runs in-run. Completing immediately.");
             CompleteGame();
         }
 
@@ -365,7 +367,7 @@ namespace RingSport.UI
             playerController = Object.FindAnyObjectByType<PlayerController>();
             if (playerController == null)
             {
-                Debug.LogError("[MiniLevelFaceAttack] No PlayerController found - cannot start chase");
+                GameLog.Error("[MiniLevelFaceAttack] No PlayerController found - cannot start chase");
                 return;
             }
             playerTransform = playerController.transform;
@@ -398,7 +400,7 @@ namespace RingSport.UI
             if (retryEntryPending && preChaseScore > 0)
             {
                 LevelManager.Instance?.AddScore(preChaseScore);
-                Debug.Log($"[MiniLevelFaceAttack] Retry entry - re-seeded pre-chase score: {preChaseScore}");
+                GameLog.Info($"[MiniLevelFaceAttack] Retry entry - re-seeded pre-chase score: {preChaseScore}");
             }
             else
             {
@@ -412,7 +414,7 @@ namespace RingSport.UI
             phase = FacePhase.Intro;
             phaseTimer = 0f;
 
-            Debug.Log($"[MiniLevelFaceAttack] Chase started (difficulty {difficulty}, from encounter {currentEncounter + 1}/{EncounterCount}, window {TapWindowSeconds[difficulty]}s)");
+            GameLog.Info($"[MiniLevelFaceAttack] Chase started (difficulty {difficulty}, from encounter {currentEncounter + 1}/{EncounterCount}, window {TapWindowSeconds[difficulty]}s)");
         }
 
         public override void NotifyLevelEndReached()
@@ -420,7 +422,7 @@ namespace RingSport.UI
             if (!chaseActive)
                 return;
 
-            Debug.Log($"[MiniLevelFaceAttack] Level end reached (caught: {caught})");
+            GameLog.Info($"[MiniLevelFaceAttack] Level end reached (caught: {caught})");
             Cleanup();
         }
 
@@ -577,7 +579,7 @@ namespace RingSport.UI
 
             ShowBanner("GET READY!", Color.white, AlignSeconds[difficulty] - 0.3f, 84f);
 
-            Debug.Log($"[MiniLevelFaceAttack] Encounter {currentEncounter + 1}/{EncounterCount}: align beat (standoff lane {decoyLane})");
+            GameLog.Info($"[MiniLevelFaceAttack] Encounter {currentEncounter + 1}/{EncounterCount}: align beat (standoff lane {decoyLane})");
         }
 
         /// <summary>Uniform over the three lanes, excluding the previous standoff's lane.</summary>
@@ -626,7 +628,7 @@ namespace RingSport.UI
             // Planted and flexing while the dog blows past - pure matador
             decoyHuman?.TriggerPowerUp();
             ShowBanner("ESQUIVÉD!", xColor, 1.4f, 110f);
-            Debug.Log($"[MiniLevelFaceAttack] Failed encounter {currentEncounter + 1}: wrong lane - decoy plants and drops out of frame");
+            GameLog.Info($"[MiniLevelFaceAttack] Failed encounter {currentEncounter + 1}: wrong lane - decoy plants and drops out of frame");
         }
 
         private void UpdateFailEscape(float dt)
@@ -658,7 +660,7 @@ namespace RingSport.UI
             // the limb targets and reads aggressive
             decoyHuman?.TriggerPowerUp();
 
-            Debug.Log("[MiniLevelFaceAttack] Charge: decoy wheeling around, gap collapsing");
+            GameLog.Info("[MiniLevelFaceAttack] Charge: decoy wheeling around, gap collapsing");
         }
 
         private void UpdateCharge(float dt)
@@ -730,10 +732,12 @@ namespace RingSport.UI
                 RevealSeconds + TapWindowSeconds[difficulty] - 0.2f, 76f);
 
             // Bullet time gets quiet: the music drops to a whisper until the
-            // window resolves (the urgency tick lives in UpdateWindow)
+            // window resolves (the urgency tick lives in UpdateWindow), with
+            // the riser hitting on the freeze and sustaining under the QTE
             GameManager.Instance?.SetMusicDuck(true);
+            LevelManager.Instance?.PlayCollectSound(freezeRiserSound);
 
-            Debug.Log($"[MiniLevelFaceAttack] Time frozen mid-pounce - correct limb: {QteLimbs[correctTargetIndex]}");
+            GameLog.Info($"[MiniLevelFaceAttack] Time frozen mid-pounce - correct limb: {QteLimbs[correctTargetIndex]}");
         }
 
         /// <summary>
@@ -897,7 +901,7 @@ namespace RingSport.UI
             inputLocked = false;
 
             ShowBanner("HE DODGED!", Color.white, 1.1f, 96f);
-            Debug.Log($"[MiniLevelFaceAttack] Encounter {currentEncounter + 1} read correctly - decoy dodged to lane {decoyLane}");
+            GameLog.Info($"[MiniLevelFaceAttack] Encounter {currentEncounter + 1} read correctly - decoy dodged to lane {decoyLane}");
         }
 
         private void UpdateDodgeResolve(float dt)
@@ -927,7 +931,7 @@ namespace RingSport.UI
             // the player picked
             decoyHuman?.TriggerFall(QteLimbs[correctTargetIndex]);
 
-            Debug.Log("[MiniLevelFaceAttack] Final encounter read correctly - the bite goes in");
+            GameLog.Info("[MiniLevelFaceAttack] Final encounter read correctly - the bite goes in");
         }
 
         private void UpdateCatchLunge(float dt)
@@ -999,7 +1003,7 @@ namespace RingSport.UI
 
             AttachDecoyToMouth();
 
-            Debug.Log($"[MiniLevelFaceAttack] Bite landed on {QteLimbs[correctTargetIndex]} - carrying to the finish line");
+            GameLog.Info($"[MiniLevelFaceAttack] Bite landed on {QteLimbs[correctTargetIndex]} - carrying to the finish line");
         }
 
         /// <summary>
@@ -1049,7 +1053,7 @@ namespace RingSport.UI
             GameManager.Instance?.SetMusicDuck(false);
             ShowBanner(message, xColor, 1.6f, 110f);
 
-            Debug.Log($"[MiniLevelFaceAttack] Failed encounter {currentEncounter + 1}: {message}");
+            GameLog.Info($"[MiniLevelFaceAttack] Failed encounter {currentEncounter + 1}: {message}");
             GameManager.Instance?.TriggerMiniLevelGameOver();
         }
 
@@ -1751,7 +1755,7 @@ namespace RingSport.UI
             LevelGenerator.Instance?.SetRunnerSpawningSuppressed(false);
 
             if (wasActive)
-                Debug.Log("[MiniLevelFaceAttack] Cleaned up");
+                GameLog.Info("[MiniLevelFaceAttack] Cleaned up");
         }
 
         private void DestroyDecoy()
@@ -1927,21 +1931,30 @@ namespace RingSport.UI
         private Material GetDecoyMaterial()
         {
             if (decoyMaterial == null)
-            {
-                decoyMaterial = CreateLitMaterial(decoyColor);
-                decoyMaterial.EnableKeyword("_EMISSION");
-                decoyMaterial.SetColor("_EmissionColor", decoyColor * 0.6f);
-            }
+                decoyMaterial = CreateGlowMaterial(decoyColor);
             return decoyMaterial;
+        }
+
+        private static Material CreateGlowMaterial(Color color)
+        {
+            // Unlit reads as self-lit, matching the old URP/Lit + emission
+            // look. URP/Lit is stripped from builds; Unlit ships via Always
+            // Included Shaders.
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null)
+                return CreateLitMaterial(color);
+            var mat = new Material(shader);
+            mat.SetColor("_BaseColor", color);
+            return mat;
         }
 
         private static Material CreateLitMaterial(Color color)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            Shader shader = Shader.Find("Custom/Mobile/ArcEffect");
             if (shader == null)
-                shader = Shader.Find("Standard");
+                shader = Shader.Find("Universal Render Pipeline/Lit"); // editor safety net
             var mat = new Material(shader);
-            mat.color = color;
+            mat.SetColor("_BaseColor", color);
             return mat;
         }
     }

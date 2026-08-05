@@ -31,8 +31,16 @@ namespace RingSport.Core
         [Header("Audio Settings")]
         [SerializeField] private AudioClip[] levelCompleteSounds;
         [SerializeField] private float sfxVolume = 1.0f;
-        [Tooltip("Seconds between pickups that keeps the coin-train pitch ladder climbing; a longer gap resets it.")]
-        [SerializeField] private float collectComboWindow = 0.6f;
+        [Tooltip("Seconds between pickups that keeps the coin-train pitch ladder climbing; a longer gap resets it. Generous on purpose - at 0.6 the ladder dropped out mid-train on normally-spaced coins.")]
+        [SerializeField] private float collectComboWindow = 1.5f;
+
+        [Header("Juice Audio")]
+        [Tooltip("Airy whoosh when the dog clears a hurdle - pitch and volume follow how tight the clearance was.")]
+        [SerializeField] private AudioClip nearMissWhooshSound;
+        [SerializeField] [Range(0f, 1f)] private float nearMissVolume = 0.5f;
+        [Tooltip("Paper-pop layer played under every confetti burst (finish line, secret note).")]
+        [SerializeField] private AudioClip confettiPopSound;
+        [SerializeField] [Range(0f, 1f)] private float confettiPopVolume = 0.8f;
 
         [Header("Finish Line Moment")]
         [Tooltip("Banner font for FINISH! (BarlowCondensed, wired by Tools/RingSport/Setup Juice Polish).")]
@@ -44,6 +52,7 @@ namespace RingSport.Core
 
         private AudioSource sfxAudioSource;
         private AudioSource collectAudioSource; // pitch-laddered, so stings on sfxAudioSource stay at pitch 1
+        private AudioSource juiceAudioSource;   // whooshes/pops, pitched per play without disturbing the coin ladder
         private float lastCollectTime = float.NegativeInfinity;
         private int collectComboStep;
         private bool finishMomentActive;
@@ -85,7 +94,7 @@ namespace RingSport.Core
             }
 
             Instance = this;
-            Debug.Log($"[LevelManager] Initialized. Initial retries: {retriesRemaining}");
+            GameLog.Info($"[LevelManager] Initialized. Initial retries: {retriesRemaining}");
 
             // Setup audio source
             sfxAudioSource = gameObject.AddComponent<AudioSource>();
@@ -95,6 +104,10 @@ namespace RingSport.Core
             collectAudioSource = gameObject.AddComponent<AudioSource>();
             collectAudioSource.playOnAwake = false;
             collectAudioSource.volume = sfxVolume;
+
+            juiceAudioSource = gameObject.AddComponent<AudioSource>();
+            juiceAudioSource.playOnAwake = false;
+            juiceAudioSource.volume = sfxVolume;
         }
 
         private void Update()
@@ -156,7 +169,7 @@ namespace RingSport.Core
 
             if (currentLevelConfig == null)
             {
-                Debug.LogError("Failed to get level config!");
+                GameLog.Error("Failed to get level config!");
                 return;
             }
 
@@ -187,7 +200,7 @@ namespace RingSport.Core
             {
                 float lead = inRunMiniLevel.GetLeadSeconds(inRunDifficultyIndex);
                 levelTimer = Mathf.Max(0f, currentLevelConfig.LevelDuration - lead - fleeAttackRetryPreRoll);
-                Debug.Log($"[LevelManager] In-run mini level entry - fast-forwarding level timer to {levelTimer:F1}s");
+                GameLog.Info($"[LevelManager] In-run mini level entry - fast-forwarding level timer to {levelTimer:F1}s");
 
                 // Keep the mini-level context armed through the pre-roll so a
                 // death before the chase re-begins still retries the chase,
@@ -265,7 +278,7 @@ namespace RingSport.Core
             }
 
             hasReachedFinishLine = true;
-            Debug.Log("Finish line reached - completing level!");
+            GameLog.Info("Finish line reached - completing level!");
 
             // Chase levels end on their own choreography (the catch/stop beat
             // already played) - no extra celebration on top
@@ -295,7 +308,10 @@ namespace RingSport.Core
 
             ScreenBanner.Show("FINISH!", new Color(1f, 0.84f, 0.25f), 0.8f, 150f, bannerFont);
             if (player != null)
+            {
                 ImpactVFX.PlayConfettiBurst(player.transform.position + Vector3.up * 1.6f);
+                PlayConfettiPops(); // pops ride under the level-complete sting, not instead of it
+            }
             CameraStateMachine.Instance?.AddFovKick(6f, 0.6f);
 
             float startSpeed = LevelScroller.Instance != null ? LevelScroller.Instance.GetScrollSpeed() : 0f;
@@ -388,6 +404,55 @@ namespace RingSport.Core
         }
 
         /// <summary>
+        /// Whoosh over a cleared hurdle. clearance01 is 0 for a shave and 1 for
+        /// a comfortable leap - a tight clear is higher and louder, so the
+        /// near-misses are the ones that sing. Own source, so it never shifts
+        /// the coin-train pitch ladder mid-run.
+        /// </summary>
+        public void PlayNearMissWhoosh(float clearance01)
+        {
+            if (nearMissWhooshSound == null || juiceAudioSource == null)
+                return;
+
+            float tightness = 1f - Mathf.Clamp01(clearance01);
+            juiceAudioSource.pitch = Mathf.Lerp(0.92f, 1.18f, tightness);
+            juiceAudioSource.PlayOneShot(nearMissWhooshSound, sfxVolume * nearMissVolume * Mathf.Lerp(0.55f, 1f, tightness));
+        }
+
+        /// <summary>
+        /// The paper-pop layer under a confetti burst - a short stagger of
+        /// pitched pops rather than one hit, so it reads as a shower. Shared by
+        /// the finish line and the secret-note reveal.
+        /// </summary>
+        public void PlayConfettiPops()
+        {
+            if (confettiPopSound == null || juiceAudioSource == null)
+                return;
+
+            StartCoroutine(ConfettiPopsRoutine());
+        }
+
+        private IEnumerator ConfettiPopsRoutine()
+        {
+            // Slightly detuned and quieter each time: one burst, three claps
+            var pitches = new[] { 1f, 1.14f, 0.9f };
+            var volumes = new[] { 1f, 0.7f, 0.5f };
+            var delays = new[] { 0f, 0.07f, 0.16f };
+
+            for (int i = 0; i < pitches.Length; i++)
+            {
+                if (delays[i] > 0f)
+                    yield return new WaitForSecondsRealtime(delays[i] - delays[i - 1]);
+
+                if (juiceAudioSource == null)
+                    yield break;
+
+                juiceAudioSource.pitch = pitches[i];
+                juiceAudioSource.PlayOneShot(confettiPopSound, sfxVolume * confettiPopVolume * volumes[i]);
+            }
+        }
+
+        /// <summary>
         /// One-shot at an explicit pitch (mini-level urgency ticks). Shares the
         /// pickup source, so pitch is set per play.
         /// </summary>
@@ -407,11 +472,11 @@ namespace RingSport.Core
 
         public void NextLevel()
         {
-            Debug.Log($"[LevelManager] NextLevel called. Current level: {currentLevel}, Max levels: {maxLevels}");
+            GameLog.Info($"[LevelManager] NextLevel called. Current level: {currentLevel}, Max levels: {maxLevels}");
             if (currentLevel < maxLevels)
             {
                 currentLevel++;
-                Debug.Log($"[LevelManager] Advancing to level {currentLevel}. Retries NOT reset: {retriesRemaining} remaining");
+                GameLog.Info($"[LevelManager] Advancing to level {currentLevel}. Retries NOT reset: {retriesRemaining} remaining");
                 // Don't call StartGame() as it resets progress including retries
                 // Instead, directly transition to Playing state
                 GameManager.Instance?.TransitionToState(GameState.Playing);
@@ -453,7 +518,7 @@ namespace RingSport.Core
 
             currentLevel = Mathf.Clamp(level, 1, maxLevels);
             pendingInRunEntry = true;
-            Debug.Log($"[LevelManager] Starting level {currentLevel} at its in-run mini level");
+            GameLog.Info($"[LevelManager] Starting level {currentLevel} at its in-run mini level");
             GameManager.Instance?.TransitionToState(GameState.Playing);
         }
 
@@ -484,15 +549,15 @@ namespace RingSport.Core
         {
             ResetProgress();
             currentLevel = Mathf.Clamp(level, 1, maxLevels);
-            Debug.Log($"[LevelManager] DEBUG: showing intro for level {currentLevel}");
+            GameLog.Info($"[LevelManager] DEBUG: showing intro for level {currentLevel}");
             GameManager.Instance?.DebugShowLevelIntro(currentLevel);
         }
 #endif
 
         public void ResetProgress()
         {
-            Debug.Log("[LevelManager] ResetProgress called - resetting to level 1. Stack trace:");
-            Debug.Log(System.Environment.StackTrace);
+            GameLog.Info("[LevelManager] ResetProgress called - resetting to level 1. Stack trace:");
+            GameLog.Info(System.Environment.StackTrace);
 
             // Reset scores via ScoreManager (handles high score save if applicable)
             ScoreManager.Instance?.ResetForNewRun();
@@ -506,7 +571,7 @@ namespace RingSport.Core
             currentLevelConfig = null;
             retriesRemaining = maxRetries;
             partialRetries = 0f;
-            Debug.Log($"[LevelManager] Progress reset. Retries reset to {retriesRemaining}");
+            GameLog.Info($"[LevelManager] Progress reset. Retries reset to {retriesRemaining}");
         }
 
         public bool UseRetry()
@@ -514,7 +579,7 @@ namespace RingSport.Core
             if (retriesRemaining > 0)
             {
                 retriesRemaining--;
-                Debug.Log($"[LevelManager] Death occurred. Retry consumed. Retries remaining: {retriesRemaining}");
+                GameLog.Info($"[LevelManager] Death occurred. Retry consumed. Retries remaining: {retriesRemaining}");
 
                 // Update lives UI
                 UIManager.Instance?.UpdateLives(TotalRetries);
@@ -523,13 +588,13 @@ namespace RingSport.Core
                 if (retriesRemaining == 0)
                 {
                     ScoreManager.Instance?.CheckAndSaveHighScore();
-                    Debug.Log("[LevelManager] Out of retries! High score checked and saved.");
+                    GameLog.Info("[LevelManager] Out of retries! High score checked and saved.");
                 }
 
                 return true;
             }
 
-            Debug.Log("[LevelManager] Death occurred but out of retries!");
+            GameLog.Info("[LevelManager] Death occurred but out of retries!");
             ScoreManager.Instance?.CheckAndSaveHighScore();
             return false;
         }
@@ -546,10 +611,10 @@ namespace RingSport.Core
             {
                 partialRetries -= 1f;
                 retriesRemaining++;
-                Debug.Log($"[LevelManager] Gained a full retry! Retries: {retriesRemaining}");
+                GameLog.Info($"[LevelManager] Gained a full retry! Retries: {retriesRemaining}");
             }
 
-            Debug.Log($"[LevelManager] Added {amount} partial retry. Total: {TotalRetries}");
+            GameLog.Info($"[LevelManager] Added {amount} partial retry. Total: {TotalRetries}");
             UIManager.Instance?.UpdateLives(TotalRetries);
         }
 

@@ -194,8 +194,13 @@ namespace RingSport.Editor
                 mat.DisableKeyword("_METALLICROUGHNESSMAP");
 
             // glTF ALPHA_CUTOFF surfaces carry a cutoff; opaque ones report 0
-            // and stay branch-free in the shader's clip()
-            mat.SetFloat("_Cutoff", GetFloat(gltfMat, GltfAlphaCutoff, 0f));
+            // and skip the clip() variant entirely (keeps early-Z)
+            float cutoff = GetFloat(gltfMat, GltfAlphaCutoff, 0f);
+            mat.SetFloat("_Cutoff", cutoff);
+            if (cutoff > 0f)
+                mat.EnableKeyword("_ALPHATEST_ON");
+            else
+                mat.DisableKeyword("_ALPHATEST_ON");
 
             // glTF doubleSided -> Cull Off; glTFast writes that into _Cull on
             // its own material. Fall back to Back culling when it is absent.

@@ -16,10 +16,12 @@ namespace RingSport.Editor
     /// Wires the Tier-1 juice pass into the scene and Player prefab:
     /// - Assigns the previously-silent mini-level AudioClip fields (flee/face
     ///   catch, stop-attack whistle, QTE tap, food-refusal collect) plus the
-    ///   new death-impact, countdown tick/GO and landing clips. All picks are
-    ///   TEMPORARY stand-ins from clips already in the repo - the wishlist for
-    ///   the real audio pass lives in SOUND_EFFECTS.md at the repo root.
-    ///   Already-assigned fields are never overwritten.
+    ///   new death-impact, countdown tick/GO and landing clips, plus the real
+    ///   clips from the audio pass (whooshes, sprint wind/pant, confetti pops,
+    ///   steak splat, freeze riser, Simon Says hurray/buzzer). The stand-in
+    ///   picks are still marked TEMPORARY in SOUND_EFFECTS.md at the repo root.
+    ///   Already-assigned fields are never overwritten (SwapClip is the one
+    ///   exception: it retires a named stand-in for its real clip).
     /// - Builds the shared "ImpactVFX" scene object (landing dust puffs +
     ///   finish-line confetti burst), following the CollectVFX pattern.
     /// - Wires LevelManager's FINISH! banner font (BarlowCondensed).
@@ -30,7 +32,7 @@ namespace RingSport.Editor
     public static class JuicePolishSetup
     {
         // Bump to force the auto-run to re-apply the setup
-        private const int SetupVersion = 3;
+        private const int SetupVersion = 4;
         private const string VersionPrefKey = "RingSport.JuicePolishSetup.Version";
 
         private const string TextureFolder = "Assets/Textures/VFX";
@@ -62,6 +64,18 @@ namespace RingSport.Editor
         private const string ClipRewardCoin = "Assets/Sounds/Reward/reward-coin.wav";
         private const string ClipBruh = "Assets/Sounds/Meme/meme-bruh.wav";
         private const string LoveNotePrefabPath = "Assets/Prefabs/Collectibles/LoveNote.prefab";
+
+        // Real clips from the audio pass (not stand-ins) - see SOUND_EFFECTS.md
+        private const string ClipNearMissWhoosh = "Assets/Sounds/near-miss woosh.wav";
+        private const string ClipConfettiPops = "Assets/Sounds/confetti pops.flac";
+        private const string ClipLaneChangeWhoosh = "Assets/Sounds/lane-change woosh.mp3";
+        private const string ClipSprintStart = "Assets/Sounds/sprint start sound.wav";
+        private const string ClipWindLayer = "Assets/Sounds/wind speed layer.wav";
+        private const string ClipSprintPant = "Assets/Sounds/sprint exhausted pant.wav";
+        private const string ClipFreezeRiser = "Assets/Sounds/face-attack freeze.wav";
+        private const string ClipSteakSplat = "Assets/Sounds/steak splat.aiff";
+        private const string ClipSimonHurray = "Assets/Sounds/simon says hurray.mp3";
+        private const string ClipSimonBuzzer = "Assets/Sounds/simons says buzzer.wav";
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()
@@ -149,8 +163,11 @@ namespace RingSport.Editor
             WireClip(faceAttack, "catchSound", ClipBiteTackle);
             WireClip(faceAttack, "catchScreamSound", ClipScream2);
             WireClip(faceAttack, "windowTickSound", ClipRewardPop);
+            WireClip(faceAttack, "freezeRiserSound", ClipFreezeRiser);
 
-            WireClip(Object.FindAnyObjectByType<MiniLevelFoodRefusal>(FindObjectsInactive.Include), "collectSound", ClipRewardCollect);
+            var foodRefusal = Object.FindAnyObjectByType<MiniLevelFoodRefusal>(FindObjectsInactive.Include);
+            WireClip(foodRefusal, "collectSound", ClipRewardCollect);
+            WireClip(foodRefusal, "splatSound", ClipSteakSplat);
 
             var palisade = Object.FindAnyObjectByType<PalisadeMinigame>(FindObjectsInactive.Include);
             WireClip(palisade, "wallHitSound", ClipUiImpact2);
@@ -167,10 +184,16 @@ namespace RingSport.Editor
 
             WireClip(Object.FindAnyObjectByType<SecretNotePanel>(FindObjectsInactive.Include), "revealSound", ClipTaduh);
 
+            var levelManager = Object.FindAnyObjectByType<LevelManager>(FindObjectsInactive.Include);
+            WireClip(levelManager, "nearMissWhooshSound", ClipNearMissWhoosh);
+            WireClip(levelManager, "confettiPopSound", ClipConfettiPops);
+
             var simonSays = Object.FindAnyObjectByType<MiniLevelPositionsSimonSays>(FindObjectsInactive.Include);
             WireClip(simonSays, "poseToneSound", ClipRewardPop);
-            WireClip(simonSays, "correctSound", ClipRewardCoin);
-            WireClip(simonSays, "wrongSound", ClipBruh);
+            // Simon Says shipped on stand-ins; the real hurray/buzzer replace
+            // them, but only while the stand-in is still what's assigned
+            SwapClip(simonSays, "correctSound", ClipSimonHurray, "reward-coin");
+            SwapClip(simonSays, "wrongSound", ClipSimonBuzzer, "meme-bruh");
         }
 
         /// <summary>
@@ -305,7 +328,16 @@ namespace RingSport.Editor
             try
             {
                 var controller = prefabRoot.GetComponent<PlayerController>();
-                if (controller != null && WireClip(controller, "landSound", ClipLandThump))
+                if (controller == null)
+                    return;
+
+                bool changed = WireClip(controller, "landSound", ClipLandThump);
+                changed |= WireClip(controller, "laneChangeSound", ClipLaneChangeWhoosh);
+                changed |= WireClip(controller, "sprintStartSound", ClipSprintStart);
+                changed |= WireClip(controller, "sprintWindLoop", ClipWindLayer);
+                changed |= WireClip(controller, "sprintExhaustedPant", ClipSprintPant);
+
+                if (changed)
                     PrefabUtility.SaveAsPrefabAsset(prefabRoot, PlayerPrefabPath);
             }
             finally
@@ -343,7 +375,48 @@ namespace RingSport.Editor
             prop.objectReferenceValue = clip;
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(target);
-            Debug.Log($"[JuicePolishSetup] Wired {target.GetType().Name}.{property} = {clip.name} (temporary - see SOUND_EFFECTS.md)");
+            Debug.Log($"[JuicePolishSetup] Wired {target.GetType().Name}.{property} = {clip.name} (see SOUND_EFFECTS.md)");
+            return true;
+        }
+
+        /// <summary>
+        /// Replaces a clip that is still the known stand-in (or empty) with the
+        /// real one. A hand-picked clip that is neither is left alone - same
+        /// contract as WireClip, just able to retire a specific temp pick.
+        /// </summary>
+        private static bool SwapClip(Component target, string property, string clipPath, string replacesClipNamed)
+        {
+            if (target == null)
+            {
+                Debug.LogWarning($"[JuicePolishSetup] Missing component for '{property}' - not swapped.");
+                return false;
+            }
+
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(clipPath);
+            if (clip == null)
+            {
+                Debug.LogWarning($"[JuicePolishSetup] Clip not found: {clipPath} - {target.GetType().Name}.{property} not swapped.");
+                return false;
+            }
+
+            var serialized = new SerializedObject(target);
+            var prop = serialized.FindProperty(property);
+            if (prop == null)
+            {
+                Debug.LogWarning($"[JuicePolishSetup] {target.GetType().Name} has no serialized field '{property}'.");
+                return false;
+            }
+
+            var current = prop.objectReferenceValue as AudioClip;
+            if (current == clip)
+                return false;
+            if (current != null && current.name != replacesClipNamed)
+                return false; // someone picked a custom clip - leave it
+
+            prop.objectReferenceValue = clip;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(target);
+            Debug.Log($"[JuicePolishSetup] {target.GetType().Name}.{property} -> {clip.name} (was {(current != null ? current.name : "empty")}).");
             return true;
         }
 

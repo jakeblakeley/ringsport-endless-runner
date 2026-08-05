@@ -11,6 +11,7 @@ namespace RingSport.Level.Spawning
     {
         private GameObject[] sceneryPrefabs;
         private Vector3[] sceneryBaseScales;
+        private string[] sceneryPoolTags;
         private string locationKey = "";
         private int minSceneryPerFloor;
         private int maxSceneryPerFloor;
@@ -63,8 +64,12 @@ namespace RingSport.Level.Spawning
 
             // Pool tags must be location-scoped: pools persist for the whole
             // session, so a bare index tag would keep serving the previous
-            // location's prefabs after a location change.
+            // location's prefabs after a location change. Built once here -
+            // the old per-spawn interpolation allocated a string per prop.
             locationKey = locationConfig.Location.ToString();
+            sceneryPoolTags = new string[sceneryPrefabs.Length];
+            for (int i = 0; i < sceneryPrefabs.Length; i++)
+                sceneryPoolTags[i] = $"Scenery_{locationKey}_{i}";
 
             sceneryBaseScales = new Vector3[sceneryPrefabs.Length];
             for (int i = 0; i < sceneryPrefabs.Length; i++)
@@ -88,7 +93,7 @@ namespace RingSport.Level.Spawning
             }
 
             isInitialized = true;
-            Debug.Log($"ScenerySpawner configured with {sceneryPrefabs.Length} prefab types, {minSceneryPerFloor}-{maxSceneryPerFloor} per floor");
+            GameLog.Info($"ScenerySpawner configured with {sceneryPrefabs.Length} prefab types, {minSceneryPerFloor}-{maxSceneryPerFloor} per floor");
         }
 
         /// <summary>
@@ -270,7 +275,7 @@ namespace RingSport.Level.Spawning
 
         private string GetSceneryPoolTag(int prefabIndex)
         {
-            return $"Scenery_{locationKey}_{prefabIndex}";
+            return sceneryPoolTags[prefabIndex];
         }
     }
 }

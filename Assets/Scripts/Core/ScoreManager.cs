@@ -43,7 +43,7 @@ namespace RingSport.Core
             Instance = this;
             levelBestScores = new int[MAX_LEVELS];
             LoadHighScore();
-            Debug.Log($"[ScoreManager] Initialized. High score loaded: {highScore}");
+            GameLog.Info($"[ScoreManager] Initialized. High score loaded: {highScore}");
         }
 
         /// <summary>
@@ -52,7 +52,7 @@ namespace RingSport.Core
         public void AddScore(int points)
         {
             currentScore += points;
-            Debug.Log($"[ScoreManager] Added {points} points. Level {currentLevel} current score: {currentScore}, Total run score: {TotalScore}");
+            GameLog.Info($"[ScoreManager] Added {points} points. Level {currentLevel} current score: {currentScore}, Total run score: {TotalScore}");
         }
 
         /// <summary>
@@ -62,7 +62,7 @@ namespace RingSport.Core
         public void StartMiniLevelScoring()
         {
             miniLevelScore = 0;
-            Debug.Log("[ScoreManager] Mini-level scoring started");
+            GameLog.Info("[ScoreManager] Mini-level scoring started");
         }
 
         /// <summary>
@@ -73,7 +73,7 @@ namespace RingSport.Core
         {
             miniLevelScore += points;
             currentScore += points;
-            Debug.Log($"[ScoreManager] Added {points} mini-level points. Mini-level: {miniLevelScore}, Level total: {currentScore}");
+            GameLog.Info($"[ScoreManager] Added {points} mini-level points. Mini-level: {miniLevelScore}, Level total: {currentScore}");
         }
 
         /// <summary>
@@ -84,7 +84,7 @@ namespace RingSport.Core
         {
             currentScore -= miniLevelScore;
             currentScore = Mathf.Max(0, currentScore);
-            Debug.Log($"[ScoreManager] Mini-level score reset. Removed {miniLevelScore} points. Level score now: {currentScore}");
+            GameLog.Info($"[ScoreManager] Mini-level score reset. Removed {miniLevelScore} points. Level score now: {currentScore}");
             miniLevelScore = 0;
         }
 
@@ -95,7 +95,7 @@ namespace RingSport.Core
         {
             currentLevel = level;
             currentScore = 0;
-            Debug.Log($"[ScoreManager] Started level {level}. Best score for this level so far: {GetLevelBestScore(level)}");
+            GameLog.Info($"[ScoreManager] Started level {level}. Best score for this level so far: {GetLevelBestScore(level)}");
         }
 
         /// <summary>
@@ -111,11 +111,11 @@ namespace RingSport.Core
                 if (currentScore > previousBest)
                 {
                     levelBestScores[levelIndex] = currentScore;
-                    Debug.Log($"[ScoreManager] New best for level {currentLevel}! {currentScore} (was {previousBest}). Total: {TotalScore}");
+                    GameLog.Info($"[ScoreManager] New best for level {currentLevel}! {currentScore} (was {previousBest}). Total: {TotalScore}");
                 }
                 else
                 {
-                    Debug.Log($"[ScoreManager] Level {currentLevel} attempt: {currentScore}. Best remains: {previousBest}. Total: {TotalScore}");
+                    GameLog.Info($"[ScoreManager] Level {currentLevel} attempt: {currentScore}. Best remains: {previousBest}. Total: {TotalScore}");
                 }
             }
         }
@@ -177,7 +177,7 @@ namespace RingSport.Core
             {
                 levelBestScores[i] = 0;
             }
-            Debug.Log($"[ScoreManager] Scores reset for new run.");
+            GameLog.Info($"[ScoreManager] Scores reset for new run.");
         }
 
         /// <summary>
@@ -192,11 +192,11 @@ namespace RingSport.Core
                 achievedNewHighScore = true; // Mark that we achieved a new high score
                 highScore = currentTotal;
                 SaveHighScore();
-                Debug.Log($"[ScoreManager] New high score saved! {highScore}");
+                GameLog.Info($"[ScoreManager] New high score saved! {highScore}");
             }
             else
             {
-                Debug.Log($"[ScoreManager] Run ended. Score: {currentTotal}, High Score: {highScore} (no new record)");
+                GameLog.Info($"[ScoreManager] Run ended. Score: {currentTotal}, High Score: {highScore} (no new record)");
             }
         }
 
@@ -206,7 +206,7 @@ namespace RingSport.Core
         /// </summary>
         public bool IsNewHighScore()
         {
-            Debug.Log($"[ScoreManager] IsNewHighScore check: achievedNewHighScore={achievedNewHighScore}");
+            GameLog.Info($"[ScoreManager] IsNewHighScore check: achievedNewHighScore={achievedNewHighScore}");
             return achievedNewHighScore;
         }
 
@@ -216,7 +216,7 @@ namespace RingSport.Core
         private void LoadHighScore()
         {
             highScore = PlayerPrefs.GetInt("HighScore", 0);
-            Debug.Log($"[ScoreManager] Loaded high score from PlayerPrefs: {highScore}");
+            GameLog.Info($"[ScoreManager] Loaded high score from PlayerPrefs: {highScore}");
         }
 
         /// <summary>
@@ -226,7 +226,7 @@ namespace RingSport.Core
         {
             PlayerPrefs.SetInt("HighScore", highScore);
             PlayerPrefs.Save();
-            Debug.Log($"[ScoreManager] Saved high score to PlayerPrefs: {highScore}");
+            GameLog.Info($"[ScoreManager] Saved high score to PlayerPrefs: {highScore}");
         }
 
         /// <summary>
@@ -239,7 +239,7 @@ namespace RingSport.Core
             achievedNewHighScore = false;
             PlayerPrefs.DeleteKey("HighScore");
             PlayerPrefs.Save();
-            Debug.Log("[ScoreManager] High score cleared.");
+            GameLog.Info("[ScoreManager] High score cleared.");
         }
     }
 }

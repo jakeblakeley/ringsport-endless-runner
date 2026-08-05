@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using RingSport.Core;
 
 namespace RingSport.UI
 {
@@ -99,6 +100,9 @@ namespace RingSport.UI
 
             if (revealSound != null && audioSource != null)
                 audioSource.PlayOneShot(revealSound, revealVolume);
+
+            // Paper pops under the shower - same layer the finish line uses
+            LevelManager.Instance?.PlayConfettiPops();
 
             EnsureConfettiPieces();
             Rect area = ConfettiArea();

@@ -226,7 +226,7 @@ namespace RingSport.UI
         // ------------------------------------------------------------------
         public override void StartGame()
         {
-            Debug.LogWarning("[MiniLevelFleeAttack] StartGame called via arena flow - flee attack runs in-run. Completing immediately.");
+            GameLog.Warn("[MiniLevelFleeAttack] StartGame called via arena flow - flee attack runs in-run. Completing immediately.");
             CompleteGame();
         }
 
@@ -274,7 +274,7 @@ namespace RingSport.UI
             playerController = Object.FindAnyObjectByType<PlayerController>();
             if (playerController == null)
             {
-                Debug.LogError("[MiniLevelFleeAttack] No PlayerController found - cannot start chase");
+                GameLog.Error("[MiniLevelFleeAttack] No PlayerController found - cannot start chase");
                 return;
             }
             playerTransform = playerController.transform;
@@ -306,7 +306,7 @@ namespace RingSport.UI
             {
                 // Chase-only retry: restore the run score from the first attempt
                 LevelManager.Instance?.AddScore(preChaseScore);
-                Debug.Log($"[MiniLevelFleeAttack] Retry entry - re-seeded pre-chase score: {preChaseScore}");
+                GameLog.Info($"[MiniLevelFleeAttack] Retry entry - re-seeded pre-chase score: {preChaseScore}");
             }
             else
             {
@@ -320,7 +320,7 @@ namespace RingSport.UI
             phase = ChasePhase.Intro;
             phaseTimer = 0f;
 
-            Debug.Log($"[MiniLevelFleeAttack] Chase started (difficulty {difficulty})");
+            GameLog.Info($"[MiniLevelFleeAttack] Chase started (difficulty {difficulty})");
         }
 
         /// <summary>
@@ -332,7 +332,7 @@ namespace RingSport.UI
             if (!chaseActive)
                 return;
 
-            Debug.Log($"[MiniLevelFleeAttack] Finish line reached (caught: {caught})");
+            GameLog.Info($"[MiniLevelFleeAttack] Finish line reached (caught: {caught})");
             Cleanup();
         }
 
@@ -474,7 +474,7 @@ namespace RingSport.UI
             }
 
             ShowBanner("CATCH HIM!", Color.white, 1.2f);
-            Debug.Log($"[MiniLevelFleeAttack] Finale - decoy locked lane {decoyLane}, walls at z {wallZ:F1}");
+            GameLog.Info($"[MiniLevelFleeAttack] Finale - decoy locked lane {decoyLane}, walls at z {wallZ:F1}");
         }
 
         private void UpdateFinale(float dt)
@@ -611,7 +611,7 @@ namespace RingSport.UI
 
             AttachDecoyToMouth();
 
-            Debug.Log("[MiniLevelFleeAttack] Decoy caught! Carrying to finish line.");
+            GameLog.Info("[MiniLevelFleeAttack] Decoy caught! Carrying to finish line.");
         }
 
         /// <summary>
@@ -1032,7 +1032,7 @@ namespace RingSport.UI
             LevelGenerator.Instance?.SetRunnerSpawningSuppressed(false);
 
             if (wasActive)
-                Debug.Log("[MiniLevelFleeAttack] Chase cleaned up");
+                GameLog.Info("[MiniLevelFleeAttack] Chase cleaned up");
         }
 
         private void DestroyDecoy()
@@ -1199,11 +1199,15 @@ namespace RingSport.UI
 
         private static Material CreateLitMaterial(Color color)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            // URP/Lit is stripped from builds (no shipping material references
+            // it), so gameplay props use the game's own ArcEffect shader: it
+            // always ships, SRP-batches with the world, and curves with the
+            // arc like everything else.
+            Shader shader = Shader.Find("Custom/Mobile/ArcEffect");
             if (shader == null)
-                shader = Shader.Find("Standard");
+                shader = Shader.Find("Universal Render Pipeline/Lit"); // editor safety net
             var mat = new Material(shader);
-            mat.color = color;
+            mat.SetColor("_BaseColor", color);
             return mat;
         }
     }

@@ -199,7 +199,7 @@ namespace RingSport.UI
         // ------------------------------------------------------------------
         public override void StartGame()
         {
-            Debug.LogWarning("[MiniLevelStopAttack] StartGame called via arena flow - stop attack runs in-run. Completing immediately.");
+            GameLog.Warn("[MiniLevelStopAttack] StartGame called via arena flow - stop attack runs in-run. Completing immediately.");
             CompleteGame();
         }
 
@@ -234,7 +234,7 @@ namespace RingSport.UI
             playerController = Object.FindAnyObjectByType<PlayerController>();
             if (playerController == null)
             {
-                Debug.LogError("[MiniLevelStopAttack] No PlayerController found - cannot start chase");
+                GameLog.Error("[MiniLevelStopAttack] No PlayerController found - cannot start chase");
                 return;
             }
             playerTransform = playerController.transform;
@@ -261,7 +261,7 @@ namespace RingSport.UI
             if (retryEntryPending && preChaseScore > 0)
             {
                 LevelManager.Instance?.AddScore(preChaseScore);
-                Debug.Log($"[MiniLevelStopAttack] Retry entry - re-seeded pre-chase score: {preChaseScore}");
+                GameLog.Info($"[MiniLevelStopAttack] Retry entry - re-seeded pre-chase score: {preChaseScore}");
             }
             else
             {
@@ -276,7 +276,7 @@ namespace RingSport.UI
             phase = StopPhase.Intro;
             phaseTimer = 0f;
 
-            Debug.Log($"[MiniLevelStopAttack] Chase started (difficulty {difficulty}, window {StopWindowSeconds[difficulty]}s)");
+            GameLog.Info($"[MiniLevelStopAttack] Chase started (difficulty {difficulty}, window {StopWindowSeconds[difficulty]}s)");
         }
 
         public override void NotifyLevelEndReached()
@@ -284,7 +284,7 @@ namespace RingSport.UI
             if (!chaseActive)
                 return;
 
-            Debug.Log("[MiniLevelStopAttack] Level end reached - cleaning up");
+            GameLog.Info("[MiniLevelStopAttack] Level end reached - cleaning up");
             Cleanup();
         }
 
@@ -453,7 +453,7 @@ namespace RingSport.UI
 
             ShowBanner("STOP!", stopRed, window - 0.5f, 150f);
 
-            Debug.Log($"[MiniLevelStopAttack] Stop window open: {window}s, line at gap {lineStartGap:F1}, slow charge {slowChargeSpeed:F1} m/s");
+            GameLog.Info($"[MiniLevelStopAttack] Stop window open: {window}s, line at gap {lineStartGap:F1}, slow charge {slowChargeSpeed:F1} m/s");
         }
 
         private void UpdateStopWindow(float dt)
@@ -471,7 +471,7 @@ namespace RingSport.UI
                 // retries just this sequence (mini-level context is armed)
                 phase = StopPhase.Failed;
                 ShowWhistle(false);
-                Debug.Log("[MiniLevelStopAttack] Window expired - dog crossed the line");
+                GameLog.Info("[MiniLevelStopAttack] Window expired - dog crossed the line");
                 GameManager.Instance?.TriggerMiniLevelGameOver();
             }
         }
@@ -520,7 +520,7 @@ namespace RingSport.UI
             ShowBanner("GOOD STOP!", Color.white, 1.2f, 110f);
             ShowWhistle(false);
 
-            Debug.Log("[MiniLevelStopAttack] Stopped in time!");
+            GameLog.Info("[MiniLevelStopAttack] Stopped in time!");
         }
 
         private void OnWhistleTapped()
@@ -887,7 +887,7 @@ namespace RingSport.UI
             LevelGenerator.Instance?.SetRunnerSpawningSuppressed(false);
 
             if (wasActive)
-                Debug.Log("[MiniLevelStopAttack] Cleaned up");
+                GameLog.Info("[MiniLevelStopAttack] Cleaned up");
         }
 
         private void DestroyDecoy()
@@ -1190,21 +1190,30 @@ namespace RingSport.UI
         private Material GetLineMaterial()
         {
             if (lineMaterial == null)
-            {
-                lineMaterial = CreateLitMaterial(stopRed);
-                lineMaterial.EnableKeyword("_EMISSION");
-                lineMaterial.SetColor("_EmissionColor", stopRed * 1.4f);
-            }
+                lineMaterial = CreateGlowMaterial(stopRed);
             return lineMaterial;
+        }
+
+        private static Material CreateGlowMaterial(Color color)
+        {
+            // Unlit reads as self-lit, matching the old URP/Lit + emission
+            // look. URP/Lit is stripped from builds; Unlit ships via Always
+            // Included Shaders.
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null)
+                return CreateLitMaterial(color);
+            var mat = new Material(shader);
+            mat.SetColor("_BaseColor", color);
+            return mat;
         }
 
         private static Material CreateLitMaterial(Color color)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            Shader shader = Shader.Find("Custom/Mobile/ArcEffect");
             if (shader == null)
-                shader = Shader.Find("Standard");
+                shader = Shader.Find("Universal Render Pipeline/Lit"); // editor safety net
             var mat = new Material(shader);
-            mat.color = color;
+            mat.SetColor("_BaseColor", color);
             return mat;
         }
     }

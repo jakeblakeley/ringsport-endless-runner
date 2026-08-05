@@ -148,7 +148,7 @@ namespace RingSport.Level
             if (ObjectPooler.Instance == null)
                 return;
 
-            Debug.Log("Level ending - despawning all obstacles");
+            GameLog.Info("Level ending - despawning all obstacles");
 
             // Despawn all active obstacles
             foreach (GameObject obj in activeObstacles)

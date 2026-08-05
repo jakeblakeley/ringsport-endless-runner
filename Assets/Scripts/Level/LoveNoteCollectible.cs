@@ -68,7 +68,7 @@ namespace RingSport.Level
 
             if (LoveNoteManager.TryCollectRandomLockedNote(out int noteIndex))
             {
-                Debug.Log($"[LoveNoteCollectible] Collected love note {noteIndex}!");
+                GameLog.Info($"[LoveNoteCollectible] Collected love note {noteIndex}!");
             }
 
             UIManager.Instance?.UpdateLoveNoteCounter(LoveNoteManager.CollectedThisRun);

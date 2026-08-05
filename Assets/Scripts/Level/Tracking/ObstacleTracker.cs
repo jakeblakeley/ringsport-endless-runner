@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using RingSport.Core;
 
 namespace RingSport.Level
 {
@@ -136,17 +137,36 @@ namespace RingSport.Level
         /// </summary>
         public void Cleanup(float virtualDistance)
         {
-            // Remove obstacles that are far behind the current position
-            float cleanupThreshold = virtualDistance - 10f;
-            int removedCount = obstaclePositions.RemoveAll(obstacle => obstacle.zPosition < cleanupThreshold);
+            // Remove obstacles that are far behind the current position.
+            // In-place compaction: RemoveAll with a capturing lambda allocated
+            // a closure + delegate every frame (this runs unconditionally from
+            // LevelGenerator.Update).
+            RemoveBelow(virtualDistance - 10f);
 
             // Periodic deep cleanup every 100 virtual units to prevent unbounded growth
             if (virtualDistance % 100f < 1f && obstaclePositions.Count > 50)
             {
                 // Keep only obstacles within 30 units of current position
-                obstaclePositions.RemoveAll(obstacle => obstacle.zPosition < virtualDistance - 30f);
-                Debug.Log($"Deep cleanup performed: obstacle list size = {obstaclePositions.Count}");
+                RemoveBelow(virtualDistance - 30f);
+                GameLog.Info($"Deep cleanup performed: obstacle list size = {obstaclePositions.Count}");
             }
+        }
+
+        /// <summary>Drop every tracked obstacle behind the threshold, allocation-free.</summary>
+        private void RemoveBelow(float threshold)
+        {
+            int write = 0;
+            for (int read = 0; read < obstaclePositions.Count; read++)
+            {
+                if (obstaclePositions[read].zPosition >= threshold)
+                {
+                    if (write != read)
+                        obstaclePositions[write] = obstaclePositions[read];
+                    write++;
+                }
+            }
+            if (write < obstaclePositions.Count)
+                obstaclePositions.RemoveRange(write, obstaclePositions.Count - write);
         }
 
         /// <summary>

@@ -467,6 +467,7 @@ namespace RingSport.Editor
             // Legacy materials carry a stale _Cutoff from their URP Lit days and
             // some pack textures have junk alpha channels - floors must never clip
             if (mat.HasProperty("_Cutoff")) mat.SetFloat("_Cutoff", 0f);
+            mat.DisableKeyword("_ALPHATEST_ON"); // opaque: keep the clip()-free variant (early-Z)
             EditorUtility.SetDirty(mat);
         }
 
@@ -691,6 +692,9 @@ namespace RingSport.Editor
             if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0f);
             if (mat.HasProperty("_Cull")) mat.SetFloat("_Cull", foliage ? 0f : 2f);
             if (mat.HasProperty("_Cutoff")) mat.SetFloat("_Cutoff", foliage ? 0.5f : 0f);
+            // clip() only compiles into cutout materials; opaque ones keep early-Z
+            if (foliage) mat.EnableKeyword("_ALPHATEST_ON");
+            else mat.DisableKeyword("_ALPHATEST_ON");
             EditorUtility.SetDirty(mat);
 
             ArcMatCache[matName] = mat;

@@ -149,7 +149,7 @@ namespace RingSport.Core
             order.Add(noteIndex);
             collectedThisRun++;
             SaveUnlocked();
-            Debug.Log($"[LoveNoteManager] Unlocked note {noteIndex} ({order.Count}/{Notes.Length}). Collected this run: {collectedThisRun}");
+            GameLog.Info($"[LoveNoteManager] Unlocked note {noteIndex} ({order.Count}/{Notes.Length}). Collected this run: {collectedThisRun}");
             return true;
         }
 
@@ -174,7 +174,7 @@ namespace RingSport.Core
             PlayerPrefs.DeleteKey(UnlockedPrefKey);
             PlayerPrefs.DeleteKey(SeenCountPrefKey);
             PlayerPrefs.Save();
-            Debug.Log("[LoveNoteManager] All love note progress cleared.");
+            GameLog.Info("[LoveNoteManager] All love note progress cleared.");
         }
 
         private static List<int> GetUnlockedOrder()

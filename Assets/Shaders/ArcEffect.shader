@@ -69,6 +69,12 @@ Shader "Custom/Mobile/ArcEffect"
             // Optional glTF packed metallic/roughness map
             #pragma shader_feature_local_fragment _METALLICROUGHNESSMAP
 
+            // Alpha-tested foliage only. Compiling clip() into every variant
+            // disables early-Z / hidden-surface removal on tile-based GPUs
+            // (Apple Silicon browsers, mobile) for fully opaque floors and
+            // props too - so discard exists only where cutout is real.
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
@@ -165,9 +171,12 @@ Shader "Custom/Mobile/ArcEffect"
                 half4 baseMap = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
                 half4 albedo = baseMap * _BaseColor;
 
-                // Cutout support for foliage cards; _Cutoff 0 keeps opaque
-                // materials (floors, solid props) branch-free in practice
+                // Cutout support for foliage cards - only compiled into
+                // materials that enable _ALPHATEST_ON (cutoff > 0), so opaque
+                // materials keep early-Z depth rejection
+                #if defined(_ALPHATEST_ON)
                 clip(albedo.a - _Cutoff);
+                #endif
 
                 // Setup lighting
                 InputData inputData = (InputData)0;

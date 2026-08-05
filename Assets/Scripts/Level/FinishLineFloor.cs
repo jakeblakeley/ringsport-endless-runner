@@ -16,7 +16,7 @@ namespace RingSport.Level
             if (!hasTriggered && other.CompareTag("Player"))
             {
                 hasTriggered = true;
-                Debug.Log("Player reached finish line!");
+                GameLog.Info("Player reached finish line!");
 
                 // Trigger level completion
                 if (LevelManager.Instance != null)

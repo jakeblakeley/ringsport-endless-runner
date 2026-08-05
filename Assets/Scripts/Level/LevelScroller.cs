@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using RingSport.Core;
 using RingSport.Player;
@@ -23,6 +24,33 @@ namespace RingSport.Level
         // scroll speed, overriding the player-derived speed; < 0 = no override
         private float speedOverride = -1f;
 
+        // All live ScrollableObjects, moved in one loop per frame. Static so
+        // pooled objects can register from OnEnable before the scene's
+        // LevelScroller has run Awake. Removal is O(1) swap-remove using the
+        // index stored on each ScrollableObject.
+        private static readonly List<ScrollableObject> scrollables = new List<ScrollableObject>(256);
+
+        internal static void Register(ScrollableObject s)
+        {
+            if (s.RegIndex >= 0)
+                return;
+            s.RegIndex = scrollables.Count;
+            scrollables.Add(s);
+        }
+
+        internal static void Unregister(ScrollableObject s)
+        {
+            int index = s.RegIndex;
+            if (index < 0)
+                return;
+            int last = scrollables.Count - 1;
+            ScrollableObject moved = scrollables[last];
+            scrollables[index] = moved;
+            moved.RegIndex = index;
+            scrollables.RemoveAt(last);
+            s.RegIndex = -1;
+        }
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -46,6 +74,7 @@ namespace RingSport.Level
             {
                 scrollSpeed = speedOverride;
                 LevelManager.Instance?.AddDistance(scrollSpeed * Time.deltaTime);
+                ScrollAll();
                 ApplySpeedFov();
                 return;
             }
@@ -65,7 +94,20 @@ namespace RingSport.Level
 
             // Track distance for level progress
             LevelManager.Instance?.AddDistance(scrollSpeed * Time.deltaTime);
+            ScrollAll();
             ApplySpeedFov();
+        }
+
+        /// <summary>Move every registered object toward the player in one pass.</summary>
+        private void ScrollAll()
+        {
+            float dz = scrollSpeed * Time.deltaTime;
+            if (dz == 0f)
+                return;
+
+            Vector3 delta = new Vector3(0f, 0f, -dz);
+            for (int i = 0; i < scrollables.Count; i++)
+                scrollables[i].CachedTransform.position += delta;
         }
 
         /// <summary>Camera widens slightly with speed (sprint and fast levels feel faster).</summary>
@@ -73,15 +115,6 @@ namespace RingSport.Level
         {
             float offset = Mathf.Clamp((scrollSpeed - fovBaseSpeed) * fovPerSpeedUnit, 0f, fovMaxOffset);
             CameraStateMachine.Instance?.SetSpeedFov(offset);
-        }
-
-        public void ScrollObject(Transform obj)
-        {
-            if (isPaused || GameManager.Instance?.CurrentState != GameState.Playing)
-                return;
-
-            // Move objects toward player (negative Z direction)
-            obj.position += Vector3.back * scrollSpeed * Time.deltaTime;
         }
 
         public float GetScrollSpeed()

@@ -2,23 +2,31 @@ using UnityEngine;
 
 namespace RingSport.Level
 {
+    /// <summary>
+    /// Marks a spawned object as world-scrolled. Registration only - the
+    /// movement itself runs as one batched loop in LevelScroller.Update, so a
+    /// frame costs one managed call instead of one per live object (100-250
+    /// floors/scenery/obstacles/coins are alive at steady state).
+    /// </summary>
     public class ScrollableObject : MonoBehaviour
     {
-        private LevelScroller scroller;
-        private Transform cachedTransform;
+        // Slot in LevelScroller's registry (swap-remove bookkeeping)
+        internal int RegIndex = -1;
+        internal Transform CachedTransform;
 
-        private void Start()
+        private void Awake()
         {
-            scroller = LevelScroller.Instance;
-            cachedTransform = transform;
+            CachedTransform = transform;
         }
 
-        private void Update()
+        private void OnEnable()
         {
-            if (scroller != null)
-            {
-                scroller.ScrollObject(cachedTransform);
-            }
+            LevelScroller.Register(this);
+        }
+
+        private void OnDisable()
+        {
+            LevelScroller.Unregister(this);
         }
     }
 }

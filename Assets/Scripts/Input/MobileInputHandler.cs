@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System;
+using RingSport.Core;
 
 namespace RingSport.Input
 {
@@ -54,7 +55,7 @@ namespace RingSport.Input
             if (GetComponent<WebGLTouchHandler>() == null)
             {
                 gameObject.AddComponent<WebGLTouchHandler>();
-                Debug.Log("WebGLTouchHandler added for iOS Safari optimization");
+                GameLog.Info("WebGLTouchHandler added for iOS Safari optimization");
             }
 #endif
         }
@@ -119,7 +120,7 @@ namespace RingSport.Input
             if (hasTouchscreen || isWebGL || isEditor)
             {
                 SetActive(true);
-                Debug.Log($"MobileInputHandler: Activated (touchscreen={hasTouchscreen}, webgl={isWebGL}, editor={isEditor})");
+                GameLog.Info($"MobileInputHandler: Activated (touchscreen={hasTouchscreen}, webgl={isWebGL}, editor={isEditor})");
             }
         }
 
@@ -152,7 +153,7 @@ namespace RingSport.Input
             moveInputResetTime = Time.time + MOVE_INPUT_DURATION;
             OnLaneChangeLeft?.Invoke();
 
-            Debug.Log("Mobile Input: Lane Change LEFT");
+            GameLog.Info("Mobile Input: Lane Change LEFT");
         }
 
         /// <summary>
@@ -164,7 +165,7 @@ namespace RingSport.Input
             moveInputResetTime = Time.time + MOVE_INPUT_DURATION;
             OnLaneChangeRight?.Invoke();
 
-            Debug.Log("Mobile Input: Lane Change RIGHT");
+            GameLog.Info("Mobile Input: Lane Change RIGHT");
         }
 
         /// <summary>
@@ -175,7 +176,7 @@ namespace RingSport.Input
             JumpPressed = true;
             OnJumpTriggered?.Invoke();
 
-            Debug.Log("Mobile Input: JUMP");
+            GameLog.Info("Mobile Input: JUMP");
         }
 
         /// <summary>
@@ -186,7 +187,7 @@ namespace RingSport.Input
             OnPressTriggered?.Invoke();
 
             if (showDebugLogs)
-                Debug.Log("Mobile Input: PRESS (tap)");
+                GameLog.Info("Mobile Input: PRESS (tap)");
         }
 
         /// <summary>
@@ -196,7 +197,7 @@ namespace RingSport.Input
         {
             OnSprintStarted?.Invoke();
 
-            Debug.Log("Mobile Input: SPRINT STARTED");
+            GameLog.Info("Mobile Input: SPRINT STARTED");
         }
 
         /// <summary>
@@ -206,7 +207,7 @@ namespace RingSport.Input
         {
             OnSprintEnded?.Invoke();
 
-            Debug.Log("Mobile Input: SPRINT ENDED");
+            GameLog.Info("Mobile Input: SPRINT ENDED");
         }
 
         /// <summary>

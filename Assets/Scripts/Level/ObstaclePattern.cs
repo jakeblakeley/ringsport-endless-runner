@@ -1,4 +1,5 @@
 using UnityEngine;
+using RingSport.Core;
 
 namespace RingSport.Level
 {
@@ -99,7 +100,7 @@ namespace RingSport.Level
 
                     if (!hasPassableLane)
                     {
-                        Debug.LogWarning($"Pattern '{patternName}' is UNSOLVABLE at Z={kvp.Key}: All 3 lanes blocked with instant-death obstacles!");
+                        GameLog.Warn($"Pattern '{patternName}' is UNSOLVABLE at Z={kvp.Key}: All 3 lanes blocked with instant-death obstacles!");
                         return false;
                     }
                 }

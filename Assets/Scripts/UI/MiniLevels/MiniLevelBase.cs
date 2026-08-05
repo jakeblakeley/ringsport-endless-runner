@@ -40,7 +40,7 @@ namespace RingSport.UI
         /// </summary>
         protected void CompleteGame()
         {
-            Debug.Log($"[{GetType().Name}] Game complete");
+            GameLog.Info($"[{GetType().Name}] Game complete");
             MiniLevelManager.Instance?.OnMiniLevelGameComplete();
         }
     }

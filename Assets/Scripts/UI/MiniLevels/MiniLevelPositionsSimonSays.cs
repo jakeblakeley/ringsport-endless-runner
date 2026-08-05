@@ -38,10 +38,12 @@ namespace RingSport.UI
         [Header("Round Configuration")]
         [SerializeField] private int[] sequenceLengths = { 3, 4, 5 };
 
-        [Header("Juice (temporary clips - see SOUND_EFFECTS.md)")]
-        [Tooltip("Per-pose tone: Sit / Down / Stand each get their own pitch.")]
+        [Header("Juice (see SOUND_EFFECTS.md)")]
+        [Tooltip("Per-pose tone: Sit / Down / Stand each get their own pitch (temporary clip).")]
         [SerializeField] private AudioClip poseToneSound;
+        [Tooltip("Round-pass chime.")]
         [SerializeField] private AudioClip correctSound;
+        [Tooltip("Wrong-pose buzzer.")]
         [SerializeField] private AudioClip wrongSound;
         [SerializeField] [Range(0f, 1f)] private float juiceVolume = 0.85f;
 
@@ -159,7 +161,7 @@ namespace RingSport.UI
 
         public override void OnPrepareGame()
         {
-            Debug.Log("[MiniLevelPositionsSimonSays] Preparing game - setting camera to MiniLevel state (close + low)");
+            GameLog.Info("[MiniLevelPositionsSimonSays] Preparing game - setting camera to MiniLevel state (close + low)");
             player = Object.FindAnyObjectByType<PlayerController>();
 
             // Same straight-on framing as Food Refusal but closer and lower,
@@ -175,7 +177,7 @@ namespace RingSport.UI
 
         public override void StartGame()
         {
-            Debug.Log("[MiniLevelPositionsSimonSays] Starting game...");
+            GameLog.Info("[MiniLevelPositionsSimonSays] Starting game...");
 
             // Reset state
             currentRound = 0;
@@ -196,7 +198,7 @@ namespace RingSport.UI
 
         public override void StopGame()
         {
-            Debug.Log("[MiniLevelPositionsSimonSays] Stopping game...");
+            GameLog.Info("[MiniLevelPositionsSimonSays] Stopping game...");
 
             if (gameCoroutine != null)
             {
@@ -262,7 +264,7 @@ namespace RingSport.UI
             // Run through all rounds
             for (currentRound = 0; currentRound < sequenceLengths.Length; currentRound++)
             {
-                Debug.Log($"[MiniLevelPositionsSimonSays] Starting round {currentRound + 1}");
+                GameLog.Info($"[MiniLevelPositionsSimonSays] Starting round {currentRound + 1}");
 
                 // Generate sequence for this round
                 GenerateSequence(sequenceLengths[currentRound]);
@@ -292,7 +294,7 @@ namespace RingSport.UI
             }
 
             // All rounds complete - success!
-            Debug.Log("[MiniLevelPositionsSimonSays] All rounds complete!");
+            GameLog.Info("[MiniLevelPositionsSimonSays] All rounds complete!");
             UpdateText("Well Done!");
             SetDogPose("Stand");
             PlayClip(correctSound, 1.15f);
@@ -317,7 +319,7 @@ namespace RingSport.UI
                 currentSequence.Add(positions[randomIndex]);
             }
 
-            Debug.Log($"[MiniLevelPositionsSimonSays] Generated sequence: {string.Join(", ", currentSequence)}");
+            GameLog.Info($"[MiniLevelPositionsSimonSays] Generated sequence: {string.Join(", ", currentSequence)}");
         }
 
         private IEnumerator ShowSequenceCoroutine()
@@ -328,6 +330,10 @@ namespace RingSport.UI
             // Initial pause before showing
             UpdateText("Watch carefully");
             yield return new WaitForSecondsRealtime(1f);
+
+            // Reused across the sequence loop instead of two allocs per step
+            var displayWait = new WaitForSecondsRealtime(positionDisplayTime);
+            var gapWait = new WaitForSecondsRealtime(gapBetweenPositions);
 
             for (int i = 0; i < currentSequence.Count; i++)
             {
@@ -342,13 +348,13 @@ namespace RingSport.UI
                     Juice.PunchRotation(shownButton.transform, 8f, 0.35f);
 
                 // Wait for display time
-                yield return new WaitForSecondsRealtime(positionDisplayTime);
+                yield return displayWait;
 
                 // Show gap (blank or neutral text) if not the last position
                 if (i < currentSequence.Count - 1)
                 {
                     UpdateText("...");
-                    yield return new WaitForSecondsRealtime(gapBetweenPositions);
+                    yield return gapWait;
                 }
             }
 
@@ -381,7 +387,7 @@ namespace RingSport.UI
             if (currentPhase != GamePhase.Input || isProcessingInput)
                 return;
 
-            Debug.Log($"[MiniLevelPositionsSimonSays] Button clicked: {position}");
+            GameLog.Info($"[MiniLevelPositionsSimonSays] Button clicked: {position}");
 
             string expectedPosition = currentSequence[playerInputIndex];
 
@@ -450,7 +456,7 @@ namespace RingSport.UI
 
         private void TriggerGameOver()
         {
-            Debug.Log("[MiniLevelPositionsSimonSays] Triggering game over");
+            GameLog.Info("[MiniLevelPositionsSimonSays] Triggering game over");
             GameManager.Instance?.TriggerMiniLevelGameOver();
         }
     }

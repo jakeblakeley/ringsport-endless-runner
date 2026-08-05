@@ -237,7 +237,7 @@ namespace RingSport.Core
             // Show HUD after score is reset
             UIManager.Instance?.ShowGameHUD();
 
-            Debug.Log($"[GameManager] HandlePlayingState - About to start countdown. UIManager exists: {UIManager.Instance != null}");
+            GameLog.Info($"[GameManager] HandlePlayingState - About to start countdown. UIManager exists: {UIManager.Instance != null}");
             UIManager.Instance?.StartCountdown(countdownDuration, OnCountdownComplete);
 
             // Note: Location audio is started by LevelManager.StartLevel() after level is generated
@@ -301,7 +301,7 @@ namespace RingSport.Core
             }
             else
             {
-                Debug.LogError("No current level config found for mini level!");
+                GameLog.Error("No current level config found for mini level!");
                 // Fallback: skip directly to level complete
                 SetState(GameState.LevelComplete);
             }
@@ -336,11 +336,11 @@ namespace RingSport.Core
 
             if (targetLevel < 1)
             {
-                Debug.LogWarning($"[GameManager] No level uses the {effectiveType} mini level - cannot route in-run entry");
+                GameLog.Warn($"[GameManager] No level uses the {effectiveType} mini level - cannot route in-run entry");
                 return false;
             }
 
-            Debug.Log($"[GameManager] Routing {effectiveType} mini level into in-run chase on level {targetLevel}");
+            GameLog.Info($"[GameManager] Routing {effectiveType} mini level into in-run chase on level {targetLevel}");
             LevelManager.Instance.StartAtInRunMiniLevel(targetLevel);
             return true;
         }
@@ -375,7 +375,7 @@ namespace RingSport.Core
             int levelScore = ScoreManager.Instance?.CurrentScore ?? 0;
             int maxLevels = LevelManager.Instance?.MaxLevels ?? 8;
 
-            Debug.Log($"[GameManager] HandleLevelCompleteState - Level: {level}, LevelScore: {levelScore}");
+            GameLog.Info($"[GameManager] HandleLevelCompleteState - Level: {level}, LevelScore: {levelScore}");
 
             string nextLevelName = "";
             string nextLevelLocation = "";
@@ -406,7 +406,7 @@ namespace RingSport.Core
             // already frozen by state checks (LevelScroller, PlayerController,
             // spawners all gate on GameState.Playing).
             Time.timeScale = 1f;
-            Debug.Log($"[GameManager] HandleGameOverState - isInMiniLevelContext: {isInMiniLevelContext}");
+            GameLog.Info($"[GameManager] HandleGameOverState - isInMiniLevelContext: {isInMiniLevelContext}");
 
             var player = Object.FindAnyObjectByType<PlayerController>();
             player?.PlayDeathAnimation();
@@ -437,18 +437,18 @@ namespace RingSport.Core
             // Only allow starting game from Home state
             if (currentState != GameState.Home)
             {
-                Debug.Log($"[GameManager] StartGame BLOCKED - not in Home state (current: {currentState})");
+                GameLog.Info($"[GameManager] StartGame BLOCKED - not in Home state (current: {currentState})");
                 return;
             }
 
-            Debug.Log("[GameManager] StartGame called - this resets progress!");
+            GameLog.Info("[GameManager] StartGame called - this resets progress!");
             LevelManager.Instance?.ResetProgress();
             TransitionToState(GameState.Playing);
         }
 
         public void RestartLevel()
         {
-            Debug.Log("[GameManager] RestartLevel called");
+            GameLog.Info("[GameManager] RestartLevel called");
             // Finalize score from the failed attempt before restarting
             ScoreManager.Instance?.FinalizeLevelScore();
             TransitionToState(GameState.Playing);
@@ -529,7 +529,7 @@ namespace RingSport.Core
             if (currentState == GameState.GameOver || deathSequenceRunning)
                 return;
 
-            Debug.Log($"[GameManager] TriggerMiniLevelGameOver called - isInMiniLevelContext before: {isInMiniLevelContext}");
+            GameLog.Info($"[GameManager] TriggerMiniLevelGameOver called - isInMiniLevelContext before: {isInMiniLevelContext}");
 
             // Consume a retry when the player fails mini-level
             if (LevelManager.Instance != null)
@@ -546,7 +546,7 @@ namespace RingSport.Core
         /// </summary>
         public void RestartMiniLevel()
         {
-            Debug.Log("[GameManager] RestartMiniLevel called");
+            GameLog.Info("[GameManager] RestartMiniLevel called");
             // Does NOT finalize score - player keeps their running section score
             TransitionToState(GameState.MiniLevel);
         }
@@ -576,7 +576,7 @@ namespace RingSport.Core
                 musicAudioSource.volume = 0f;
                 musicAudioSource.Play();
                 anyStarted = true;
-                Debug.Log($"Playing music: {music.name} at volume {musicVolume}");
+                GameLog.Info($"Playing music: {music.name} at volume {musicVolume}");
             }
 
             if (ambient != null && ambientAudioSource != null)

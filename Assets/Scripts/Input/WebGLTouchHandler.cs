@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Runtime.InteropServices;
+using RingSport.Core;
 
 namespace RingSport.Input
 {
@@ -21,14 +22,14 @@ namespace RingSport.Input
             try
             {
                 PreventDefaultTouchEvents();
-                Debug.Log("WebGL touch event prevention initialized for iOS Safari");
+                GameLog.Info("WebGL touch event prevention initialized for iOS Safari");
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"Failed to initialize WebGL touch event prevention: {e.Message}");
+                GameLog.Error($"Failed to initialize WebGL touch event prevention: {e.Message}");
             }
 #else
-            Debug.Log("WebGLTouchHandler is only active in WebGL builds");
+            GameLog.Info("WebGLTouchHandler is only active in WebGL builds");
 #endif
         }
     }

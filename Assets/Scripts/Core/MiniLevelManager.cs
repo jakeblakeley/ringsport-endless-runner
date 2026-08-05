@@ -71,7 +71,7 @@ namespace RingSport.Core
 
             // Auto-discover mini level game scripts
             miniLevelGames = FindObjectsByType<MiniLevelBase>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-            Debug.Log($"[MiniLevelManager] Discovered {miniLevelGames.Length} mini level games");
+            GameLog.Info($"[MiniLevelManager] Discovered {miniLevelGames.Length} mini level games");
         }
 
         private void HideStartPanel()
@@ -90,7 +90,7 @@ namespace RingSport.Core
             // If already in an active mini-level, reset it first
             if (isMiniLevelActive && currentMiniLevelGame != null)
             {
-                Debug.Log("[MiniLevelManager] Restarting mini-level - stopping current game first");
+                GameLog.Info("[MiniLevelManager] Restarting mini-level - stopping current game first");
                 currentMiniLevelGame.StopGame();
             }
 
@@ -100,7 +100,7 @@ namespace RingSport.Core
             // Find the game script for this type
             currentMiniLevelGame = GetMiniLevelGame(type);
 
-            Debug.Log($"[MiniLevelManager] Starting mini level: {type} (skipStartPanel: {skipStartPanel})");
+            GameLog.Info($"[MiniLevelManager] Starting mini level: {type} (skipStartPanel: {skipStartPanel})");
 
             // Ensure game HUD is hidden during mini level
             UIManager.Instance?.HideGameHUD();
@@ -126,7 +126,7 @@ namespace RingSport.Core
 
         private void OnStartButtonClicked()
         {
-            Debug.Log("[MiniLevelManager] Start button clicked, beginning countdown");
+            GameLog.Info("[MiniLevelManager] Start button clicked, beginning countdown");
 
             // Ensure game HUD is hidden during mini level
             UIManager.Instance?.HideGameHUD();
@@ -148,17 +148,17 @@ namespace RingSport.Core
 
         private void OnCountdownComplete()
         {
-            Debug.Log($"[MiniLevelManager] Countdown complete, currentMiniLevelGame: {(currentMiniLevelGame != null ? currentMiniLevelGame.name : "NULL")}");
+            GameLog.Info($"[MiniLevelManager] Countdown complete, currentMiniLevelGame: {(currentMiniLevelGame != null ? currentMiniLevelGame.name : "NULL")}");
 
             // Start the mini level game
             if (currentMiniLevelGame != null)
             {
-                Debug.Log($"[MiniLevelManager] Starting mini level game: {currentMiniLevelGame.MiniLevelType}");
+                GameLog.Info($"[MiniLevelManager] Starting mini level game: {currentMiniLevelGame.MiniLevelType}");
                 currentMiniLevelGame.StartGame();
             }
             else
             {
-                Debug.Log($"[MiniLevelManager] No game script found for {currentMiniLevelType}, showing reward panel immediately");
+                GameLog.Info($"[MiniLevelManager] No game script found for {currentMiniLevelType}, showing reward panel immediately");
                 OnMiniLevelGameComplete();
             }
         }
@@ -168,7 +168,7 @@ namespace RingSport.Core
         /// </summary>
         public void OnMiniLevelGameComplete()
         {
-            Debug.Log("[MiniLevelManager] OnMiniLevelGameComplete called, completing mini level");
+            GameLog.Info("[MiniLevelManager] OnMiniLevelGameComplete called, completing mini level");
 
             // Go directly to level complete (no separate mini level reward screen)
             CompleteMiniLevel();
@@ -181,13 +181,13 @@ namespace RingSport.Core
         {
             if (!isMiniLevelActive)
             {
-                Debug.LogWarning("[MiniLevelManager] CompleteMiniLevel called but mini level is not active");
+                GameLog.Warn("[MiniLevelManager] CompleteMiniLevel called but mini level is not active");
                 return;
             }
 
             isMiniLevelActive = false;
 
-            Debug.Log($"[MiniLevelManager] Mini level completed: {currentMiniLevelType}");
+            GameLog.Info($"[MiniLevelManager] Mini level completed: {currentMiniLevelType}");
 
             // Stop current game if running
             if (currentMiniLevelGame != null)
@@ -201,7 +201,7 @@ namespace RingSport.Core
 
             // Capture the level score BEFORE finalizing (so it's available for the reward screen)
             int levelScore = ScoreManager.Instance?.CurrentScore ?? 0;
-            Debug.Log($"[MiniLevelManager] Captured level score before finalize: {levelScore}");
+            GameLog.Info($"[MiniLevelManager] Captured level score before finalize: {levelScore}");
 
             // Finalize level score (stores it in best scores for the level)
             ScoreManager.Instance?.FinalizeLevelScore();

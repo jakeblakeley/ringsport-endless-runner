@@ -45,7 +45,7 @@ namespace RingSport.UI
             // Cache rigidbody reference
             rb = GetComponent<Rigidbody>();
 
-            Debug.Log($"[FoodRefusalFallingObject] Initialized as {type} at {transform.position}, Rigidbody: {(rb != null ? "found" : "MISSING")}");
+            GameLog.Info($"[FoodRefusalFallingObject] Initialized as {type} at {transform.position}, Rigidbody: {(rb != null ? "found" : "MISSING")}");
         }
 
         private void FixedUpdate()
@@ -67,14 +67,14 @@ namespace RingSport.UI
             // Cleanup when below play area
             if (transform.position.y < despawnY)
             {
-                Debug.Log($"[FoodRefusalFallingObject] {objectType} fell below despawn height, cleaning up");
+                GameLog.Info($"[FoodRefusalFallingObject] {objectType} fell below despawn height, cleaning up");
                 Cleanup();
             }
         }
 
         private void OnTriggerEnter(Collider other)
         {
-            Debug.Log($"[FoodRefusalFallingObject] OnTriggerEnter called by {other.name}, tag: {other.tag}, isInitialized: {isInitialized}, hasBeenTriggered: {hasBeenTriggered}");
+            GameLog.Info($"[FoodRefusalFallingObject] OnTriggerEnter called by {other.name}, tag: {other.tag}, isInitialized: {isInitialized}, hasBeenTriggered: {hasBeenTriggered}");
 
             if (!isInitialized || hasBeenTriggered) return;
 
@@ -82,17 +82,17 @@ namespace RingSport.UI
             {
                 hasBeenTriggered = true;
 
-                Debug.Log($"[FoodRefusalFallingObject] Player hit {objectType}! Invoking callback...");
+                GameLog.Info($"[FoodRefusalFallingObject] Player hit {objectType}! Invoking callback...");
 
                 if (objectType == FallingObjectType.Steak)
                 {
-                    Debug.Log($"[FoodRefusalFallingObject] onSteakHit is {(onSteakHit != null ? "set" : "NULL")}");
+                    GameLog.Info($"[FoodRefusalFallingObject] onSteakHit is {(onSteakHit != null ? "set" : "NULL")}");
                     onSteakHit?.Invoke();
                     // Don't cleanup immediately - let the mini-level handle it
                 }
                 else if (objectType == FallingObjectType.Collectible)
                 {
-                    Debug.Log($"[FoodRefusalFallingObject] onCollectibleCollected is {(onCollectibleCollected != null ? "set" : "NULL")}");
+                    GameLog.Info($"[FoodRefusalFallingObject] onCollectibleCollected is {(onCollectibleCollected != null ? "set" : "NULL")}");
                     onCollectibleCollected?.Invoke(pointValue);
                     Cleanup();
                 }

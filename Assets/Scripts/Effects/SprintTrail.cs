@@ -1,5 +1,6 @@
 using UnityEngine;
 using RingSport.Level;
+using RingSport.Core;
 
 namespace RingSport.Effects
 {
@@ -32,7 +33,7 @@ namespace RingSport.Effects
 
             if (lines == null)
             {
-                Debug.LogWarning("SprintTrail: no ParticleSystem found. Run Tools > RingSport > Setup Particle Polish.");
+                GameLog.Warn("SprintTrail: no ParticleSystem found. Run Tools > RingSport > Setup Particle Polish.");
                 enabled = false;
                 return;
             }

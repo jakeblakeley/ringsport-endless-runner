@@ -2,6 +2,7 @@ using UnityEngine;
 using TMPro;
 using System;
 using System.Collections;
+using RingSport.Core;
 
 namespace RingSport.UI
 {
@@ -29,8 +30,8 @@ namespace RingSport.UI
         {
             if (countdownCoroutine != null)
             {
-                Debug.LogWarning("[CountdownUI] GameObject disabled while countdown was running! Stack trace:");
-                Debug.Log(System.Environment.StackTrace);
+                GameLog.Warn("[CountdownUI] GameObject disabled while countdown was running! Stack trace:");
+                GameLog.Info(System.Environment.StackTrace);
             }
         }
 
@@ -50,7 +51,7 @@ namespace RingSport.UI
             if (countdownCoroutine != null)
                 StopCoroutine(countdownCoroutine);
 
-            Debug.Log("[CountdownUI] Starting countdown coroutine");
+            GameLog.Info("[CountdownUI] Starting countdown coroutine");
             countdownCoroutine = StartCoroutine(CountdownRoutine());
         }
 
@@ -61,8 +62,8 @@ namespace RingSport.UI
         {
             if (countdownCoroutine != null)
             {
-                Debug.Log("[CountdownUI] Hide() called - stopping active coroutine. Stack trace:");
-                Debug.Log(System.Environment.StackTrace);
+                GameLog.Info("[CountdownUI] Hide() called - stopping active coroutine. Stack trace:");
+                GameLog.Info(System.Environment.StackTrace);
                 StopCoroutine(countdownCoroutine);
                 countdownCoroutine = null;
             }
@@ -74,7 +75,7 @@ namespace RingSport.UI
         private IEnumerator CountdownRoutine()
         {
             float timePerNumber = duration / numbers.Length;
-            Debug.Log($"[CountdownUI] Countdown starting - {numbers.Length} numbers, {timePerNumber}s each");
+            GameLog.Info($"[CountdownUI] Countdown starting - {numbers.Length} numbers, {timePerNumber}s each");
 
             for (int i = 0; i < numbers.Length; i++)
             {
@@ -95,7 +96,7 @@ namespace RingSport.UI
                 }
             }
 
-            Debug.Log("[CountdownUI] Countdown complete, invoking callback");
+            GameLog.Info("[CountdownUI] Countdown complete, invoking callback");
             countdownCoroutine = null;
             Hide();
             onComplete?.Invoke();

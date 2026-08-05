@@ -63,7 +63,11 @@ namespace RingSport.Level
             if (hasBeenTriggered)
                 return;
 
-            Debug.Log($"Obstacle ({obstacleType}) triggered by: {other.name}, tag: {other.tag}");
+            // Perf-harness automation: sail through hits (no death, no minigame)
+            if (PerfFlags.Invincible)
+                return;
+
+            GameLog.Info($"Obstacle ({obstacleType}) triggered by: {other.name}, tag: {other.tag}");
 
             // Check if player collided with obstacle
             if (other.CompareTag("Player"))
@@ -84,7 +88,7 @@ namespace RingSport.Level
                 }
                 else
                 {
-                    Debug.LogWarning("Player tag found but no PlayerController component!");
+                    GameLog.Warn("Player tag found but no PlayerController component!");
                 }
             }
         }
@@ -97,7 +101,7 @@ namespace RingSport.Level
             {
                 case ObstacleType.Avoid:
                     // Instant game over
-                    Debug.Log($"Hit AVOID obstacle! Game Over!");
+                    GameLog.Info($"Hit AVOID obstacle! Game Over!");
                     gameManager?.TriggerGameOver();
                     break;
 
@@ -105,24 +109,29 @@ namespace RingSport.Level
                     // If player is on the ground or didn't jump high enough, game over
                     if (player.IsGrounded)
                     {
-                        Debug.Log($"Hit JUMP obstacle while grounded! Game Over!");
+                        GameLog.Info($"Hit JUMP obstacle while grounded! Game Over!");
                         gameManager?.TriggerGameOver();
                     }
                     else if (playerHeight < jumpHeightThreshold)
                     {
-                        Debug.Log($"Hit JUMP obstacle while too low (height: {playerHeight}, required: {jumpHeightThreshold})! Game Over!");
+                        GameLog.Info($"Hit JUMP obstacle while too low (height: {playerHeight}, required: {jumpHeightThreshold})! Game Over!");
                         gameManager?.TriggerGameOver();
                     }
                     else
                     {
-                        Debug.Log($"Successfully jumped over obstacle! (height: {playerHeight})");
+                        GameLog.Info($"Successfully jumped over obstacle! (height: {playerHeight})");
 
                         // Near-miss reward: a small white glint on the bar the
-                        // dog just cleared (whoosh clip pending - SOUND_EFFECTS.md)
+                        // dog just cleared, plus a whoosh that sharpens the
+                        // tighter the clearance was
                         Vector3 barTop = obstacleCollider != null
                             ? new Vector3(transform.position.x, obstacleCollider.bounds.max.y, transform.position.z)
                             : transform.position;
                         CollectBurstVFX.PlayNearMiss(barTop);
+
+                        // 0 = shaved the bar, 1 = sailed a body height over it
+                        float clearance = Mathf.InverseLerp(jumpHeightThreshold, jumpHeightThreshold + 0.8f, playerHeight);
+                        LevelManager.Instance?.PlayNearMissWhoosh(clearance);
                     }
                     break;
 
@@ -134,12 +143,12 @@ namespace RingSport.Level
 
         private void HandlePalisadeCollision(PlayerController player)
         {
-            Debug.Log("=== HandlePalisadeCollision started ===");
+            GameLog.Info("=== HandlePalisadeCollision started ===");
 
             // Use cached collider reference
             if (obstacleCollider == null)
             {
-                Debug.LogError("Palisade obstacle has no collider!");
+                GameLog.Error("Palisade obstacle has no collider!");
                 gameManager?.TriggerGameOver();
                 return;
             }
@@ -153,12 +162,12 @@ namespace RingSport.Level
             // Calculate hit height percentage (0 = bottom, 1 = top)
             float hitHeightPercent = Mathf.Clamp01((playerY - obstacleBottom) / obstacleHeight);
 
-            Debug.Log($"Palisade collision - Hit height: {hitHeightPercent * 100f:F1}% (Player Y: {playerY}, Obstacle: {obstacleBottom} to {obstacleTop})");
+            GameLog.Info($"Palisade collision - Hit height: {hitHeightPercent * 100f:F1}% (Player Y: {playerY}, Obstacle: {obstacleBottom} to {obstacleTop})");
 
             // Below 50% height = instant game over
             if (hitHeightPercent < 0.5f)
             {
-                Debug.Log($"Hit Palisade too low ({hitHeightPercent * 100f:F1}%)! Game Over!");
+                GameLog.Info($"Hit Palisade too low ({hitHeightPercent * 100f:F1}%)! Game Over!");
                 gameManager?.TriggerGameOver();
                 return;
             }
@@ -169,8 +178,8 @@ namespace RingSport.Level
             int requiredTaps = Mathf.RoundToInt(Mathf.Lerp(10f, 1f, tapPercent));
             requiredTaps = Mathf.Max(1, requiredTaps); // Ensure at least 1 tap
 
-            Debug.Log($"Palisade requires {requiredTaps} taps (hit at {hitHeightPercent * 100f:F1}%)");
-            Debug.Log($"About to call UIManager.ShowPalisadeMinigame, UIManager.Instance: {(uiManager != null ? "EXISTS" : "NULL")}");
+            GameLog.Info($"Palisade requires {requiredTaps} taps (hit at {hitHeightPercent * 100f:F1}%)");
+            GameLog.Info($"About to call UIManager.ShowPalisadeMinigame, UIManager.Instance: {(uiManager != null ? "EXISTS" : "NULL")}");
 
             // Pass obstacle bottom position for accurate arc calculation
             Vector3 obstacleBottomPosition = new Vector3(
@@ -187,7 +196,7 @@ namespace RingSport.Level
                 player
             );
 
-            Debug.Log("=== HandlePalisadeCollision finished ===");
+            GameLog.Info("=== HandlePalisadeCollision finished ===");
         }
 
 #if UNITY_EDITOR

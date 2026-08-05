@@ -41,6 +41,8 @@ namespace RingSport.UI
 
         [Header("Audio")]
         [SerializeField] private AudioClip collectSound;
+        [Tooltip("Wet splat when a steak lands on the dog.")]
+        [SerializeField] private AudioClip splatSound;
 
         // Runtime state
         private Coroutine gameCoroutine;
@@ -60,7 +62,7 @@ namespace RingSport.UI
         /// </summary>
         public override void OnPrepareGame()
         {
-            Debug.Log("[MiniLevelFoodRefusal] Preparing game - setting camera to MiniLevel state");
+            GameLog.Info("[MiniLevelFoodRefusal] Preparing game - setting camera to MiniLevel state");
             CameraStateMachine.Instance?.SetState(CameraStateType.MiniLevel);
 
             // Dog turns around to face the straight-on mini-level camera
@@ -70,7 +72,7 @@ namespace RingSport.UI
 
         public override void StartGame()
         {
-            Debug.Log("[MiniLevelFoodRefusal] Starting game...");
+            GameLog.Info("[MiniLevelFoodRefusal] Starting game...");
 
             // Reset state
             steaksSpawned = 0;
@@ -92,12 +94,12 @@ namespace RingSport.UI
                 playerController.ResumeMovement();
                 // Dodge-only mini game - no jumping over the steaks
                 playerController.SetJumpEnabled(false);
-                Debug.Log($"[MiniLevelFoodRefusal] Player found at Z={playerZPosition}");
+                GameLog.Info($"[MiniLevelFoodRefusal] Player found at Z={playerZPosition}");
             }
             else
             {
                 playerZPosition = 0f;
-                Debug.LogWarning("[MiniLevelFoodRefusal] PlayerController not found!");
+                GameLog.Warn("[MiniLevelFoodRefusal] PlayerController not found!");
             }
 
             // Show UI
@@ -110,7 +112,7 @@ namespace RingSport.UI
 
         public override void StopGame()
         {
-            Debug.Log("[MiniLevelFoodRefusal] Stopping game...");
+            GameLog.Info("[MiniLevelFoodRefusal] Stopping game...");
 
             isGameRunning = false;
 
@@ -152,6 +154,10 @@ namespace RingSport.UI
         {
             int collectiblesSpawned = 0;
 
+            // Reused across iterations (WaitForSecondsRealtime re-arms on
+            // yield) instead of allocating one per steak
+            var spawnWait = new WaitForSecondsRealtime(steakSpawnInterval);
+
             for (int i = 0; i < totalSteaks && isGameRunning; i++)
             {
                 steaksSpawned = i + 1;
@@ -170,13 +176,14 @@ namespace RingSport.UI
                     int collectibleLane = GetSafeLane(steakLane);
                     SpawnCollectible(collectibleLane);
                     collectiblesSpawned++;
-                    Debug.Log($"[MiniLevelFoodRefusal] Spawned collectible {collectiblesSpawned}/{megaCollectibleCount} in lane {collectibleLane}");
+                    GameLog.Info($"[MiniLevelFoodRefusal] Spawned collectible {collectiblesSpawned}/{megaCollectibleCount} in lane {collectibleLane}");
                 }
 
                 UpdateUI();
 
                 // Wait for next spawn (use realtime since TimeScale may be 0)
-                yield return new WaitForSecondsRealtime(steakSpawnInterval);
+                spawnWait.waitTime = steakSpawnInterval;
+                yield return spawnWait;
             }
 
             // Wait for all objects to fall past
@@ -185,7 +192,7 @@ namespace RingSport.UI
             // If we got here without game over, player wins!
             if (isGameRunning)
             {
-                Debug.Log("[MiniLevelFoodRefusal] Player survived all steaks!");
+                GameLog.Info("[MiniLevelFoodRefusal] Player survived all steaks!");
                 isGameRunning = false;
                 HidePanel();
 
@@ -224,7 +231,7 @@ namespace RingSport.UI
                 if (falling == null)
                 {
                     falling = steak.AddComponent<FoodRefusalFallingObject>();
-                    Debug.Log($"[MiniLevelFoodRefusal] Added FoodRefusalFallingObject component to steak");
+                    GameLog.Info($"[MiniLevelFoodRefusal] Added FoodRefusalFallingObject component to steak");
                 }
 
                 falling.Initialize(
@@ -237,13 +244,13 @@ namespace RingSport.UI
                 // Verify collider setup
                 var collider = steak.GetComponent<Collider>();
                 var rb = steak.GetComponent<Rigidbody>();
-                Debug.Log($"[MiniLevelFoodRefusal] Steak spawned at {spawnPos} - Collider: {(collider != null ? $"exists, isTrigger={collider.isTrigger}" : "MISSING")}, Rigidbody: {(rb != null ? $"exists, isKinematic={rb.isKinematic}" : "MISSING")}");
+                GameLog.Info($"[MiniLevelFoodRefusal] Steak spawned at {spawnPos} - Collider: {(collider != null ? $"exists, isTrigger={collider.isTrigger}" : "MISSING")}, Rigidbody: {(rb != null ? $"exists, isKinematic={rb.isKinematic}" : "MISSING")}");
 
                 activeObjects.Add(steak);
             }
             else
             {
-                Debug.LogWarning($"[MiniLevelFoodRefusal] Failed to spawn steak from pool '{steakPoolTag}'! Make sure to add this pool to ObjectPooler.");
+                GameLog.Warn($"[MiniLevelFoodRefusal] Failed to spawn steak from pool '{steakPoolTag}'! Make sure to add this pool to ObjectPooler.");
             }
         }
 
@@ -275,7 +282,7 @@ namespace RingSport.UI
                 if (falling == null)
                 {
                     falling = collectible.AddComponent<FoodRefusalFallingObject>();
-                    Debug.Log($"[MiniLevelFoodRefusal] Added FoodRefusalFallingObject component to collectible");
+                    GameLog.Info($"[MiniLevelFoodRefusal] Added FoodRefusalFallingObject component to collectible");
                 }
 
                 falling.Initialize(
@@ -289,13 +296,13 @@ namespace RingSport.UI
                 // Verify collider setup
                 var collider = collectible.GetComponent<Collider>();
                 var rb = collectible.GetComponent<Rigidbody>();
-                Debug.Log($"[MiniLevelFoodRefusal] Collectible spawned at {spawnPos} - Collider: {(collider != null ? $"exists, isTrigger={collider.isTrigger}" : "MISSING")}, Rigidbody: {(rb != null ? $"exists, isKinematic={rb.isKinematic}" : "MISSING")}");
+                GameLog.Info($"[MiniLevelFoodRefusal] Collectible spawned at {spawnPos} - Collider: {(collider != null ? $"exists, isTrigger={collider.isTrigger}" : "MISSING")}, Rigidbody: {(rb != null ? $"exists, isKinematic={rb.isKinematic}" : "MISSING")}");
 
                 activeObjects.Add(collectible);
             }
             else
             {
-                Debug.LogWarning($"[MiniLevelFoodRefusal] Failed to spawn collectible from pool '{collectiblePoolTag}'!");
+                GameLog.Warn($"[MiniLevelFoodRefusal] Failed to spawn collectible from pool '{collectiblePoolTag}'!");
             }
         }
 
@@ -303,10 +310,11 @@ namespace RingSport.UI
         {
             if (!isGameRunning) return;
 
-            Debug.Log("[MiniLevelFoodRefusal] Player hit a steak! Game over.");
+            GameLog.Info("[MiniLevelFoodRefusal] Player hit a steak! Game over.");
             isGameRunning = false;
 
-            // Steak splat: dust burst + camera hit (splat clip pending - see SOUND_EFFECTS.md)
+            // Steak splat: wet hit + dust burst + camera shake
+            LevelManager.Instance?.PlayCollectSound(splatSound);
             if (playerController != null)
                 ImpactVFX.PlayDust(playerController.transform.position + Vector3.up * 0.8f, 12);
             CameraStateMachine.Instance?.AddShake(0.3f);
@@ -323,7 +331,7 @@ namespace RingSport.UI
 
         private void OnCollectibleCollected(int points)
         {
-            Debug.Log($"[MiniLevelFoodRefusal] Collectible collected! +{points} points");
+            GameLog.Info($"[MiniLevelFoodRefusal] Collectible collected! +{points} points");
 
             // The falling collectible's own Collectible component is disabled,
             // so its burst never fires - play it manually at the catch point

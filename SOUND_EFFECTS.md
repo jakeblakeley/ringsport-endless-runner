@@ -6,6 +6,21 @@ Temp wiring is done by `Tools > RingSport > Setup Juice Polish`
 ([JuicePolishSetup.cs](Assets/Scripts/Editor/JuicePolishSetup.cs)) — it only fills
 empty fields, so replacing a temp clip in the Inspector sticks.
 
+## Real clips (audio pass — no longer stand-ins)
+
+| Moment | Clip | Behaviour | Plays from |
+|---|---|---|---|
+| Near-miss whoosh | `near-miss woosh.wav` | Pitch/volume by clearance — a shave is higher and louder than a comfortable clear. Own AudioSource, so the coin pitch ladder is untouched | `Obstacle.OnPlayerCollision` → `LevelManager.PlayNearMissWhoosh` |
+| Lane-change whoosh | `lane-change woosh.mp3` | Own source that restarts per swipe (a weave never stacks), panned and pitched by direction | `PlayerController.NotifyLaneChange` |
+| Sprint start | `sprint start sound.wav` | One-shot on the sprint that actually begins (a held input can't retrigger it) | `PlayerController.TryStartSprint` |
+| Sprint wind layer | `wind speed layer.wav` | Looping, fades in with the sprint; volume + pitch ride the world scroll speed | `PlayerController.HandleSprintAudio` |
+| Sprint exhausted pant | `sprint exhausted pant.wav` | Looping, starts when stamina empties and stops the moment sprint is usable again (it *is* the lockout's voice) | `PlayerController.HandleSprintAudio` |
+| Confetti pops | `confetti pops.flac` | Three pitched pops staggered ~70ms apart, layered *under* the existing moment — the finish-line sting stays | `LevelManager.PlayConfettiPops`, called from `FinishMomentRoutine` and `SecretNotePanel.Open` |
+| Face-attack freeze riser | `face-attack freeze.wav` | Hits on the freeze and sustains under the limb QTE (~4.3s clip vs a ~2.3–2.9s window) | `MiniLevelFaceAttack.EnterReveal` |
+| Steak splat | `steak splat.aiff` | Wet hit alongside the dust burst + camera shake | `MiniLevelFoodRefusal.OnSteakHit` |
+| Simon Says correct | `simon says hurray.mp3` | Replaced `reward-coin` | `MiniLevelPositionsSimonSays` round pass |
+| Simon Says wrong | `simons says buzzer.wav` | Replaced `meme-bruh` | `MiniLevelPositionsSimonSays.HandleIncorrectInput` |
+
 ## Wired this pass (temporary stand-ins)
 
 | Moment | Temp clip (in repo) | What we actually want | Plays from |
@@ -31,26 +46,16 @@ empty fields, so replacing a temp clip in the Inspector sticks.
 | Love-note pickup | `Reward/reward-squeaker1.wav` (no longer shares the mega coin's squeaker2) | Unique romantic chime | `LoveNoteCollectible.Collect` |
 | Button click (all UI) | `Reward/reward-pop.wav` (±3% pitch jitter, low volume) | Soft dry UI tick | `JuicyButton.OnPointerDown` |
 | Simon Says pose tones | `Reward/reward-pop.wav` (Down 0.8 / Sit 1.0 / Stand 1.2) | Three clean melodic tones | `MiniLevelPositionsSimonSays.PlayPoseTone` |
-| Simon Says correct | `Reward/reward-coin.wav` | Bright confirmation chime | `MiniLevelPositionsSimonSays` round pass |
-| Simon Says wrong | `Meme/meme-bruh.wav` | Soft error buzz (bruh may be a keeper) | `MiniLevelPositionsSimonSays.HandleIncorrectInput` |
 
 ## Needed — no clip in the repo fits yet
 
 | Moment | What we want | Where it will play |
 |---|---|---|
 | Death whimper layer | Dog yelp/whimper, 2 variants | `GameManager.DeathImpactSequence` |
-| Finish line | Crowd cheer + party horn under the confetti (currently only the random meme sting) | `LevelManager.FinishMomentRoutine` |
-| Near-miss whoosh | Airy whoosh, pitch by clearance (glint particle is in; sound still missing) | `Obstacle.OnPlayerCollision` success branch |
-| Face-attack freeze riser | Whoosh/riser into the bullet-time freeze (tick + music duck are in; the entry hit isn't) | `MiniLevelFaceAttack.EnterReveal` |
-| Lane-change whoosh | Very soft swipe whoosh per lane change (bank animation is in) | `PlayerController.NotifyLaneChange` |
-| Confetti pops | Small paper-pop layer under both confetti moments | `LevelManager.FinishMomentRoutine`, `SecretNotePanel.Open` |
-| Sprint exhausted pant | Dog panting when stamina empties (bar jitter is in; sound missing) | `UIManager.UpdateSprintBar` exhaustion branch |
-| Steak splat | Wet splat on a steak hit (dust + shake are in) | `MiniLevelFoodRefusal.OnSteakHit` |
-| Wind speed layer | Looping wind whose volume follows scroll speed (FOV widening is in) | `LevelScroller.ApplySpeedFov` area |
-| Simon Says | Per-pose tone ladder, correct chime, wrong buzz | `MiniLevelPositionsSimonSays` (Tier 3) |
-| Steak splat / whoosh | Splat on hit, whoosh per near-missed steak | `MiniLevelFoodRefusal` (Tier 3) |
-| UI button click | Global soft click on every button press | future `JuicyButton` (Tier 3) |
-| Sprint exhausted | Dog panting when stamina empties | `PlayerStaminaSystem` (Tier 3) |
+| Finish line | Crowd cheer + party horn (the confetti pops and the random meme sting are in; the crowd isn't) | `LevelManager.FinishMomentRoutine` |
+| Simon Says pose tones | Three clean melodic tones (still `reward-pop` on a pitch ladder) | `MiniLevelPositionsSimonSays.PlayPoseTone` |
+| Steak near-miss whoosh | Whoosh per steak that just misses (the splat on a hit is in) | `MiniLevelFoodRefusal` |
+| UI button click | Soft dry click (still `reward-pop`) | `JuicyButton.OnPointerDown` |
 
 ## Ideas from clips already in the repo (unused, earmarked)
 

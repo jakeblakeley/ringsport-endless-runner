@@ -69,7 +69,7 @@ namespace RingSport.UI
                 playerInput = player.GetComponent<PlayerInput>();
                 if (playerInput == null)
                 {
-                    Debug.LogError("PlayerInput component not found on player GameObject!");
+                    GameLog.Error("PlayerInput component not found on player GameObject!");
                     return;
                 }
             }
@@ -80,7 +80,7 @@ namespace RingSport.UI
                 playerInput = FindAnyObjectByType<PlayerInput>();
                 if (playerInput == null)
                 {
-                    Debug.LogError("PlayerInput not found! PalisadeMinigame requires PlayerInput to be in the scene.");
+                    GameLog.Error("PlayerInput not found! PalisadeMinigame requires PlayerInput to be in the scene.");
                     return;
                 }
             }
@@ -88,7 +88,7 @@ namespace RingSport.UI
             // Check if actions asset is assigned
             if (playerInput.actions == null)
             {
-                Debug.LogError("PlayerInput.actions is null! Make sure the InputActions asset is assigned to the PlayerInput component.");
+                GameLog.Error("PlayerInput.actions is null! Make sure the InputActions asset is assigned to the PlayerInput component.");
                 return;
             }
 
@@ -97,14 +97,14 @@ namespace RingSport.UI
                 var actionMap = playerInput.actions.FindActionMap("Player");
                 if (actionMap == null)
                 {
-                    Debug.LogError("Player action map not found!");
+                    GameLog.Error("Player action map not found!");
                     return;
                 }
 
                 sprintAction = actionMap.FindAction("Sprint");
                 if (sprintAction == null)
                 {
-                    Debug.LogError("Sprint action not found!");
+                    GameLog.Error("Sprint action not found!");
                     return;
                 }
             }
@@ -123,12 +123,12 @@ namespace RingSport.UI
                 if (!sprintAction.enabled)
                 {
                     sprintAction.Enable();
-                    Debug.Log("PalisadeMinigame enabled sprint action");
+                    GameLog.Info("PalisadeMinigame enabled sprint action");
                 }
 
                 sprintAction.performed += OnTapPressed;
                 isSubscribed = true;
-                Debug.Log("PalisadeMinigame subscribed to sprint input");
+                GameLog.Info("PalisadeMinigame subscribed to sprint input");
             }
 
             // Also subscribe to mobile input if available
@@ -151,7 +151,7 @@ namespace RingSport.UI
             {
                 mobileInputHandler.OnPressTriggered += OnMobileTap;
                 isMobileSubscribed = true;
-                Debug.Log("PalisadeMinigame subscribed to mobile input");
+                GameLog.Info("PalisadeMinigame subscribed to mobile input");
             }
         }
 
@@ -164,7 +164,7 @@ namespace RingSport.UI
             {
                 sprintAction.performed -= OnTapPressed;
                 isSubscribed = false;
-                Debug.Log("PalisadeMinigame unsubscribed from sprint input");
+                GameLog.Info("PalisadeMinigame unsubscribed from sprint input");
             }
 
             // Also unsubscribe from mobile input
@@ -180,9 +180,13 @@ namespace RingSport.UI
             {
                 mobileInputHandler.OnPressTriggered -= OnMobileTap;
                 isMobileSubscribed = false;
-                Debug.Log("PalisadeMinigame unsubscribed from mobile input");
+                GameLog.Info("PalisadeMinigame unsubscribed from mobile input");
             }
         }
+
+        // Timer UI write-gating (see Update)
+        private int lastShownTenths = int.MinValue;
+        private bool timerUrgencyStyled;
 
         private void Update()
         {
@@ -195,12 +199,26 @@ namespace RingSport.UI
             // Update timer UI
             if (timerText != null)
             {
-                timerText.text = $"{Mathf.Max(0f, timeRemaining):F1}s";
+                // Tenth-of-a-second granularity: every TMP text set is a string
+                // alloc + mesh rebuild, so write 10x/sec instead of every frame
+                int tenths = Mathf.CeilToInt(Mathf.Max(0f, timeRemaining) * 10f);
+                if (tenths != lastShownTenths)
+                {
+                    lastShownTenths = tenths;
+                    timerText.text = (tenths / 10f).ToString("0.0") + "s";
+                }
 
                 // Urgency: red + pulse + half-second ticks in the last stretch
-                if (timeRemaining <= urgencyThreshold)
+                bool urgent = timeRemaining <= urgencyThreshold;
+                if (urgent != timerUrgencyStyled)
                 {
-                    timerText.color = new Color(0.91f, 0.3f, 0.24f);
+                    timerUrgencyStyled = urgent;
+                    timerText.color = urgent ? new Color(0.91f, 0.3f, 0.24f) : timerBaseColor;
+                    if (!urgent)
+                        timerText.transform.localScale = Vector3.one;
+                }
+                if (urgent)
+                {
                     timerText.transform.localScale =
                         Vector3.one * (1f + 0.08f * Mathf.Sin(Time.unscaledTime * Mathf.PI * 6f));
 
@@ -210,11 +228,6 @@ namespace RingSport.UI
                         lastTickHalfSecond = halfSecond;
                         PlayClip(timerTickSound, 0.9f, 0.6f);
                     }
-                }
-                else
-                {
-                    timerText.color = timerBaseColor;
-                    timerText.transform.localScale = Vector3.one;
                 }
             }
 
@@ -242,8 +255,8 @@ namespace RingSport.UI
 
         public void StartMinigame(int tapsRequired, Vector3 obstaclePos, float obstHeight, PlayerController playerController)
         {
-            Debug.Log($"=== PalisadeMinigame.StartMinigame called ===");
-            Debug.Log($"Required taps: {tapsRequired}, Panel assigned: {(minigamePanel != null ? "YES" : "NO")}");
+            GameLog.Info($"=== PalisadeMinigame.StartMinigame called ===");
+            GameLog.Info($"Required taps: {tapsRequired}, Panel assigned: {(minigamePanel != null ? "YES" : "NO")}");
 
             isActive = true;
             currentTaps = 0;
@@ -256,7 +269,7 @@ namespace RingSport.UI
             // Pause game
             LevelScroller.Instance?.Pause();
             player?.PauseMovement();
-            Debug.Log("Game paused");
+            GameLog.Info("Game paused");
 
             // Dog grabs the palisade and hangs on while the player taps
             player?.Animations?.SetClambering(true);
@@ -289,13 +302,13 @@ namespace RingSport.UI
             // Show UI
             if (minigamePanel != null)
             {
-                Debug.Log($"Setting minigamePanel active. Current state: {minigamePanel.activeSelf}, setting to TRUE");
+                GameLog.Info($"Setting minigamePanel active. Current state: {minigamePanel.activeSelf}, setting to TRUE");
                 minigamePanel.SetActive(true);
-                Debug.Log($"After SetActive(true), panel active: {minigamePanel.activeSelf}");
+                GameLog.Info($"After SetActive(true), panel active: {minigamePanel.activeSelf}");
             }
             else
             {
-                Debug.LogError("minigamePanel is NULL! Assign it in the inspector!");
+                GameLog.Error("minigamePanel is NULL! Assign it in the inspector!");
             }
 
             // Initialize progress bar
@@ -304,14 +317,14 @@ namespace RingSport.UI
             if (instructionText != null)
                 instructionText.text = "TAP!";
             else
-                Debug.LogWarning("instructionText is null!");
+                GameLog.Warn("instructionText is null!");
 
-            Debug.Log($"Palisade minigame started! Required taps: {requiredTaps}, Time limit: {timeLimit}s, Input subscribed: {isSubscribed}");
+            GameLog.Info($"Palisade minigame started! Required taps: {requiredTaps}, Time limit: {timeLimit}s, Input subscribed: {isSubscribed}");
         }
 
         private void OnTapPressed(InputAction.CallbackContext context)
         {
-            Debug.Log($"OnTapPressed called! isActive: {isActive}, currentTaps: {currentTaps}, requiredTaps: {requiredTaps}");
+            GameLog.Info($"OnTapPressed called! isActive: {isActive}, currentTaps: {currentTaps}, requiredTaps: {requiredTaps}");
 
             if (!isActive)
                 return;
@@ -320,7 +333,7 @@ namespace RingSport.UI
             UpdateProgressBar();
             OnTapFeedback();
 
-            Debug.Log($"Tap registered! {currentTaps}/{requiredTaps}");
+            GameLog.Info($"Tap registered! {currentTaps}/{requiredTaps}");
 
             // Check if enough taps
             if (currentTaps >= requiredTaps)
@@ -331,7 +344,7 @@ namespace RingSport.UI
 
         private void OnMobileTap()
         {
-            Debug.Log($"OnMobileTap called! isActive: {isActive}, currentTaps: {currentTaps}, requiredTaps: {requiredTaps}");
+            GameLog.Info($"OnMobileTap called! isActive: {isActive}, currentTaps: {currentTaps}, requiredTaps: {requiredTaps}");
 
             if (!isActive)
                 return;
@@ -340,7 +353,7 @@ namespace RingSport.UI
             UpdateProgressBar();
             OnTapFeedback();
 
-            Debug.Log($"Mobile tap registered! {currentTaps}/{requiredTaps}");
+            GameLog.Info($"Mobile tap registered! {currentTaps}/{requiredTaps}");
 
             // Check if enough taps
             if (currentTaps >= requiredTaps)
@@ -376,7 +389,7 @@ namespace RingSport.UI
             targetFill = 1f;
             player?.Animations?.SetClamberProgress(1f);
 
-            Debug.Log("Palisade cleared successfully!");
+            GameLog.Info("Palisade cleared successfully!");
 
             if (instructionText != null)
                 instructionText.text = "Success!";
@@ -420,14 +433,14 @@ namespace RingSport.UI
             // Resume game
             player?.ResumeMovement();
 
-            Debug.Log("Palisade animation complete, game resumed");
+            GameLog.Info("Palisade animation complete, game resumed");
         }
 
         private void HandleFailure()
         {
             isActive = false;
 
-            Debug.Log("Palisade failed - not enough taps in time!");
+            GameLog.Info("Palisade failed - not enough taps in time!");
 
             if (instructionText != null)
                 instructionText.text = "Failed!";

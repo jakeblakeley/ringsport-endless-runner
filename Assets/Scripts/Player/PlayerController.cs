@@ -65,9 +65,26 @@ namespace RingSport.Player
         [Tooltip("One-shot thump on touchdown after real air time (temporary clip - see SOUND_EFFECTS.md).")]
         [SerializeField] private AudioClip landSound;
         [SerializeField] [Range(0f, 1f)] private float landVolume = 0.5f;
+        [Tooltip("Soft swipe whoosh on each lane change - restarts rather than layers, so a fast weave doesn't pile up.")]
+        [SerializeField] private AudioClip laneChangeSound;
+        [SerializeField] [Range(0f, 1f)] private float laneChangeVolume = 0.35f;
+        [Tooltip("One-shot the moment a sprint begins.")]
+        [SerializeField] private AudioClip sprintStartSound;
+        [SerializeField] [Range(0f, 1f)] private float sprintStartVolume = 0.7f;
+        [Tooltip("Looping wind layer under a sprint; fades in with the sprint and rides the world speed.")]
+        [SerializeField] private AudioClip sprintWindLoop;
+        [SerializeField] [Range(0f, 1f)] private float sprintWindVolume = 0.55f;
+        [Tooltip("Looping pant while sprint is locked out - stops as soon as the bar refills and sprint is usable again.")]
+        [SerializeField] private AudioClip sprintExhaustedPant;
+        [SerializeField] [Range(0f, 1f)] private float sprintPantVolume = 0.8f;
 
         private AudioSource sfxAudioSource;
         private AudioSource footstepAudioSource;
+        private AudioSource whooshAudioSource;  // lane-change swipes, restarted per change
+        private AudioSource windAudioSource;    // sprint wind loop
+        private AudioSource pantAudioSource;    // exhaustion pant loop
+
+        private const float SprintAudioFadeSeconds = 0.22f;
 
         // Cached manager references for performance
         private GameManager gameManager;
@@ -95,7 +112,7 @@ namespace RingSport.Player
             if (mobileInputHandler == null)
             {
                 mobileInputHandler = gameObject.AddComponent<MobileInputHandler>();
-                Debug.Log("MobileInputHandler added to player");
+                GameLog.Info("MobileInputHandler added to player");
             }
 
             // Initialize stamina system
@@ -111,16 +128,24 @@ namespace RingSport.Player
             footstepAudioSource.clip = footstepLoop;
             footstepAudioSource.volume = footstepVolume;
 
+            // Lane whooshes get their own source so a new swipe cuts the last
+            // one off instead of stacking a second whoosh on top of it
+            whooshAudioSource = gameObject.AddComponent<AudioSource>();
+            whooshAudioSource.playOnAwake = false;
+
+            windAudioSource = CreateSprintLoopSource(sprintWindLoop);
+            pantAudioSource = CreateSprintLoopSource(sprintExhaustedPant);
+
             if (playerInput == null)
             {
-                Debug.LogWarning("PlayerInput component not found, adding one. Please add PlayerInput manually and assign the InputSystem_Actions asset!");
+                GameLog.Warn("PlayerInput component not found, adding one. Please add PlayerInput manually and assign the InputSystem_Actions asset!");
                 playerInput = gameObject.AddComponent<PlayerInput>();
             }
 
             // Make sure we have the actions asset
             if (playerInput.actions == null)
             {
-                Debug.LogError("PlayerInput.actions is null! Please assign InputSystem_Actions asset to PlayerInput component.");
+                GameLog.Error("PlayerInput.actions is null! Please assign InputSystem_Actions asset to PlayerInput component.");
                 return;
             }
 
@@ -131,6 +156,17 @@ namespace RingSport.Player
             playerInput.notificationBehavior = PlayerNotifications.InvokeCSharpEvents;
 
             SetupInputActions();
+        }
+
+        /// <summary>Silent looping source - HandleSprintAudio fades it in and out.</summary>
+        private AudioSource CreateSprintLoopSource(AudioClip clip)
+        {
+            var source = gameObject.AddComponent<AudioSource>();
+            source.playOnAwake = false;
+            source.loop = true;
+            source.clip = clip;
+            source.volume = 0f;
+            return source;
         }
 
         private void Start()
@@ -149,7 +185,7 @@ namespace RingSport.Player
 
             if (actionMap == null)
             {
-                Debug.LogError("Player action map not found!");
+                GameLog.Error("Player action map not found!");
                 return;
             }
 
@@ -160,11 +196,11 @@ namespace RingSport.Player
             if (jumpAction != null)
             {
                 jumpAction.performed += OnJump;
-                Debug.Log("Jump action registered successfully");
+                GameLog.Info("Jump action registered successfully");
             }
             else
             {
-                Debug.LogError("Jump action not found in Player action map!");
+                GameLog.Error("Jump action not found in Player action map!");
             }
 
             if (sprintAction != null)
@@ -215,6 +251,7 @@ namespace RingSport.Player
         {
             // Handle footsteps regardless of game state (so it can stop when not playing)
             HandleFootsteps();
+            HandleSprintAudio();
 
             // Drive animation in every state (idle at home, death pose on game over, etc.)
             UpdateAnimation();
@@ -277,7 +314,7 @@ namespace RingSport.Player
             // Debug ground state occasionally
             if (Time.frameCount % 60 == 0)
             {
-                Debug.Log($"Ground check - isGrounded: {isGrounded}, position.y: {transform.position.y}, velocity.y: {velocity.y}");
+                GameLog.Info($"Ground check - isGrounded: {isGrounded}, position.y: {transform.position.y}, velocity.y: {velocity.y}");
             }
         }
 
@@ -345,6 +382,17 @@ namespace RingSport.Player
                 playerAnimator?.TriggerDodge(toRight);
             else
                 playerAnimator?.PulseLaneBank(toRight);
+
+            // Whoosh pans with the swipe direction and alternates pitch, so a
+            // left-right weave doesn't sound like the same sample twice
+            if (laneChangeSound != null && whooshAudioSource != null)
+            {
+                whooshAudioSource.clip = laneChangeSound;
+                whooshAudioSource.volume = laneChangeVolume;
+                whooshAudioSource.panStereo = toRight ? 0.35f : -0.35f;
+                whooshAudioSource.pitch = toRight ? 1.05f : 0.95f;
+                whooshAudioSource.Play();
+            }
         }
 
         private void UpdateAnimation()
@@ -420,6 +468,57 @@ namespace RingSport.Player
             }
         }
 
+        /// <summary>
+        /// The two sprint loops, both crossfaded rather than hard-cut:
+        /// - wind rides the sprint, its level scaled by how fast the world is
+        ///   actually moving (so a fast level's sprint is windier than a slow
+        ///   one's);
+        /// - the pant runs from the moment stamina empties until the bar has
+        ///   refilled enough that sprint is usable again - it's the audible
+        ///   half of the lockout, so it must not outlive it.
+        /// Runs in every state, so a death or pause silences both.
+        /// </summary>
+        private void HandleSprintAudio()
+        {
+            float dt = Time.unscaledDeltaTime;
+            bool active = gameManager?.CurrentState == GameState.Playing && !isMovementPaused;
+
+            if (windAudioSource != null && sprintWindLoop != null)
+            {
+                float target = 0f;
+                if (active && staminaSystem.IsSprinting)
+                {
+                    float scrollSpeed = LevelScroller.Instance != null ? LevelScroller.Instance.GetScrollSpeed() : ForwardSpeed;
+                    float speed01 = Mathf.Clamp01(Mathf.InverseLerp(forwardSpeed, forwardSpeed * sprintMultiplier * 1.5f, scrollSpeed));
+                    target = sprintWindVolume * Mathf.Lerp(0.6f, 1f, speed01);
+                    windAudioSource.pitch = Mathf.Lerp(0.95f, 1.1f, speed01);
+                }
+                FadeLoop(windAudioSource, target, dt);
+            }
+
+            if (pantAudioSource != null && sprintExhaustedPant != null)
+            {
+                bool panting = active && staminaSystem.IsSprintExhausted;
+                FadeLoop(pantAudioSource, panting ? sprintPantVolume : 0f, dt);
+            }
+        }
+
+        /// <summary>Ramps a looping source toward a volume, starting/stopping it at the ends.</summary>
+        private static void FadeLoop(AudioSource source, float targetVolume, float dt)
+        {
+            source.volume = Mathf.MoveTowards(source.volume, targetVolume, dt / SprintAudioFadeSeconds);
+
+            if (source.volume > 0.001f)
+            {
+                if (!source.isPlaying)
+                    source.Play();
+            }
+            else if (source.isPlaying)
+            {
+                source.Stop();
+            }
+        }
+
         private void OnJump(InputAction.CallbackContext context)
         {
             TryJump();
@@ -451,7 +550,7 @@ namespace RingSport.Player
             isGrounded = false;
 
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
-            Debug.Log($"Jumping! New velocity.y: {velocity.y}");
+            GameLog.Info($"Jumping! New velocity.y: {velocity.y}");
 
             playerAnimator?.TriggerJump();
 
@@ -478,18 +577,30 @@ namespace RingSport.Player
 
         private void OnMobileSprint()
         {
-            Debug.Log("Mobile sprint started!");
+            GameLog.Info("Mobile sprint started!");
+            TryStartSprint();
+        }
 
-            // Delegate to stamina system
-            if (staminaSystem.CanSprint())
-            {
-                staminaSystem.IsSprinting = true;
-            }
+        /// <summary>
+        /// Starts a sprint if stamina allows, with the kick-off one-shot. The
+        /// already-sprinting check keeps a held input (or a touch re-press)
+        /// from re-triggering the sound mid-sprint.
+        /// </summary>
+        private void TryStartSprint()
+        {
+            if (staminaSystem.IsSprinting || !staminaSystem.CanSprint())
+                return;
+
+            staminaSystem.IsSprinting = true;
+
+            bool audible = gameManager?.CurrentState == GameState.Playing && !isMovementPaused;
+            if (audible && sprintStartSound != null && sfxAudioSource != null)
+                sfxAudioSource.PlayOneShot(sprintStartSound, sprintStartVolume);
         }
 
         private void OnMobileSprintEnded()
         {
-            Debug.Log("Mobile sprint ended!");
+            GameLog.Info("Mobile sprint ended!");
 
             // Delegate to stamina system
             staminaSystem.IsSprinting = false;
@@ -497,11 +608,7 @@ namespace RingSport.Player
 
         private void OnSprintStarted(InputAction.CallbackContext context)
         {
-            // Delegate to stamina system
-            if (staminaSystem.CanSprint())
-            {
-                staminaSystem.IsSprinting = true;
-            }
+            TryStartSprint();
         }
 
         private void OnSprintCanceled(InputAction.CallbackContext context)
@@ -645,7 +752,7 @@ namespace RingSport.Player
                 startPosition.z  // Stay at same Z (world scrolls, not player)
             );
 
-            Debug.Log($"Animating over obstacle - Start Y: {startPosition.y}, Obstacle Top: {obstacleTop}, Arc Height: {arcHeight}");
+            GameLog.Info($"Animating over obstacle - Start Y: {startPosition.y}, Obstacle Top: {obstacleTop}, Arc Height: {arcHeight}");
 
             while (elapsed < duration)
             {

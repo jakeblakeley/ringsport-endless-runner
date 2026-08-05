@@ -157,6 +157,19 @@ namespace RingSport.UI
             SetupButtons();
         }
 
+        // Last values actually pushed to the UI - writes are skipped while
+        // unchanged so a static HUD stops dirtying its canvas every frame
+        private int lastShownScore = int.MinValue;
+        private float lastAppliedSprintFill = float.MinValue;
+        private Color lastAppliedSprintColor = new Color(-1f, -1f, -1f, -1f);
+
+        private static bool ColorChanged(Color a, Color b)
+        {
+            const float e = 0.002f; // ~half a step at 8 bits per channel
+            return Mathf.Abs(a.r - b.r) > e || Mathf.Abs(a.g - b.g) > e ||
+                   Mathf.Abs(a.b - b.b) > e || Mathf.Abs(a.a - b.a) > e;
+        }
+
         private void Update()
         {
             // HUD score rolls toward its target instead of snapping. Rate is
@@ -168,7 +181,15 @@ namespace RingSport.UI
                 float remaining = Mathf.Abs(targetScore - displayedScore);
                 float rate = Mathf.Max(remaining / Mathf.Max(0.05f, scoreRollSeconds), 25f);
                 displayedScore = Mathf.MoveTowards(displayedScore, targetScore, rate * Time.unscaledDeltaTime);
-                scoreText.text = $"{Mathf.RoundToInt(displayedScore)}";
+
+                // Only touch TMP when the visible integer changes - each set is
+                // a string alloc + mesh rebuild + canvas rebuild
+                int rounded = Mathf.RoundToInt(displayedScore);
+                if (rounded != lastShownScore)
+                {
+                    lastShownScore = rounded;
+                    scoreText.text = rounded.ToString();
+                }
 
                 if (Mathf.Approximately(displayedScore, targetScore))
                     scoreRolling = false;
@@ -187,8 +208,13 @@ namespace RingSport.UI
             float dt = Time.unscaledDeltaTime;
 
             sprintFillDisplayed = Mathf.SmoothDamp(sprintFillDisplayed, sprintFillTarget, ref sprintFillVelocity, 0.08f, Mathf.Infinity, dt);
-            if (sprintBarFillRect != null)
+            // Skip the RectTransform write once converged - a changed anchorMax
+            // dirties the whole HUD canvas every frame otherwise
+            if (sprintBarFillRect != null && Mathf.Abs(sprintFillDisplayed - lastAppliedSprintFill) > 0.0005f)
+            {
+                lastAppliedSprintFill = sprintFillDisplayed;
                 sprintBarFillRect.anchorMax = new Vector2(sprintFillDisplayed, sprintBarFillRect.anchorMax.y);
+            }
 
             if (sprintBarFill != null)
             {
@@ -201,7 +227,12 @@ namespace RingSport.UI
 
                 Color final = sprintBarCurrentColor;
                 final.a *= alpha;
-                sprintBarFill.color = final;
+                // Same idea for the Graphic color - only write real changes
+                if (ColorChanged(final, lastAppliedSprintColor))
+                {
+                    lastAppliedSprintColor = final;
+                    sprintBarFill.color = final;
+                }
             }
 
             if (sprintJitterTimer < 0.35f && sprintBarContainer != null)
@@ -422,7 +453,7 @@ namespace RingSport.UI
             if (secretNotePanel != null)
                 secretNotePanel.Open();
             else
-                Debug.LogWarning("[UIManager] secretNotePanel not assigned - run Tools/RingSport/Setup Secret Note.");
+                GameLog.Warn("[UIManager] secretNotePanel not assigned - run Tools/RingSport/Setup Secret Note.");
         }
 
         /// <summary>True while the secret note overlay is up (DebugMenu hides its IMGUI behind it).</summary>
@@ -430,7 +461,7 @@ namespace RingSport.UI
 
         public void ShowGameHUD()
         {
-            Debug.Log("[UIManager] ShowGameHUD called");
+            GameLog.Info("[UIManager] ShowGameHUD called");
             HideAllScreens();
             if (gameHUD != null)
             {
@@ -469,12 +500,12 @@ namespace RingSport.UI
         {
             if (gameHUD != null)
             {
-                Debug.Log($"[UIManager] HideGameHUD - hiding {gameHUD.name}, currently active: {gameHUD.activeSelf}");
+                GameLog.Info($"[UIManager] HideGameHUD - hiding {gameHUD.name}, currently active: {gameHUD.activeSelf}");
                 gameHUD.SetActive(false);
             }
             else
             {
-                Debug.LogError("[UIManager] HideGameHUD called but gameHUD is NULL!");
+                GameLog.Error("[UIManager] HideGameHUD called but gameHUD is NULL!");
             }
         }
 
@@ -488,7 +519,7 @@ namespace RingSport.UI
             HideAllScreens();
             if (rewardScreen == null)
             {
-                Debug.LogError("[UIManager] ShowLevelIntro called but rewardScreen is NULL!");
+                GameLog.Error("[UIManager] ShowLevelIntro called but rewardScreen is NULL!");
                 return;
             }
 
@@ -568,7 +599,7 @@ namespace RingSport.UI
                     int highScore = ScoreManager.Instance.HighScore;
                     bool isNewHighScore = ScoreManager.Instance.IsNewHighScore();
 
-                    Debug.Log($"[UIManager] RewardScreen - Total: {totalScore}, High: {highScore}, IsNew: {isNewHighScore}");
+                    GameLog.Info($"[UIManager] RewardScreen - Total: {totalScore}, High: {highScore}, IsNew: {isNewHighScore}");
 
                     // NEW HIGH SCORE reveals after the count-up lands
                     if (newHighScoreIndicator != null)
@@ -731,7 +762,7 @@ namespace RingSport.UI
         {
             if (newHighScoreIndicator == null)
             {
-                Debug.LogWarning("[UIManager] newHighScoreIndicator is NULL! Please assign it in the Inspector.");
+                GameLog.Warn("[UIManager] newHighScoreIndicator is NULL! Please assign it in the Inspector.");
                 return;
             }
 
@@ -835,7 +866,7 @@ namespace RingSport.UI
                         gameOverText.text = "Game Over";
                     }
 
-                    Debug.Log("[UIManager] Out of retries - showing Game Over message");
+                    GameLog.Info("[UIManager] Out of retries - showing Game Over message");
                 }
 
                 // Display total score and high score
@@ -845,7 +876,7 @@ namespace RingSport.UI
                     int highScore = ScoreManager.Instance.HighScore;
                     bool isNewHighScore = ScoreManager.Instance.IsNewHighScore();
 
-                    Debug.Log($"[UIManager] GameOverScreen - Total: {totalScore}, High: {highScore}, IsNew: {isNewHighScore}, HasRetries: {hasRetries}");
+                    GameLog.Info($"[UIManager] GameOverScreen - Total: {totalScore}, High: {highScore}, IsNew: {isNewHighScore}, HasRetries: {hasRetries}");
 
                     if (gameOverTotalScoreText != null)
                         gameOverTotalScoreText.text = $"{totalScore}";
@@ -858,11 +889,11 @@ namespace RingSport.UI
                     {
                         bool shouldShow = !hasRetries && isNewHighScore;
                         gameOverNewHighScoreIndicator.SetActive(shouldShow);
-                        Debug.Log($"[UIManager] Setting gameOverNewHighScoreIndicator active to: {shouldShow}");
+                        GameLog.Info($"[UIManager] Setting gameOverNewHighScoreIndicator active to: {shouldShow}");
                     }
                     else
                     {
-                        Debug.LogWarning("[UIManager] gameOverNewHighScoreIndicator is NULL! Please assign it in the Inspector.");
+                        GameLog.Warn("[UIManager] gameOverNewHighScoreIndicator is NULL! Please assign it in the Inspector.");
                     }
                 }
 
@@ -889,8 +920,9 @@ namespace RingSport.UI
             targetScore = score;
             displayedScore = score;
             scoreRolling = false;
+            lastShownScore = score;
             if (scoreText != null)
-                scoreText.text = $"{score}";
+                scoreText.text = score.ToString();
         }
 
         public void UpdateLevel(string levelName)
@@ -1012,13 +1044,13 @@ namespace RingSport.UI
                 // Floor the total retries to show whole number (e.g., 4.5 -> 4)
                 int retriesLeft = Mathf.FloorToInt(LevelManager.Instance.TotalRetries);
                 retryButtonText.text = $"Retry ({retriesLeft})";
-                Debug.Log($"[UIManager] Retry button text updated: Retry ({retriesLeft})");
+                GameLog.Info($"[UIManager] Retry button text updated: Retry ({retriesLeft})");
             }
         }
 
         public void ShowPalisadeMinigame(int requiredTaps, Vector3 obstaclePosition, float obstacleHeight, PlayerController player)
         {
-            Debug.Log($"UIManager.ShowPalisadeMinigame called - requiredTaps: {requiredTaps}, palisadeMinigame: {(palisadeMinigame != null ? "assigned" : "NULL")}");
+            GameLog.Info($"UIManager.ShowPalisadeMinigame called - requiredTaps: {requiredTaps}, palisadeMinigame: {(palisadeMinigame != null ? "assigned" : "NULL")}");
 
             if (palisadeMinigame != null)
             {
@@ -1026,28 +1058,28 @@ namespace RingSport.UI
             }
             else
             {
-                Debug.LogError("PalisadeMinigame reference not set in UIManager!");
+                GameLog.Error("PalisadeMinigame reference not set in UIManager!");
             }
         }
 
         public void StartCountdown(float duration, Action onComplete)
         {
-            Debug.Log($"[UIManager] StartCountdown called. Duration: {duration}, Panel: {(countdownPanel != null ? countdownPanel.name : "NULL")}, Text: {(countdownText != null ? countdownText.name : "NULL")}");
+            GameLog.Info($"[UIManager] StartCountdown called. Duration: {duration}, Panel: {(countdownPanel != null ? countdownPanel.name : "NULL")}, Text: {(countdownText != null ? countdownText.name : "NULL")}");
 
             if (countdownPanel == null || countdownText == null)
             {
-                Debug.LogWarning("Countdown UI not assigned, skipping countdown");
+                GameLog.Warn("Countdown UI not assigned, skipping countdown");
                 onComplete?.Invoke();
                 return;
             }
 
             if (countdownCoroutine != null)
             {
-                Debug.Log("[UIManager] Stopping existing countdown coroutine");
+                GameLog.Info("[UIManager] Stopping existing countdown coroutine");
                 StopCoroutine(countdownCoroutine);
             }
 
-            Debug.Log("[UIManager] Starting countdown coroutine");
+            GameLog.Info("[UIManager] Starting countdown coroutine");
             countdownCoroutine = StartCoroutine(CountdownRoutine(duration, onComplete));
         }
 
@@ -1056,10 +1088,10 @@ namespace RingSport.UI
         /// </summary>
         public void StopCountdown()
         {
-            Debug.Log("[UIManager] StopCountdown called");
+            GameLog.Info("[UIManager] StopCountdown called");
             if (countdownCoroutine != null)
             {
-                Debug.Log("[UIManager] Stopping active countdown coroutine");
+                GameLog.Info("[UIManager] Stopping active countdown coroutine");
                 StopCoroutine(countdownCoroutine);
                 countdownCoroutine = null;
             }
@@ -1070,7 +1102,7 @@ namespace RingSport.UI
 
         private IEnumerator CountdownRoutine(float totalDuration, Action onComplete)
         {
-            Debug.Log($"[UIManager] CountdownRoutine started. Panel active before: {countdownPanel.activeSelf}, Parent active: {countdownPanel.transform.parent?.gameObject.activeInHierarchy ?? true}");
+            GameLog.Info($"[UIManager] CountdownRoutine started. Panel active before: {countdownPanel.activeSelf}, Parent active: {countdownPanel.transform.parent?.gameObject.activeInHierarchy ?? true}");
             countdownPanel.SetActive(true);
             countdownText.alpha = 1f; // a stopped GO fade may have left it faded
             countdownText.transform.localScale = Vector3.one;
@@ -1145,17 +1177,17 @@ namespace RingSport.UI
 
         private void OnStartButtonClicked()
         {
-            Debug.Log($"[UIManager] OnStartButtonClicked called. Current state: {GameManager.Instance?.CurrentState}");
+            GameLog.Info($"[UIManager] OnStartButtonClicked called. Current state: {GameManager.Instance?.CurrentState}");
 
             // Only start game if we're on the home screen
             var currentState = GameManager.Instance?.CurrentState;
             if (currentState != GameState.Home)
             {
-                Debug.Log($"[UIManager] OnStartButtonClicked BLOCKED - not in Home state (current: {currentState})");
+                GameLog.Info($"[UIManager] OnStartButtonClicked BLOCKED - not in Home state (current: {currentState})");
                 return;
             }
 
-            Debug.Log("[UIManager] OnStartButtonClicked - calling StartGame (resets progress)");
+            GameLog.Info("[UIManager] OnStartButtonClicked - calling StartGame (resets progress)");
             GameManager.Instance?.StartGame();
         }
 
@@ -1182,36 +1214,36 @@ namespace RingSport.UI
         {
             if (isLevelIntro)
             {
-                Debug.Log("[UIManager] OnNextLevelButtonClicked - starting previewed level");
+                GameLog.Info("[UIManager] OnNextLevelButtonClicked - starting previewed level");
                 isLevelIntro = false;
                 GameManager.Instance?.TransitionToState(GameState.Playing);
                 return;
             }
 
-            Debug.Log("[UIManager] OnNextLevelButtonClicked - calling NextLevel");
+            GameLog.Info("[UIManager] OnNextLevelButtonClicked - calling NextLevel");
             LevelManager.Instance?.NextLevel();
         }
 
         private void OnReturnHomeButtonClicked()
         {
-            Debug.Log("[UIManager] OnReturnHomeButtonClicked");
+            GameLog.Info("[UIManager] OnReturnHomeButtonClicked");
             GameManager.Instance?.ReturnToHome();
         }
 
         private void OnRetryButtonClicked()
         {
             bool inMiniLevelContext = GameManager.Instance?.IsInMiniLevelContext ?? false;
-            Debug.Log($"[UIManager] OnRetryButtonClicked - IsInMiniLevelContext: {inMiniLevelContext}");
+            GameLog.Info($"[UIManager] OnRetryButtonClicked - IsInMiniLevelContext: {inMiniLevelContext}");
 
             // Check if we're retrying from a mini-level failure
             if (inMiniLevelContext)
             {
-                Debug.Log("[UIManager] Retrying mini-level only");
+                GameLog.Info("[UIManager] Retrying mini-level only");
                 GameManager.Instance?.RestartMiniLevel();
             }
             else
             {
-                Debug.Log("[UIManager] Retrying full level");
+                GameLog.Info("[UIManager] Retrying full level");
                 GameManager.Instance?.RestartLevel();
             }
         }

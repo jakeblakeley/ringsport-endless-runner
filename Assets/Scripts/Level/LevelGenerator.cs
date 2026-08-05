@@ -143,7 +143,7 @@ namespace RingSport.Level
                 if (playerController != null)
                 {
                     playerController.ResetPosition();
-                    Debug.Log("Player position and velocity reset for new level");
+                    GameLog.Info("Player position and velocity reset for new level");
                 }
             }
 
@@ -153,12 +153,12 @@ namespace RingSport.Level
 
             if (currentConfig == null)
             {
-                Debug.LogError($"LevelConfig is null for level {levelNumber}! Make sure LevelConfigs array is assigned in inspector.");
+                GameLog.Error($"LevelConfig is null for level {levelNumber}! Make sure LevelConfigs array is assigned in inspector.");
                 return;
             }
 
-            Debug.Log($"Generating Level {levelNumber} - Max Obstacles: {currentConfig.MaxObstacles}, Max Collectibles: {currentConfig.MaxCollectibles}");
-            Debug.Log($"Floor settings - Tile Length: {floorTileLength}, Tile Spacing: {floorTileSpacing}");
+            GameLog.Info($"Generating Level {levelNumber} - Max Obstacles: {currentConfig.MaxObstacles}, Max Collectibles: {currentConfig.MaxCollectibles}");
+            GameLog.Info($"Floor settings - Tile Length: {floorTileLength}, Tile Spacing: {floorTileSpacing}");
 
             // Set floor prefabs from location config
             if (currentConfig.LocationConfig != null)
@@ -168,7 +168,7 @@ namespace RingSport.Level
                 floorSpawner.SetFinishLineFloorPrefab(currentConfig.LocationConfig.FinishLineFloorPrefab);
                 floorSpawner.ConfigureScenery(currentConfig.LocationConfig);
                 ApplyLocationAtmosphere(currentConfig.LocationConfig);
-                Debug.Log($"Location: {currentConfig.Location}, Floor prefabs set from LocationConfig");
+                GameLog.Info($"Location: {currentConfig.Location}, Floor prefabs set from LocationConfig");
             }
             else
             {
@@ -176,7 +176,7 @@ namespace RingSport.Level
                 floorSpawner.SetSideFloorPrefab(null);
                 floorSpawner.SetFinishLineFloorPrefab(null);
                 floorSpawner.ConfigureScenery(null);
-                Debug.LogWarning($"Level {levelNumber} has no LocationConfig assigned - using fallback floor spawning");
+                GameLog.Warn($"Level {levelNumber} has no LocationConfig assigned - using fallback floor spawning");
             }
 
             // Reset virtual distance and ending flag
@@ -202,7 +202,7 @@ namespace RingSport.Level
             {
                 GameObject startScene = Object.Instantiate(currentConfig.LocationConfig.StartScenePrefab, Vector3.zero, Quaternion.identity);
                 despawnManager.RegisterStartScene(startScene);
-                Debug.Log($"Start scene instantiated at origin: {currentConfig.LocationConfig.StartScenePrefab.name}");
+                GameLog.Info($"Start scene instantiated at origin: {currentConfig.LocationConfig.StartScenePrefab.name}");
             }
         }
 
@@ -224,7 +224,7 @@ namespace RingSport.Level
                 DynamicGI.UpdateEnvironment();
             }
 
-            Debug.Log($"Atmosphere applied for {locationConfig.Location}: fog {locationConfig.FogColor} d={locationConfig.FogDensity}, skybox {(locationConfig.SkyboxMaterial != null ? locationConfig.SkyboxMaterial.name : "unchanged")}");
+            GameLog.Info($"Atmosphere applied for {locationConfig.Location}: fog {locationConfig.FogColor} d={locationConfig.FogDensity}, skybox {(locationConfig.SkyboxMaterial != null ? locationConfig.SkyboxMaterial.name : "unchanged")}");
         }
 
         /// <summary>
@@ -276,7 +276,7 @@ namespace RingSport.Level
                 return;
 
             isRunnerSpawningSuppressed = suppressed;
-            Debug.Log(suppressed
+            GameLog.Info(suppressed
                 ? "Runner spawning suspended (flee attack wind-down)"
                 : "Runner spawning restored");
         }
@@ -307,7 +307,7 @@ namespace RingSport.Level
         {
             isLevelEnding = true;
             floorSpawner.SetFinishLinePosition(endGameDespawnDistance);
-            Debug.Log("Level ending - will despawn obstacles beyond " + endGameDespawnDistance + " units ahead");
+            GameLog.Info("Level ending - will despawn obstacles beyond " + endGameDespawnDistance + " units ahead");
         }
 
         /// <summary>
@@ -330,7 +330,7 @@ namespace RingSport.Level
 
             if (levelConfigs == null || levelConfigs.Length == 0)
             {
-                Debug.LogWarning("No level configs available for home scene");
+                GameLog.Warn("No level configs available for home scene");
                 return;
             }
 
@@ -338,11 +338,11 @@ namespace RingSport.Level
 
             if (currentConfig == null)
             {
-                Debug.LogError($"LevelConfig for level {levelNumber} is null! Make sure LevelConfigs array is assigned in inspector.");
+                GameLog.Error($"LevelConfig for level {levelNumber} is null! Make sure LevelConfigs array is assigned in inspector.");
                 return;
             }
 
-            Debug.Log($"Loading home scene with location: {currentConfig.Location}");
+            GameLog.Info($"Loading home scene with location: {currentConfig.Location}");
 
             // Set floor prefabs from location config
             if (currentConfig.LocationConfig != null)
@@ -359,7 +359,7 @@ namespace RingSport.Level
                 floorSpawner.SetSideFloorPrefab(null);
                 floorSpawner.SetFinishLineFloorPrefab(null);
                 floorSpawner.ConfigureScenery(null);
-                Debug.LogWarning($"Level {levelNumber} has no LocationConfig - home scene may look empty");
+                GameLog.Warn($"Level {levelNumber} has no LocationConfig - home scene may look empty");
             }
 
             // Reset virtual distance and ending flag
@@ -387,7 +387,7 @@ namespace RingSport.Level
             {
                 GameObject startScene = Object.Instantiate(currentConfig.LocationConfig.StartScenePrefab, Vector3.zero, Quaternion.identity);
                 despawnManager.RegisterStartScene(startScene);
-                Debug.Log($"Home scene: Start scene instantiated at origin: {currentConfig.LocationConfig.StartScenePrefab.name}");
+                GameLog.Info($"Home scene: Start scene instantiated at origin: {currentConfig.LocationConfig.StartScenePrefab.name}");
             }
         }
 
@@ -396,15 +396,15 @@ namespace RingSport.Level
         [ContextMenu("Debug: Print System Stats")]
         private void PrintSystemStats()
         {
-            Debug.Log($"=== Level Generator Stats ===");
-            Debug.Log($"Virtual Distance: {virtualDistance:F2}");
-            Debug.Log($"Obstacles Spawned: {obstacleSpawner.GetObstaclesSpawned()}");
-            Debug.Log($"Collectibles Spawned: {collectibleSpawner.GetCollectiblesSpawned()}");
-            Debug.Log($"Active Obstacles: {despawnManager.GetActiveObstacleCount()}");
-            Debug.Log($"Active Collectibles: {despawnManager.GetActiveCollectibleCount()}");
-            Debug.Log($"Active Floor Tiles: {despawnManager.GetActiveFloorTileCount()}");
-            Debug.Log($"Active Scenery: {despawnManager.GetActiveSceneryCount()}");
-            Debug.Log($"Tracked Obstacles: {obstacleTracker.Count}");
+            GameLog.Info($"=== Level Generator Stats ===");
+            GameLog.Info($"Virtual Distance: {virtualDistance:F2}");
+            GameLog.Info($"Obstacles Spawned: {obstacleSpawner.GetObstaclesSpawned()}");
+            GameLog.Info($"Collectibles Spawned: {collectibleSpawner.GetCollectiblesSpawned()}");
+            GameLog.Info($"Active Obstacles: {despawnManager.GetActiveObstacleCount()}");
+            GameLog.Info($"Active Collectibles: {despawnManager.GetActiveCollectibleCount()}");
+            GameLog.Info($"Active Floor Tiles: {despawnManager.GetActiveFloorTileCount()}");
+            GameLog.Info($"Active Scenery: {despawnManager.GetActiveSceneryCount()}");
+            GameLog.Info($"Tracked Obstacles: {obstacleTracker.Count}");
         }
         #endif
     }

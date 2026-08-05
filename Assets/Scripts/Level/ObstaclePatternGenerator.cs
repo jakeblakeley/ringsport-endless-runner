@@ -1,6 +1,7 @@
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
+using RingSport.Core;
 #endif
 
 namespace RingSport.Level
@@ -52,7 +53,7 @@ namespace RingSport.Level
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log($"Generated 14 example obstacle patterns in {folderPath}");
+            GameLog.Info($"Generated 14 example obstacle patterns in {folderPath}");
         }
 
         // ===== EASY PATTERNS (Difficulty 1-3) =====

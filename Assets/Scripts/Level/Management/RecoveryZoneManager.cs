@@ -1,4 +1,5 @@
 using UnityEngine;
+using RingSport.Core;
 
 namespace RingSport.Level
 {
@@ -22,7 +23,7 @@ namespace RingSport.Level
             {
                 inRecoveryZone = true;
                 recoveryZoneEndVirtualZ = currentVirtualDistance + RECOVERY_ZONE_DURATION;
-                Debug.Log($"Palisade completed! Recovery zone active until virtual Z: {recoveryZoneEndVirtualZ:F2}");
+                GameLog.Info($"Palisade completed! Recovery zone active until virtual Z: {recoveryZoneEndVirtualZ:F2}");
             }
         }
 
@@ -38,7 +39,7 @@ namespace RingSport.Level
                 {
                     // Recovery zone ended
                     inRecoveryZone = false;
-                    Debug.Log("Recovery zone ended, resuming obstacle spawning");
+                    GameLog.Info("Recovery zone ended, resuming obstacle spawning");
                     return false;
                 }
 

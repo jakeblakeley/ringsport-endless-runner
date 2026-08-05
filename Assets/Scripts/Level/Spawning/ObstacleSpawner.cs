@@ -191,7 +191,7 @@ namespace RingSport.Level.Spawning
                         return;
                     }
                     // If pattern spawn failed, fall through to random generation
-                    Debug.Log("Pattern spawn failed, using random generation as fallback");
+                    GameLog.Info("Pattern spawn failed, using random generation as fallback");
                 }
 
                 // Random generation (original logic)
@@ -271,7 +271,7 @@ namespace RingSport.Level.Spawning
             float spawnZ = nextObstacleSpawnZ - context.VirtualDistance;
             Vector3 spawnPosition = new Vector3(xPosition, 0f, spawnZ);
 
-            Debug.Log($"Attempting to spawn {poolTag} at {spawnPosition}, virtual:{context.VirtualDistance}, count: {obstaclesSpawned}");
+            GameLog.Info($"Attempting to spawn {poolTag} at {spawnPosition}, virtual:{context.VirtualDistance}, count: {obstaclesSpawned}");
 
             GameObject obstacle = ObjectPooler.Instance?.SpawnFromPool(poolTag, spawnPosition, Quaternion.identity);
 
@@ -283,12 +283,12 @@ namespace RingSport.Level.Spawning
                 despawnManager.RegisterObstacle(obstacle);
                 OnSingleSpawned(poolTag, lane, nextObstacleSpawnZ);
                 nextObstacleSpawnZ += Random.Range(context.CurrentConfig.MinObstacleSpacing, context.CurrentConfig.MaxObstacleSpacing);
-                Debug.Log($"Successfully spawned {poolTag}. Next spawn at virtual: {nextObstacleSpawnZ}");
+                GameLog.Info($"Successfully spawned {poolTag}. Next spawn at virtual: {nextObstacleSpawnZ}");
             }
             else
             {
                 // Pool exhausted - don't advance spawn position, will retry next frame
-                Debug.LogWarning($"Pool exhausted for {poolTag}, will retry next frame");
+                GameLog.Warn($"Pool exhausted for {poolTag}, will retry next frame");
             }
         }
 
@@ -319,7 +319,7 @@ namespace RingSport.Level.Spawning
 
             if (validPatterns.Count == 0)
             {
-                Debug.LogWarning($"No valid patterns found for level {currentLevelNum} (difficulty {config.MinPatternDifficulty}-{config.MaxPatternDifficulty})");
+                GameLog.Warn($"No valid patterns found for level {currentLevelNum} (difficulty {config.MinPatternDifficulty}-{config.MaxPatternDifficulty})");
                 return null;
             }
 
@@ -339,7 +339,7 @@ namespace RingSport.Level.Spawning
             // Validate pattern is solvable
             if (!pattern.IsSolvable())
             {
-                Debug.LogWarning($"Pattern '{pattern.patternName}' is not solvable, skipping");
+                GameLog.Warn($"Pattern '{pattern.patternName}' is not solvable, skipping");
                 return false;
             }
 
@@ -359,13 +359,13 @@ namespace RingSport.Level.Spawning
                 // Check if this position has clearance issues
                 if (obstacleTracker.HasObstacleInLaneBehind(obstacleDef.lane, obstacleZ, SameLaneClearance))
                 {
-                    Debug.Log($"Pattern '{pattern.patternName}' failed clearance check at lane {obstacleDef.lane}, Z offset {obstacleDef.zOffset}");
+                    GameLog.Info($"Pattern '{pattern.patternName}' failed clearance check at lane {obstacleDef.lane}, Z offset {obstacleDef.zOffset}");
                     return false;
                 }
             }
 
             // All checks passed - spawn the pattern
-            Debug.Log($"Spawning pattern: {pattern.patternName} (difficulty {pattern.difficultyRating})");
+            GameLog.Info($"Spawning pattern: {pattern.patternName} (difficulty {pattern.difficultyRating})");
 
             float tailOffset = 0f;
             foreach (var obstacleDef in pattern.obstacles)
@@ -527,7 +527,7 @@ namespace RingSport.Level.Spawning
                 obstacleTracker.HasObstacleInLaneBehind(lane2, nextObstacleSpawnZ, SameLaneClearance))
             {
                 // Clearance failed for row - try spawning a single obstacle instead
-                Debug.Log("Two-lane row clearance failed, retrying with single obstacle");
+                GameLog.Info("Two-lane row clearance failed, retrying with single obstacle");
                 SpawnSingleObstacleWithRetry();
                 return;
             }
@@ -561,7 +561,7 @@ namespace RingSport.Level.Spawning
                 obstacleTracker.HasObstacleInLaneBehind(1, nextObstacleSpawnZ, SameLaneClearance))
             {
                 // Clearance failed for 3-lane row - try a simpler two-lane row instead
-                Debug.Log("Three-lane row clearance failed, retrying with two-lane row");
+                GameLog.Info("Three-lane row clearance failed, retrying with two-lane row");
                 SpawnTwoLaneRow();
                 return;
             }
@@ -593,7 +593,7 @@ namespace RingSport.Level.Spawning
                 // Replace one obstacle with a passable type
                 string[] passableTypes = { PoolTags.ObstacleJump, PoolTags.ObstaclePalisade, PoolTags.ObstacleBroadJump };
                 types[Random.Range(0, 3)] = passableTypes[Random.Range(0, passableTypes.Length)];
-                Debug.Log($"Prevented impossible 3-lane row! Replaced one instant-death obstacle with passable type.");
+                GameLog.Info($"Prevented impossible 3-lane row! Replaced one instant-death obstacle with passable type.");
             }
 
             ShuffleArray(types);
@@ -697,7 +697,7 @@ namespace RingSport.Level.Spawning
                 // Only skip if all lanes are blocked (very rare edge case)
                 if (!foundClearLane)
                 {
-                    Debug.LogWarning("All lanes blocked, skipping spawn (rare edge case)");
+                    GameLog.Warn("All lanes blocked, skipping spawn (rare edge case)");
                     nextObstacleSpawnZ += Random.Range(context.CurrentConfig.MinObstacleSpacing, context.CurrentConfig.MaxObstacleSpacing);
                     return;
                 }
@@ -721,7 +721,7 @@ namespace RingSport.Level.Spawning
             else
             {
                 // Pool exhausted - don't advance spawn position, will retry next frame
-                Debug.LogWarning($"Pool exhausted for {poolTag}, will retry next frame");
+                GameLog.Warn($"Pool exhausted for {poolTag}, will retry next frame");
             }
         }
 
@@ -735,7 +735,7 @@ namespace RingSport.Level.Spawning
             float spawnZ = virtualZ - context.VirtualDistance;
             Vector3 spawnPosition = new Vector3(xPosition, 0f, spawnZ);
 
-            Debug.Log($"Attempting to spawn {poolTag} at lane {lane}, virtual Z: {virtualZ}");
+            GameLog.Info($"Attempting to spawn {poolTag} at lane {lane}, virtual Z: {virtualZ}");
 
             GameObject obstacle = ObjectPooler.Instance?.SpawnFromPool(poolTag, spawnPosition, Quaternion.identity);
 
@@ -747,11 +747,11 @@ namespace RingSport.Level.Spawning
                 lastObstacleZ = Mathf.Max(lastObstacleZ, virtualZ);
                 if (poolTag == PoolTags.ObstaclePalisade)
                     NotePalisade(lane, virtualZ);
-                Debug.Log($"Successfully spawned {poolTag} at lane {lane}");
+                GameLog.Info($"Successfully spawned {poolTag} at lane {lane}");
             }
             else
             {
-                Debug.LogWarning($"Failed to spawn {poolTag} at lane {lane}!");
+                GameLog.Warn($"Failed to spawn {poolTag} at lane {lane}!");
             }
         }
 

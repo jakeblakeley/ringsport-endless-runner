@@ -1,4 +1,5 @@
 using UnityEngine;
+using RingSport.Core;
 
 namespace RingSport.Player
 {
@@ -135,7 +136,7 @@ namespace RingSport.Player
 
             if (animator == null)
             {
-                Debug.LogWarning("PlayerAnimator: no Animator found in children. Run Tools > RingSport > Setup Dog Player.");
+                GameLog.Warn("PlayerAnimator: no Animator found in children. Run Tools > RingSport > Setup Dog Player.");
                 return;
             }
 

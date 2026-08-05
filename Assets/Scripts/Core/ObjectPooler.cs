@@ -17,7 +17,15 @@ namespace RingSport.Core
 
         [SerializeField] private List<Pool> pools = new List<Pool>();
 
+        // All members per tag (never shrinks; used for reclaim + ClearAllPools)
         private Dictionary<string, Queue<GameObject>> poolDictionary;
+        // Free members per tag - spawn is an O(1) pop instead of an O(size)
+        // queue walk with a native activeInHierarchy check per step
+        private readonly Dictionary<string, Stack<GameObject>> freeStacks = new Dictionary<string, Stack<GameObject>>();
+        // Member -> owning tag, so ReturnToPool can recycle for real
+        private readonly Dictionary<GameObject, string> memberTags = new Dictionary<GameObject, string>();
+        // Guards double-returns (an object must be pushed free exactly once)
+        private readonly HashSet<GameObject> freeSet = new HashSet<GameObject>();
 
         private void Awake()
         {
@@ -37,60 +45,80 @@ namespace RingSport.Core
 
             foreach (Pool pool in pools)
             {
-                Queue<GameObject> objectPool = new Queue<GameObject>();
-
-                for (int i = 0; i < pool.size; i++)
-                {
-                    GameObject obj = Instantiate(pool.prefab);
-                    obj.SetActive(false);
-                    obj.transform.SetParent(transform);
-                    objectPool.Enqueue(obj);
-                }
-
-                poolDictionary.Add(pool.tag, objectPool);
-                Debug.Log($"Initialized pool '{pool.tag}' with {pool.size} objects");
+                CreatePool(pool.tag, pool.prefab, pool.size);
+                GameLog.Info($"Initialized pool '{pool.tag}' with {pool.size} objects");
             }
+        }
+
+        private void CreatePool(string tag, GameObject prefab, int size)
+        {
+            var objectPool = new Queue<GameObject>();
+            var free = new Stack<GameObject>(size);
+
+            for (int i = 0; i < size; i++)
+            {
+                GameObject obj = Instantiate(prefab);
+                obj.SetActive(false);
+                obj.transform.SetParent(transform);
+                objectPool.Enqueue(obj);
+                memberTags[obj] = tag;
+                free.Push(obj);
+                freeSet.Add(obj);
+            }
+
+            poolDictionary.Add(tag, objectPool);
+            freeStacks.Add(tag, free);
         }
 
         public GameObject SpawnFromPool(string tag, Vector3 position, Quaternion rotation)
         {
             if (poolDictionary == null)
             {
-                Debug.LogError("Pool dictionary is not initialized!");
+                GameLog.Error("Pool dictionary is not initialized!");
                 return null;
             }
 
-            if (!poolDictionary.ContainsKey(tag))
+            if (!poolDictionary.TryGetValue(tag, out Queue<GameObject> pool))
             {
-                Debug.LogWarning($"Pool with tag '{tag}' doesn't exist. Available pools: {string.Join(", ", poolDictionary.Keys)}");
+                GameLog.Warn($"Pool with tag '{tag}' doesn't exist. Available pools: {string.Join(", ", poolDictionary.Keys)}");
                 return null;
             }
 
-            Queue<GameObject> pool = poolDictionary[tag];
-
-            // Find an inactive object in the pool
             GameObject objectToSpawn = null;
-            int checkedCount = 0;
-            int poolSize = pool.Count;
 
-            while (checkedCount < poolSize)
+            Stack<GameObject> free = freeStacks[tag];
+            while (free.Count > 0)
             {
-                GameObject obj = pool.Dequeue();
-                pool.Enqueue(obj);
-
-                if (!obj.activeInHierarchy)
-                {
-                    objectToSpawn = obj;
-                    break;
-                }
-
-                checkedCount++;
+                GameObject candidate = free.Pop();
+                freeSet.Remove(candidate);
+                if (candidate == null)
+                    continue; // destroyed externally
+                if (candidate.activeSelf)
+                    continue; // stale entry (activated without a spawn)
+                objectToSpawn = candidate;
+                break;
             }
 
-            // If no inactive object found, pool is exhausted
             if (objectToSpawn == null)
             {
-                Debug.LogWarning($"Pool '{tag}' exhausted! All {poolSize} objects are active. Consider increasing pool size.");
+                // Reclaim pass: members that were deactivated directly instead
+                // of via ReturnToPool (mini-levels toggle pooled objects)
+                int count = pool.Count;
+                for (int i = 0; i < count; i++)
+                {
+                    GameObject candidate = pool.Dequeue();
+                    pool.Enqueue(candidate);
+                    if (candidate != null && !candidate.activeInHierarchy && !freeSet.Contains(candidate))
+                    {
+                        objectToSpawn = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (objectToSpawn == null)
+            {
+                GameLog.Warn($"Pool '{tag}' exhausted! All {pool.Count} objects are active. Consider increasing pool size.");
                 return null;
             }
 
@@ -106,18 +134,26 @@ namespace RingSport.Core
         {
             obj.SetActive(false);
             obj.transform.SetParent(transform);
+
+            // Members go back on their free stack (exactly once); non-members
+            // keep the legacy park-inactive behavior
+            if (memberTags.TryGetValue(obj, out string tag) && freeSet.Add(obj))
+                freeStacks[tag].Push(obj);
         }
 
         public void ClearAllPools()
         {
-            foreach (var pool in poolDictionary.Values)
+            foreach (var kvp in poolDictionary)
             {
-                foreach (var obj in pool)
+                Stack<GameObject> free = freeStacks[kvp.Key];
+                foreach (var obj in kvp.Value)
                 {
+                    if (obj == null)
+                        continue;
                     if (obj.activeInHierarchy)
-                    {
                         obj.SetActive(false);
-                    }
+                    if (freeSet.Add(obj))
+                        free.Push(obj);
                 }
             }
         }
@@ -135,18 +171,8 @@ namespace RingSport.Core
             if (poolDictionary.ContainsKey(tag))
                 return;
 
-            Queue<GameObject> objectPool = new Queue<GameObject>();
-
-            for (int i = 0; i < size; i++)
-            {
-                GameObject obj = Instantiate(prefab);
-                obj.SetActive(false);
-                obj.transform.SetParent(transform);
-                objectPool.Enqueue(obj);
-            }
-
-            poolDictionary.Add(tag, objectPool);
-            Debug.Log($"Created runtime pool '{tag}' with {size} objects");
+            CreatePool(tag, prefab, size);
+            GameLog.Info($"Created runtime pool '{tag}' with {size} objects");
         }
 
         /// <summary>

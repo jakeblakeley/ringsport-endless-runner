@@ -41,12 +41,12 @@ namespace RingSport.Level
             if (!enabled)
                 return;
 
-            Debug.Log($"Collectible triggered by: {other.name}, tag: {other.tag}");
+            GameLog.Info($"Collectible triggered by: {other.name}, tag: {other.tag}");
 
             // Check if player collided with collectible
             if (other.CompareTag("Player"))
             {
-                Debug.Log("Player collected item!");
+                GameLog.Info("Player collected item!");
                 Collect();
             }
         }
@@ -55,13 +55,13 @@ namespace RingSport.Level
         {
             if (isCollected)
             {
-                Debug.Log("Already collected, ignoring");
+                GameLog.Info("Already collected, ignoring");
                 return;
             }
 
             isCollected = true;
 
-            Debug.Log($"Collecting! Adding {pointValue} points");
+            GameLog.Info($"Collecting! Adding {pointValue} points");
 
             // Hide visual immediately
             if (meshRenderer != null)
@@ -86,7 +86,7 @@ namespace RingSport.Level
 
         private void ReturnToPool()
         {
-            Debug.Log("Returning collectible to pool");
+            GameLog.Info("Returning collectible to pool");
             ObjectPooler.Instance?.ReturnToPool(gameObject);
         }
 

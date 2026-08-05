@@ -78,6 +78,7 @@ namespace RingSport.Effects
 
             fadeImage.raycastTarget = false;
             covering = false;
+            fadeImage.enabled = false; // fully faded in - stop submitting the quad
             fadeRoutine = null;
         }
 
@@ -123,12 +124,16 @@ namespace RingSport.Effects
             var c = fadeImage.color;
             c.a = alpha;
             fadeImage.color = c;
+            // An alpha-0 UGUI Graphic is still drawn as a full-screen blended
+            // quad; keep it enabled while covering so it swallows taps
+            fadeImage.enabled = alpha > 0.0005f || covering;
         }
 
         private void SetFlash(Color color, float alpha)
         {
             color.a = alpha;
             flashImage.color = color;
+            flashImage.enabled = alpha > 0.0005f;
         }
 
         private void Build()
@@ -156,6 +161,7 @@ namespace RingSport.Effects
             var image = go.AddComponent<Image>();
             image.color = Color.clear;
             image.raycastTarget = false;
+            image.enabled = false; // enabled on demand while a fade/flash is visible
             var rt = image.rectTransform;
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;

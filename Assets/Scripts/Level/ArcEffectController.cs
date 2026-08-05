@@ -1,4 +1,5 @@
 using UnityEngine;
+using RingSport.Core;
 
 namespace RingSport.Level
 {
@@ -53,7 +54,7 @@ namespace RingSport.Level
                 }
                 else
                 {
-                    Debug.LogWarning("ArcEffectController: No player found! Please assign player transform or tag player as 'Player'");
+                    GameLog.Warn("ArcEffectController: No player found! Please assign player transform or tag player as 'Player'");
                 }
             }
 

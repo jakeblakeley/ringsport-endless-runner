@@ -3,6 +3,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.EnhancedTouch;
 using System;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
+using RingSport.Core;
 
 namespace RingSport.Input
 {
@@ -81,12 +82,12 @@ namespace RingSport.Input
                         OnHoldStarted?.Invoke();
 
                         if (showDebugLogs)
-                            Debug.Log($"Hold started after {holdTime}s (movement: {movementDistance}px)");
+                            GameLog.Info($"Hold started after {holdTime}s (movement: {movementDistance}px)");
                     }
                     else
                     {
                         if (showDebugLogs)
-                            Debug.Log($"Hold cancelled - too much movement ({movementDistance}px > {maxHoldMovement}px)");
+                            GameLog.Info($"Hold cancelled - too much movement ({movementDistance}px > {maxHoldMovement}px)");
                     }
                 }
             }
@@ -154,7 +155,7 @@ namespace RingSport.Input
                 OnPress?.Invoke();
 
                 if (showDebugLogs)
-                    Debug.Log($"Touch began at {touchStartPos}, Press event fired");
+                    GameLog.Info($"Touch began at {touchStartPos}, Press event fired");
             }
         }
 
@@ -177,7 +178,7 @@ namespace RingSport.Input
                     OnHoldEnded?.Invoke();
 
                     if (showDebugLogs)
-                        Debug.Log("Hold ended");
+                        GameLog.Info("Hold ended");
                 }
                 else
                 {
@@ -206,7 +207,7 @@ namespace RingSport.Input
                 OnPress?.Invoke();
 
                 if (showDebugLogs)
-                    Debug.Log($"Mouse began at {touchStartPos}, Press event fired");
+                    GameLog.Info($"Mouse began at {touchStartPos}, Press event fired");
             }
             else if (Mouse.current.leftButton.wasReleasedThisFrame && isTouching)
             {
@@ -222,7 +223,7 @@ namespace RingSport.Input
                     OnHoldEnded?.Invoke();
 
                     if (showDebugLogs)
-                        Debug.Log("Mouse hold ended");
+                        GameLog.Info("Mouse hold ended");
                 }
                 else
                 {
@@ -244,7 +245,7 @@ namespace RingSport.Input
             float swipeDistance = swipeDelta.magnitude;
 
             if (showDebugLogs)
-                Debug.Log($"Gesture: distance={swipeDistance}, duration={duration}, delta={swipeDelta}");
+                GameLog.Info($"Gesture: distance={swipeDistance}, duration={duration}, delta={swipeDelta}");
 
             // Check if this is a swipe (meets distance and time requirements)
             if (swipeDistance >= minSwipeDistance && duration <= maxSwipeTime)
@@ -259,7 +260,7 @@ namespace RingSport.Input
                 OnTap?.Invoke(startPos);
 
                 if (showDebugLogs)
-                    Debug.Log($"Tap detected at {startPos}");
+                    GameLog.Info($"Tap detected at {startPos}");
             }
         }
 
@@ -278,13 +279,13 @@ namespace RingSport.Input
                 if (direction.x > 0)
                 {
                     if (showDebugLogs)
-                        Debug.Log("Swipe RIGHT detected");
+                        GameLog.Info("Swipe RIGHT detected");
                     OnSwipeRight?.Invoke();
                 }
                 else
                 {
                     if (showDebugLogs)
-                        Debug.Log("Swipe LEFT detected");
+                        GameLog.Info("Swipe LEFT detected");
                     OnSwipeLeft?.Invoke();
                 }
             }
@@ -294,20 +295,20 @@ namespace RingSport.Input
                 if (direction.y > 0)
                 {
                     if (showDebugLogs)
-                        Debug.Log("Swipe UP detected");
+                        GameLog.Info("Swipe UP detected");
                     OnSwipeUp?.Invoke();
                 }
                 else
                 {
                     if (showDebugLogs)
-                        Debug.Log("Swipe DOWN detected");
+                        GameLog.Info("Swipe DOWN detected");
                     OnSwipeDown?.Invoke();
                 }
             }
             else
             {
                 if (showDebugLogs)
-                    Debug.Log($"Ambiguous swipe direction: {direction}");
+                    GameLog.Info($"Ambiguous swipe direction: {direction}");
             }
         }
 
