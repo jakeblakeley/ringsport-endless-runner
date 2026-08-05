@@ -16,9 +16,11 @@ namespace RingSport.Level
     ///
     /// Local-space convention: the patch is authored in the side floor's local
     /// space, where +X always faces the track (FloorSpawner spawns the right
-    /// side floor rotated 180). Blades past +X extent/2 spill over the inner
-    /// edge onto the center tile with a noisy, decaying density so the seam
-    /// between side and main floors disappears under grass.
+    /// side floor rotated 180). Blades past +X extent/2 spill onto the center
+    /// tile: a solid fringe at the seam breaks up into Perlin-clumped tongues
+    /// whose density decays toward the track center, dying out before the
+    /// three lanes (world +/-3, local 7.5 at floorScale 1.2) so gameplay
+    /// space stays readable while the floor seam disappears under grass.
     /// </summary>
     [RequireComponent(typeof(MeshFilter))]
     [ExecuteAlways]
@@ -38,9 +40,12 @@ namespace RingSport.Level
         [Tooltip("Density multiplier at the outer (away from track) edge; density ramps linearly toward 1 at the track edge. Saves vertices where the camera barely looks.")]
         [SerializeField] [Range(0.05f, 1f)] private float outerDensityScale = 0.45f;
 
-        [Header("Inner Edge Overlap")]
-        [Tooltip("How far blades spill past the track-facing edge onto the center tile (local units). Lanes sit 3 units into the 5-unit half tile, keep this under ~1.")]
-        [SerializeField] [Range(0f, 1.5f)] private float innerOverhang = 0.9f;
+        [Header("Center Tile Spill")]
+        [Tooltip("How far the noise tongues reach past the track-facing edge onto the center tile (local units). The outermost lane center sits 2.5 local units past the seam - density decays to zero across this reach, so ~2.2 keeps the lanes largely clear.")]
+        [SerializeField] [Range(0f, 2.5f)] private float spillReach = 2.2f;
+
+        [Tooltip("Spatial frequency of the Perlin clumps in the spill zone. Lower = broader tongues, higher = smaller patches.")]
+        [SerializeField] [Range(0.1f, 2f)] private float spillClumpScale = 0.55f;
 
         [Header("Blade Shape (local units)")]
         [SerializeField] private float bladeHeightMin = 0.35f;
@@ -103,8 +108,8 @@ namespace RingSport.Level
         {
             return System.HashCode.Combine(
                 System.HashCode.Combine(patchWidth, patchLength, bladesPerSquareUnit, outerDensityScale),
-                System.HashCode.Combine(innerOverhang, bladeHeightMin, bladeHeightMax, bladeHalfWidth),
-                System.HashCode.Combine(bladeLeanMax, seed));
+                System.HashCode.Combine(spillReach, spillClumpScale, bladeHeightMin, bladeHeightMax),
+                System.HashCode.Combine(bladeHalfWidth, bladeLeanMax, seed));
         }
 
         private Mesh BuildMesh()
@@ -116,15 +121,16 @@ namespace RingSport.Level
             // Jittered grid: even coverage without Poisson cost. Cell size from
             // peak density; per-cell acceptance then shapes the density field.
             float cell = Mathf.Sqrt(1f / Mathf.Max(bladesPerSquareUnit, 0.01f));
-            int cols = Mathf.CeilToInt((patchWidth + innerOverhang) / cell);
+            int cols = Mathf.CeilToInt((patchWidth + spillReach) / cell);
             int rows = Mathf.CeilToInt(patchLength / cell);
 
             var vertices = new List<Vector3>(cols * rows * 5 / 2);
             var uvs = new List<Vector2>(vertices.Capacity);
             var triangles = new List<int>(vertices.Capacity * 6 / 5);
 
-            // Noise offset so different seeds also get different edge wobble
-            float edgeNoiseOffset = (float)(rng.NextDouble() * 100.0);
+            // Noise offsets so different seeds get different clump patterns
+            float clumpOffsetX = (float)(rng.NextDouble() * 100.0);
+            float clumpOffsetZ = (float)(rng.NextDouble() * 100.0);
 
             for (int cx = 0; cx < cols; cx++)
             {
@@ -142,18 +148,25 @@ namespace RingSport.Level
 
                     if (x > halfW)
                     {
-                        // Spill zone past the inner edge: wavy boundary from
-                        // low-frequency noise, quadratic falloff toward it, and
-                        // slightly shorter blades so the overlap reads natural
-                        if (innerOverhang <= 0f)
+                        // Spill zone: a solid fringe hugging the seam breaks up
+                        // into 2D Perlin clump tongues whose density decays to
+                        // zero across spillReach, with shrinking blades. The
+                        // clump mask blends in over the first quarter of the
+                        // reach so tongues grow out of the fringe instead of
+                        // stopping at a density step.
+                        if (spillReach <= 0f)
                             continue;
-                        float wobble = Mathf.PerlinNoise(z * 0.55f + edgeNoiseOffset, edgeNoiseOffset);
-                        float edgeX = halfW + innerOverhang * (0.3f + 0.7f * wobble);
-                        if (x >= edgeX)
+                        float spillT = (x - halfW) / spillReach;
+                        if (spillT >= 1f)
                             continue;
-                        float spillT = (x - halfW) / (edgeX - halfW);
-                        acceptChance = (1f - spillT) * (1f - spillT);
-                        heightScale = Mathf.Lerp(1f, 0.7f, spillT);
+                        float clump = Mathf.PerlinNoise(
+                            x * spillClumpScale + clumpOffsetX,
+                            z * spillClumpScale + clumpOffsetZ);
+                        clump = Mathf.Clamp01((clump - 0.25f) / 0.75f);
+                        float clumpBlend = Mathf.Clamp01(spillT / 0.25f);
+                        float falloff = Mathf.Pow(1f - spillT, 1.5f);
+                        acceptChance = falloff * Mathf.Lerp(1f, clump, clumpBlend);
+                        heightScale = Mathf.Lerp(0.85f, 0.6f, spillT);
                     }
 
                     if (rng.NextDouble() > acceptChance)
@@ -189,8 +202,8 @@ namespace RingSport.Level
             // are still on screen.
             float maxH = bladeHeightMax + 0.5f;
             mesh.bounds = new Bounds(
-                new Vector3(innerOverhang * 0.5f, (maxH - 22f) * 0.5f, 0f),
-                new Vector3(patchWidth + innerOverhang + 1f, maxH + 22f, patchLength + 1f));
+                new Vector3(spillReach * 0.5f, (maxH - 22f) * 0.5f, 0f),
+                new Vector3(patchWidth + spillReach + 1f, maxH + 22f, patchLength + 1f));
 
             mesh.UploadMeshData(true);
             return mesh;

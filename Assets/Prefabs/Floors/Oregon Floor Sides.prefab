@@ -210,7 +210,8 @@ MonoBehaviour:
   patchLength: 10
   bladesPerSquareUnit: 18
   outerDensityScale: 0.45
-  innerOverhang: 0.9
+  spillReach: 2.2
+  spillClumpScale: 0.55
   bladeHeightMin: 0.4
   bladeHeightMax: 0.85
   bladeHalfWidth: 0.045
