@@ -223,6 +223,10 @@ namespace RingSport.DebugTools
             gcCollectionsStart = GC.CollectionCount(0);
             sampling = true;
 
+            // Fixed-time screenshot: with the deterministic seed, runs capture
+            // ~the same world state, so before/after shots are comparable
+            StartCoroutine(CaptureShot(8f));
+
             float start = Time.realtimeSinceStartup;
             while (Time.realtimeSinceStartup - start < request.durationSeconds)
             {
@@ -235,6 +239,22 @@ namespace RingSport.DebugTools
 
             sampling = false;
             Finish(null);
+        }
+
+        private IEnumerator CaptureShot(float afterSeconds)
+        {
+            yield return new WaitForSecondsRealtime(afterSeconds);
+            if (!sampling)
+                yield break;
+            try
+            {
+                ScreenCapture.CaptureScreenshot($"PerfReports/shot_{request.label}.png");
+                Debug.Log($"[PerfProbe] Screenshot queued: PerfReports/shot_{request.label}.png");
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[PerfProbe] Screenshot failed: {e.Message}");
+            }
         }
 
         private void StartRecorders()

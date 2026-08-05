@@ -21,12 +21,12 @@ namespace RingSport.UI
         [Header("Game Settings")]
         [SerializeField] private int totalSteaks = 20;
         [SerializeField] private float steakSpawnInterval = 1f;
-        [SerializeField] private float fallSpeed = 8f;
+        [SerializeField] private float fallSpeed = 6f;
         [SerializeField] private float spawnHeight = 15f;
 
         [Header("Pool Settings")]
         [SerializeField] private string steakPoolTag = "FoodRefusalSteak";
-        [SerializeField] private string collectiblePoolTag = "MegaCollectible";
+        [SerializeField] private string collectiblePoolTag = "FoodRefusalCollectible";
 
         [Header("Lane Settings")]
         [SerializeField] private float laneDistance = 3f; // -3, 0, +3
@@ -68,6 +68,15 @@ namespace RingSport.UI
             // Dog turns around to face the straight-on mini-level camera
             playerController = Object.FindAnyObjectByType<PlayerController>();
             playerController?.Animations?.SetFacing(true);
+
+            // Get the steaks' blob shadows onto the GPU during the camera move
+            // and countdown, so the first one to fall is already textured
+            // instead of popping in a frame after it spawns.
+            if (playerController != null)
+            {
+                Vector3 feet = playerController.transform.position;
+                BlobShadow.Warmup(new Vector3(feet.x, 0.02f, feet.z));
+            }
         }
 
         public override void StartGame()

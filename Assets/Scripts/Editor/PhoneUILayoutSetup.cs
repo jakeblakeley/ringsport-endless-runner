@@ -24,8 +24,14 @@ namespace RingSport.Editor
     public static class PhoneUILayoutSetup
     {
         // Bump to force the auto-run to re-apply the layout
-        private const int SetupVersion = 1;
+        private const int SetupVersion = 3;
         private const string VersionPrefKey = "RingSport.PhoneUILayoutSetup.Version";
+
+        // Every screen speaks in Barlow Bold. Permanent Marker is the one
+        // deliberate exception - the handwritten voice of the love-note and
+        // secret-note panels - so anything already on it is left alone.
+        private const string PrimaryFontPath = "Assets/Fonts/Barlow-Bold SDF.asset";
+        private const string HandwrittenFontPath = "Assets/Fonts/PermanentMarker-Regular SDF.asset";
 
         // 9:16 design space
         private const float DesignWidth = 1080f;
@@ -39,6 +45,7 @@ namespace RingSport.Editor
         private const float ButtonH = 128f;
         private const float ButtonGap = 16f;
         private const float ButtonRowW = ButtonW * 2f + ButtonGap;
+        private const float ButtonCaptionInset = 20f;
 
         // Font sizes (2x the old constant-pixel design, which was authored ~540x960)
         private const float FontSmall = 48f;
@@ -119,6 +126,7 @@ namespace RingSport.Editor
             LayoutSimonSays();
             LayoutFoodRefusal();
 
+            ApplyFonts();
             WireRewardBanner();
             Validate();
 
@@ -159,8 +167,13 @@ namespace RingSport.Editor
         {
             const string c = "HomeScreen";
 
-            StretchTop(Find(c, "HighScoreText"), Row1, 96f);
-            Text(Find(c, "HighScoreText"), FontBody, TextAlignmentOptions.Center);
+            // Left column - number on top, "High Score" label under it - so the
+            // home screen reads the same way as the in-game score column.
+            Place(Find(c, "HighScoreText"), TopLeft, TopLeft, new Vector2(0f, 0.5f), new Vector2(400f, 100f), new Vector2(Margin, Row1));
+            Text(Find(c, "HighScoreText"), FontBody, TextAlignmentOptions.Left);
+
+            Place(Find(c, "HighScoreLabel"), TopLeft, TopLeft, new Vector2(0f, 0.5f), new Vector2(400f, 64f), new Vector2(Margin, Row2));
+            Text(Find(c, "HighScoreLabel"), FontSmall, TextAlignmentOptions.Left);
 
             StretchBottom(Find(c, "Instructions"), 384f, 96f);
             Text(Find(c, "Instructions"), FontSmall, TextAlignmentOptions.Center);
@@ -380,9 +393,16 @@ namespace RingSport.Editor
 
             var label = button.Find(labelName) as RectTransform;
             if (label == null)
+            {
                 Debug.LogWarning($"[PhoneUILayoutSetup] Missing label '{labelName}' under {button.name}");
-            else
-                Text(label, FontSmall, TextAlignmentOptions.Center, wrap: false);
+                return;
+            }
+
+            // Inset from the pill's rounded ends, and let a long caption
+            // ("NEXT LEVEL") shrink rather than run over the edge - Barlow Bold
+            // is a good deal wider than the condensed face these were sized for.
+            Place(label, Vector2.zero, Vector2.one, Centre, new Vector2(-ButtonCaptionInset * 2f, 0f), Vector2.zero);
+            Text(label, FontSmall, TextAlignmentOptions.Center, wrap: false, autoShrink: true);
         }
 
         /// <summary>
@@ -460,7 +480,12 @@ namespace RingSport.Editor
             EditorUtility.SetDirty(rt);
         }
 
-        private static void Text(RectTransform rt, float fontSize, TextAlignmentOptions alignment, bool wrap = true)
+        /// <param name="autoShrink">
+        /// Let the text scale itself down (never up) to fit its box. Used for
+        /// button captions, where the copy is fixed and the pill is not.
+        /// </param>
+        private static void Text(RectTransform rt, float fontSize, TextAlignmentOptions alignment,
+            bool wrap = true, bool autoShrink = false)
         {
             if (rt == null)
                 return;
@@ -472,14 +497,51 @@ namespace RingSport.Editor
                 return;
             }
 
-            tmp.enableAutoSizing = false;
             tmp.fontSize = fontSize;
-            tmp.fontSizeMin = fontSize * 0.5f;
-            tmp.fontSizeMax = fontSize * 2f;
+            tmp.fontSizeMin = autoShrink ? fontSize * 0.7f : fontSize * 0.5f;
+            tmp.fontSizeMax = fontSize;
+            tmp.enableAutoSizing = autoShrink;
             tmp.alignment = alignment;
             // Button captions stay on one line; body copy wraps inside its box
             tmp.textWrappingMode = wrap ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
             EditorUtility.SetDirty(tmp);
+        }
+
+        // ------------------------------------------------------------------
+        // Fonts
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Pulls every label back onto the primary face. Screens had drifted
+        /// apart - the reward screen's buttons and score column were on the
+        /// condensed face while its banner was on Bold, and Game Over's
+        /// "NEW HIGH SCORE!" was still on TMP's default LiberationSans.
+        /// </summary>
+        private static void ApplyFonts()
+        {
+            var primary = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(PrimaryFontPath);
+            if (primary == null)
+            {
+                Debug.LogError($"[PhoneUILayoutSetup] No font asset at '{PrimaryFontPath}' - fonts left untouched.");
+                return;
+            }
+
+            var handwritten = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(HandwrittenFontPath);
+            int changed = 0;
+
+            foreach (var tmp in uiRoot.GetComponentsInChildren<TextMeshProUGUI>(true))
+            {
+                if (tmp.font == primary || (handwritten != null && tmp.font == handwritten))
+                    continue;
+
+                Debug.Log($"[PhoneUILayoutSetup] '{Path(tmp.transform)}': {(tmp.font != null ? tmp.font.name : "no font")} -> {primary.name}");
+                tmp.font = primary;
+                tmp.fontSharedMaterial = primary.material;
+                EditorUtility.SetDirty(tmp);
+                changed++;
+            }
+
+            Debug.Log($"[PhoneUILayoutSetup] Font pass: {changed} label(s) moved onto {primary.name}.");
         }
 
         private static RectTransform Find(string canvasName, string childPath = null)

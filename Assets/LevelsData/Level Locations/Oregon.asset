@@ -18,8 +18,8 @@ MonoBehaviour:
   finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 89abc7a1d48ff4025afd0d9f4210f19a, type: 3}
   startScenePrefab: {fileID: 2944195911424996803, guid: 56d8ff070bfd14bc5ab9ce840902cc37, type: 3}
   sceneryPrefabs:
-  - {fileID: 5125971515890355327, guid: ff15d4f138d7a4da881d4b52cb0d608a, type: 3}
-  - {fileID: 2321488551133626012, guid: 7cbe1ed4e85e5426d9c9496e6af64615, type: 3}
+  - {fileID: 8057113131336996305, guid: 6d39f0c3ff17342c09c0d707459a7fbd, type: 3}
+  - {fileID: 2002053252386911964, guid: 6700604f595bd46d28b275ac14826448, type: 3}
   - {fileID: 5262597467377870515, guid: f4cf941aed87642ee820de8a8886eced, type: 3}
   - {fileID: 8683044956914874601, guid: 9a762482c2f894efa82381292e10ca94, type: 3}
   - {fileID: 5775199987105398452, guid: 31fed140358b74700a0680727258b224, type: 3}
@@ -33,8 +33,8 @@ MonoBehaviour:
   sceneryMinDistance: 1.7
   sceneryPoolSize: 30
   overrideAtmosphere: 1
-  fogColor: {r: 0.84, g: 0.83, b: 0.66, a: 1}
+  fogColor: {r: 0.62, g: 0.81, b: 0.87, a: 1}
   fogDensity: 0.028
-  skyboxMaterial: {fileID: 2100000, guid: a3fa36c4b514d77409bac2e4aae262af, type: 2}
+  skyboxMaterial: {fileID: 2100000, guid: 5a9e0c73f21b4d6ab08c47e29d135f6b, type: 2}
   music: {fileID: 0}
   ambientSound: {fileID: 8300000, guid: 075d48b303a644d7eab7e778fb56d609, type: 3}

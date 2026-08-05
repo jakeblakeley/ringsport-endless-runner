@@ -14,6 +14,7 @@ namespace RingSport.Core
 
         // Mini-level specific pool tags
         public const string FoodRefusalSteak = "FoodRefusalSteak";
+        public const string FoodRefusalCollectible = "FoodRefusalCollectible";
 
         // Collectible pool tags
         public const string Collectible = "Collectible";

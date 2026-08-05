@@ -28,7 +28,7 @@ namespace RingSport.Editor
     public static class WorldSceneryBuilder
     {
         // Bump to force the auto-run to re-apply the build
-        private const int BuildVersion = 11;
+        private const int BuildVersion = 13;
         private const string VersionPrefKey = "RingSport.WorldSceneryBuilder.Version";
 
         private const string ArcShaderName = "Custom/Mobile/ArcEffect";
@@ -181,6 +181,19 @@ namespace RingSport.Editor
                         Log($"Deleted stale material: {stale}");
                 }
 
+                // ---- 6b. Remove scenery prefabs dropped from the defs ----
+                foreach (string stale in new[]
+                         {
+                             // Oregon's warm autumn trees, replaced by the cool D variants
+                             $"{WorldPrefabFolder}/Oregon/Forest_Tree_2A.prefab",
+                             $"{WorldPrefabFolder}/Oregon/Forest_Tree_5A.prefab",
+                         })
+                {
+                    if (AssetDatabase.LoadAssetAtPath<GameObject>(stale) != null &&
+                        AssetDatabase.DeleteAsset(stale))
+                        Log($"Deleted stale scenery prefab: {stale}");
+                }
+
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
 
@@ -248,8 +261,11 @@ namespace RingSport.Editor
                 },
                 ["Oregon"] = new List<SceneryDef>
                 {
-                    new SceneryDef { SourcePath = $"{TS}/Vegetation/Trees/Forest_Tree_2A.prefab", Name = "Forest_Tree_2A", TargetSize = 5.5f },
-                    new SceneryDef { SourcePath = $"{TS}/Vegetation/Trees/Forest_Tree_5A.prefab", Name = "Forest_Tree_5A", TargetSize = 4.2f },
+                    // The pack's trees are UV variants on one colour-swatch atlas:
+                    // the A/B/C letters land on warm olive/gold/rust swatches, D on
+                    // the cool teal-greens. Same mesh, same material - a free swap.
+                    new SceneryDef { SourcePath = $"{TS}/Vegetation/Trees/Forest_Tree_8D.prefab", Name = "Forest_Tree_8D", TargetSize = 5.5f },
+                    new SceneryDef { SourcePath = $"{TS}/Vegetation/Trees/Forest_Tree_5D.prefab", Name = "Forest_Tree_5D", TargetSize = 4.2f },
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Bush_01A.prefab", Name = "TEM_Bush_01A", TargetSize = 1.0f },
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Bush_02A.prefab", Name = "TEM_Bush_02A", TargetSize = 1.1f },
                     new SceneryDef { SourcePath = $"{TEM}/Vegetation/TEM_Grass_Patch_04A.prefab", Name = "TEM_Grass_Patch_04A", TargetSize = 1.2f, Mode = SizeMode.Footprint, TwoSided = true, Tint = new Color(1f, 0.88f, 0.6f), TintSuffix = "_Gold" },
@@ -349,11 +365,11 @@ namespace RingSport.Editor
                 },
                 ["Oregon"] = new List<StartSceneItem>
                 {
-                    new StartSceneItem("Forest_Tree_2A", 0f, -8.8f, 0f, 1.0f),
-                    new StartSceneItem("Forest_Tree_2A", -7.0f, -7.5f, 130f, 0.85f),
-                    new StartSceneItem("Forest_Tree_5A", 7.5f, -8.0f, 220f, 0.9f),
-                    new StartSceneItem("Forest_Tree_5A", -9.5f, 5.0f, 40f, 0.8f),
-                    new StartSceneItem("Forest_Tree_2A", 9.5f, 6.0f, 310f, 0.75f),
+                    new StartSceneItem("Forest_Tree_8D", 0f, -8.8f, 0f, 1.0f),
+                    new StartSceneItem("Forest_Tree_8D", -7.0f, -7.5f, 130f, 0.85f),
+                    new StartSceneItem("Forest_Tree_5D", 7.5f, -8.0f, 220f, 0.9f),
+                    new StartSceneItem("Forest_Tree_5D", -9.5f, 5.0f, 40f, 0.8f),
+                    new StartSceneItem("Forest_Tree_8D", 9.5f, 6.0f, 310f, 0.75f),
                     // Fence lines running parallel to the track = vineyard rows
                     new StartSceneItem("Fence_2A", -6.5f, -4.0f, 90f, 1.0f),
                     new StartSceneItem("Fence_2A", -6.5f, -1.0f, 90f, 1.0f),
@@ -841,12 +857,14 @@ namespace RingSport.Editor
             };
 
             // Per-location light mood: fog color/density + skybox. Seattle keeps
-            // the scene's current values; the rest warm up or brighten.
+            // the scene's current values; the rest warm up or brighten. Arizona
+            // and Oregon use flat gradient skies (Ringsport/Gradient Skybox) so
+            // they read as clean as Seattle's; fog matches each horizon color.
             var atmosphere = new Dictionary<string, (Color fog, float density, string skybox)>
             {
                 ["Seattle"] = (new Color(0.5396f, 0.7997f, 0.8113f), 0.04f, "Assets/Materials/Test Skybox.mat"),
-                ["Arizona"] = (new Color(0.85f, 0.7f, 0.52f), 0.04f, "Assets/Toon Desert/Skyboxes/DS_Skybox_Afternoon_01A.mat"),
-                ["Oregon"] = (new Color(0.84f, 0.83f, 0.66f), 0.028f, "Assets/Toon Series/Toon Nature Assets/Skyboxes/Skybox_Afternoon_1B.mat"),
+                ["Arizona"] = (new Color(0.85f, 0.7f, 0.52f), 0.04f, "Assets/Materials/World/Sky_Arizona_Gradient.mat"),
+                ["Oregon"] = (new Color(0.62f, 0.81f, 0.87f), 0.028f, "Assets/Materials/World/Sky_Oregon_Gradient.mat"),
                 ["France"] = (new Color(0.72f, 0.8f, 0.7f), 0.035f, "Assets/Toon Enchanted Meadow/Skybox/TEM_Skybox_01A/TEM_Skybox_01A.mat"),
             };
 

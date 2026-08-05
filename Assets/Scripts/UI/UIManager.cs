@@ -623,17 +623,37 @@ namespace RingSport.UI
         /// <summary>Staggered entrance for the reward screen's elements.</summary>
         private void PlayRewardEntrance()
         {
+            // The location, level name and both buttons live under layout groups
+            // ("Bottom Text" / "Level Buttons"). SetActive only queues a layout
+            // rebuild for the end of the frame, so without this the entrance
+            // would capture - and then pin them at - their stale serialised
+            // positions, dropping the text off the left edge and stacking the
+            // two buttons on top of each other.
+            if (rewardScreen != null)
+            {
+                // ForceUpdateCanvases first: on the screen's very first show the
+                // canvas has never been enabled, so its rect - and therefore the
+                // width every layout group divides up - is not valid yet.
+                Canvas.ForceUpdateCanvases();
+                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)rewardScreen.transform);
+            }
+
             float delay = 0.08f;
-            AnimateEntrance(rewardCompleteBanner, delay, popScale: true);
-            AnimateEntrance(rewardTotalScoreText != null ? rewardTotalScoreText.gameObject : null, delay += 0.09f);
-            AnimateEntrance(rewardHighScoreText != null ? rewardHighScoreText.gameObject : null, delay += 0.09f);
-            AnimateEntrance(nextLevelLocationText != null ? nextLevelLocationText.gameObject : null, delay += 0.09f);
-            AnimateEntrance(nextLevelNameText != null ? nextLevelNameText.gameObject : null, delay += 0.05f);
-            AnimateEntrance(returnHomeButton != null ? returnHomeButton.gameObject : null, delay += 0.09f);
-            AnimateEntrance(nextLevelButton != null ? nextLevelButton.gameObject : null, delay += 0.06f);
+            AnimateEntrance(rewardCompleteBanner, delay, popScale: true, recaptureBase: true);
+            AnimateEntrance(rewardTotalScoreText != null ? rewardTotalScoreText.gameObject : null, delay += 0.09f, recaptureBase: true);
+            AnimateEntrance(rewardHighScoreText != null ? rewardHighScoreText.gameObject : null, delay += 0.09f, recaptureBase: true);
+            AnimateEntrance(nextLevelLocationText != null ? nextLevelLocationText.gameObject : null, delay += 0.09f, recaptureBase: true);
+            AnimateEntrance(nextLevelNameText != null ? nextLevelNameText.gameObject : null, delay += 0.05f, recaptureBase: true);
+            AnimateEntrance(returnHomeButton != null ? returnHomeButton.gameObject : null, delay += 0.09f, recaptureBase: true);
+            AnimateEntrance(nextLevelButton != null ? nextLevelButton.gameObject : null, delay += 0.06f, recaptureBase: true);
         }
 
-        private void AnimateEntrance(GameObject go, float delay, bool popScale = false)
+        /// <param name="recaptureBase">
+        /// Re-read the rest position instead of trusting the cached one. Layout
+        /// groups recompute their children whenever the screen is shown, so a
+        /// position cached on an earlier show can be out of date.
+        /// </param>
+        private void AnimateEntrance(GameObject go, float delay, bool popScale = false, bool recaptureBase = false)
         {
             if (go == null || !go.activeInHierarchy)
                 return;
@@ -646,7 +666,9 @@ namespace RingSport.UI
             if (cg == null)
                 cg = go.AddComponent<CanvasGroup>();
 
-            if (!entranceBasePositions.TryGetValue(rt, out Vector2 basePos))
+            // Safe to re-read: HideAllScreens stops any in-flight entrance and
+            // restores every rect to its base position before we get here.
+            if (recaptureBase || !entranceBasePositions.TryGetValue(rt, out Vector2 basePos))
             {
                 basePos = rt.anchoredPosition;
                 entranceBasePositions[rt] = basePos;
