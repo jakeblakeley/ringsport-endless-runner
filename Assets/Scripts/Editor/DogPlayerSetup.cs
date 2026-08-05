@@ -20,8 +20,12 @@ namespace RingSport.Editor
     public static class DogPlayerSetup
     {
         // Bump to make the auto-run rebuild the controller after changing this script
-        private const int SetupVersion = 18;
+        private const int SetupVersion = 19;
         private const string VersionPrefKey = "RingSport.DogPlayerSetup.Version";
+
+        // The retarget math is part of what the generated assets depend on, so a
+        // change there has to invalidate them just like a change here does
+        private static int EffectiveVersion => SetupVersion * 100 + CaicosRetarget.RetargetVersion;
 
         private const string DogName = "Dog Model";
         private const string ControllerPath = "Assets/Animations/Player/DogPlayer.controller";
@@ -36,8 +40,17 @@ namespace RingSport.Editor
         private const string FallbackMaterialPath = "Assets/Materials/DogPlayer.mat";
         private const string PlayerPrefabPath = "Assets/Prefabs/Player.prefab";
 
-        // Malbers Animal Controller (lite) asset GUIDs
-        private const string ModelGuid = "08e48789449aae64095cc114539cb217";      // Wolf Lite v2.fbx
+        // The player model is caicos.glb, nested as a prefab instance so that
+        // re-exporting the model from Blender updates the player automatically.
+        // Its rig shares the Wolf Lite bone names, but nothing else lines up -
+        // CaicosRetarget bakes every Malbers clip onto it (see that file).
+        private const string ModelGuid = CaicosRetarget.CaicosModelGuid;         // Assets/Models/caicos.glb
+        // Only the gameplay tuning is size-sensitive (jump heights, hurdle
+        // clearance, camera framing), so the model is scaled back to the old
+        // dog's footprint when the new one differs by more than this.
+        private const float ScaleCompensationThreshold = 0.02f;
+
+        // Malbers Animal Controller (lite) asset GUIDs - the clips' source rig
         private const string IdlesFbxGuid = "0eb22952662ada041b5429bc1421472e";   // WL_Idles.FBX
         private const string LedgeGrabFbxGuid = "144a4f1e0fc58eb4b8e452a69b1147b2"; // WL_LedgeGrab.fbx
         private const string WalkGuid = "6fc18097a7084a94d90ae044ae70cd14";       // WL_Walk.anim
@@ -50,7 +63,6 @@ namespace RingSport.Editor
         private const string JumpForwardGuid = "7ce4f711dd11df041898390c845db393"; // WL_Jump_Forward.anim
         private const string DashFbxGuid = "af25c5ee9aa180643a14d1acb874c030";    // WL_Dash.fbx
         private const string DeathGuid = "69e70d70d4cea1442bdbe47dc487a263";      // WL_Death1.anim
-        private const string RagdollPrefabGuid = "1866b9e9949480b40a71eecb4ea69e03"; // Wolf Lite Ragdoll.prefab
         private const string SleepFbxGuid = "558c52fb80d72814bbd94a05998c957f";   // WL_Sleep.FBX (sit/lie pose clips)
         private const string JumpInPlaceBakedGuid = "50050480bda5ca24abe00af5c60ffcf6"; // WL_Jump_InPlace_Baked.anim (Y-rise baked into pose)
         private const string Bark2Guid = "2418d78995a33784cbb79676b298922e";      // WL_Bark2.anim
@@ -80,7 +92,11 @@ namespace RingSport.Editor
             if (player == null)
                 return;
 
-            bool dogMissing = player.transform.Find(DogName) == null;
+            var dog = player.transform.Find(DogName);
+            var modelPath = AssetDatabase.GUIDToAssetPath(ModelGuid);
+            var modelPrefab = string.IsNullOrEmpty(modelPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            // Missing, or still the model we replaced - either way, rebuild
+            bool dogMissing = dog == null || (modelPrefab != null && !IsInstanceOf(dog.gameObject, modelPrefab));
             var controllerAsset = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
             // The version is also stamped into the controller itself (as the
             // default of an unused int parameter), so staleness detection works
@@ -90,9 +106,9 @@ namespace RingSport.Editor
                 : controllerAsset.parameters.FirstOrDefault(p => p.name == "SetupVersion");
             bool controllerStale =
                 controllerAsset == null ||
-                EditorPrefs.GetInt(VersionPrefKey, 0) < SetupVersion ||
+                EditorPrefs.GetInt(VersionPrefKey, 0) < EffectiveVersion ||
                 versionParam == null ||
-                versionParam.defaultInt < SetupVersion;
+                versionParam.defaultInt < EffectiveVersion;
 
             if (!dogMissing && !controllerStale)
                 return;
@@ -129,17 +145,21 @@ namespace RingSport.Editor
 
             bool sceneWasDirty = player.scene.isDirty;
 
-            var controller = BuildAnimatorController();
+            using var session = CaicosRetarget.BeginSession();
+            if (session == null)
+                return;
+
+            var controller = BuildAnimatorController(session, out float groundOffset);
             if (controller == null)
                 return;
 
-            var animator = SetupDogModel(player, controller);
+            var animator = SetupDogModel(player, session, controller, groundOffset, out var ragdollPrefab);
             if (animator == null)
                 return;
 
             RemoveSphereVisual(player);
             WirePlayerAnimator(player, animator);
-            WirePlayerRagdoll(player, animator.gameObject);
+            WirePlayerRagdoll(player, animator.gameObject, ragdollPrefab);
             AssetDatabase.SaveAssets();
             SavePlayerPrefab(player);
 
@@ -155,8 +175,8 @@ namespace RingSport.Editor
                     Debug.Log("[DogPlayerSetup] Scene had unsaved changes - dog added but scene NOT auto-saved. Save it when ready.");
             }
 
-            EditorPrefs.SetInt(VersionPrefKey, SetupVersion);
-            Debug.Log($"[DogPlayerSetup] Done (v{SetupVersion}). Dog model under '{player.name}', controller at {ControllerPath}, prefab at {PlayerPrefabPath}.");
+            EditorPrefs.SetInt(VersionPrefKey, EffectiveVersion);
+            Debug.Log($"[DogPlayerSetup] Done (v{SetupVersion}, retarget v{CaicosRetarget.RetargetVersion}). Dog model under '{player.name}', controller at {ControllerPath}, prefab at {PlayerPrefabPath}.");
         }
 
         private static GameObject FindPlayer()
@@ -200,9 +220,29 @@ namespace RingSport.Editor
             transition.duration = 0.1f;
         }
 
-        private static AnimatorController BuildAnimatorController()
+        /// <summary>
+        /// Retargets a Malbers clip onto the caicos rig, caching by source clip so
+        /// a clip used twice (the run cycle doubles as the sprint gait) is baked
+        /// once and both references point at the same asset.
+        /// </summary>
+        private static AnimationClip Retarget(CaicosRetarget.Session session, AnimationClip source,
+            Dictionary<AnimationClip, AnimationClip> cache)
         {
-            var clips = new Dictionary<string, AnimationClip>
+            if (source == null)
+                return null;
+            if (cache.TryGetValue(source, out var existing))
+                return existing;
+
+            var baked = CaicosRetarget.RetargetClip(session, source, $"{CaicosRetarget.OutputFolder}/{source.name}.anim");
+            cache[source] = baked;
+            return baked;
+        }
+
+        private static AnimatorController BuildAnimatorController(CaicosRetarget.Session session, out float groundOffset)
+        {
+            groundOffset = 0f;
+
+            var sources = new Dictionary<string, AnimationClip>
             {
                 ["idle"] = LoadClip(IdlesFbxGuid, "WL_Idle01"),
                 ["walk"] = LoadClip(WalkGuid),
@@ -224,12 +264,29 @@ namespace RingSport.Editor
                 ["dodgeHop"] = LoadClip(JumpInPlaceBakedGuid),
             };
 
-            var missing = clips.Where(kv => kv.Value == null).Select(kv => kv.Key).ToList();
+            var missing = sources.Where(kv => kv.Value == null).Select(kv => kv.Key).ToList();
             if (missing.Count > 0)
             {
                 Debug.LogError($"[DogPlayerSetup] Missing Wolf Lite animation clips: {string.Join(", ", missing)}. Is the Malbers Animations package intact?");
                 return null;
             }
+
+            // Every clip is baked onto the caicos rig before it reaches the
+            // controller: the Malbers clips carry the wolf's bone offsets, so
+            // played raw they would force wolf proportions onto this dog.
+            var retargetCache = new Dictionary<AnimationClip, AnimationClip>();
+            var clips = sources.ToDictionary(kv => kv.Key, kv => Retarget(session, kv.Value, retargetCache));
+            if (clips.Any(kv => kv.Value == null))
+            {
+                Debug.LogError("[DogPlayerSetup] Retargeting failed for one or more clips - see the errors above.");
+                return null;
+            }
+
+            // The new dog's legs are proportioned differently, so the wolf's joint
+            // angles put its feet at a different height. Measure where the feet
+            // actually reach across the ground gaits and drop the model by that
+            // much, otherwise the dog hovers or sinks into the floor.
+            groundOffset = MeasureGroundOffset(session, clips["idle"], clips["walk"], clips["run"]);
 
             // Sprint gait: the pack ships exactly three locomotion cycles
             // (walk/trot/run) - Malbers' own controller sprints by playing the
@@ -292,7 +349,7 @@ namespace RingSport.Editor
             controller.AddParameter("DodgeLeft", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("DodgeRight", AnimatorControllerParameterType.Trigger);
             // Version stamp read by TryAutoRun's staleness check; not used by gameplay
-            controller.AddParameter(new AnimatorControllerParameter { name = "SetupVersion", type = AnimatorControllerParameterType.Int, defaultInt = SetupVersion });
+            controller.AddParameter(new AnimatorControllerParameter { name = "SetupVersion", type = AnimatorControllerParameterType.Int, defaultInt = EffectiveVersion });
 
             var sm = baseStateMachine;
 
@@ -506,10 +563,10 @@ namespace RingSport.Editor
             // PlayerAnimator.FlourishHashes. ---
             var flourishes = new (string state, AnimationClip clip)[]
             {
-                ("Flourish Bark", LoadClip(Bark2Guid)),
-                ("Flourish Shake", LoadClip(ShakeWaterFbxGuid, "WL_ShakeWater")),
-                ("Flourish Howl", LoadClip(ActionsFbxGuid, "WL_Howl")),
-                ("Flourish Glance", LoadClip(IdlesFbxGuid, "WL_Idle02")),
+                ("Flourish Bark", Retarget(session, LoadClip(Bark2Guid), retargetCache)),
+                ("Flourish Shake", Retarget(session, LoadClip(ShakeWaterFbxGuid, "WL_ShakeWater"), retargetCache)),
+                ("Flourish Howl", Retarget(session, LoadClip(ActionsFbxGuid, "WL_Howl"), retargetCache)),
+                ("Flourish Glance", Retarget(session, LoadClip(IdlesFbxGuid, "WL_Idle02"), retargetCache)),
             };
             float flourishY = 20f;
             foreach (var (flourishName, flourishClip) in flourishes)
@@ -530,43 +587,178 @@ namespace RingSport.Editor
             return controller;
         }
 
-        private static Animator SetupDogModel(GameObject player, AnimatorController controller)
+        private static Animator SetupDogModel(GameObject player, CaicosRetarget.Session session,
+            AnimatorController controller, float groundOffset, out GameObject ragdollPrefab)
         {
+            ragdollPrefab = null;
             var modelPath = AssetDatabase.GUIDToAssetPath(ModelGuid);
             var modelPrefab = string.IsNullOrEmpty(modelPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
             if (modelPrefab == null)
             {
-                Debug.LogError("[DogPlayerSetup] Wolf Lite v2.fbx not found. Is the Malbers Animations package intact?");
+                Debug.LogError($"[DogPlayerSetup] caicos.glb not found (guid {ModelGuid}). Export it to Assets/Models/ and let Unity import it.");
                 return null;
             }
 
-            var existing = player.transform.Find(DogName);
-            GameObject dog = existing != null ? existing.gameObject : null;
-            if (dog == null)
+            // Gameplay (jump heights, hurdle clearance, camera framing) is tuned
+            // against the old dog's size, so a differently-sized model is scaled
+            // back to the same footprint rather than re-tuning the whole game.
+            float modelScale = 1f;
+            if (Mathf.Abs(session.SizeRatio - 1f) > ScaleCompensationThreshold)
             {
-                dog = (GameObject)PrefabUtility.InstantiatePrefab(modelPrefab, player.scene);
-                dog.name = DogName;
-                dog.transform.SetParent(player.transform, false);
+                modelScale = 1f / session.SizeRatio;
+                Debug.Log($"[DogPlayerSetup] Model is {session.SizeRatio:P0} of the old dog's size - compensating with localScale {modelScale:F3} so the gameplay tuning still holds.");
             }
 
             // Player pivot sits at y=1 with the CharacterController capsule spanning
             // y 0..2 in world space; the model's origin is at its feet, so drop it
             // to the capsule's base. Model faces +Z, matching the -Z world scroll.
-            dog.transform.localPosition = new Vector3(0f, -1f, 0f);
+            var localPosition = new Vector3(0f, -1f - groundOffset * modelScale, 0f);
+            if (Mathf.Abs(groundOffset) > 0.005f)
+                Debug.Log($"[DogPlayerSetup] Retargeted feet rest {groundOffset:F3}m off the ground - model dropped to y {localPosition.y:F3}.");
+
+            ragdollPrefab = CaicosRagdollSetup.Build(modelPrefab, modelScale);
+
+            // Swap inside the prefab ASSET, not the scene instance: the old wolf
+            // skeleton is baked into Player.prefab, and editing the asset is what
+            // pushes the new model out to every instance (and keeps the caicos
+            // model a nested prefab instance, so re-exports propagate).
+            if (!SwapModelInPrefabAsset(modelPrefab, controller, localPosition, modelScale, ragdollPrefab))
+                SwapModelInScene(player, modelPrefab, controller, localPosition, modelScale);
+
+            var dog = player.transform.Find(DogName);
+            if (dog == null)
+            {
+                Debug.LogError($"[DogPlayerSetup] '{DogName}' is missing from the player after the model swap.");
+                return null;
+            }
+
+            FixMaterialsIfBroken(dog.gameObject);
+            return dog.GetComponent<Animator>();
+        }
+
+        /// <summary>
+        /// Replaces the "Dog Model" child of the Player prefab asset with a fresh
+        /// nested instance of the model prefab. Returns false if the prefab asset
+        /// doesn't exist yet (first-time setup), so the caller can fall back to
+        /// building it in the scene.
+        /// </summary>
+        private static bool SwapModelInPrefabAsset(GameObject modelPrefab, AnimatorController controller,
+            Vector3 localPosition, float modelScale, GameObject ragdollPrefab)
+        {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath) == null)
+                return false;
+
+            var root = PrefabUtility.LoadPrefabContents(PlayerPrefabPath);
+            try
+            {
+                var dog = BuildDogModel(root.transform, modelPrefab, controller, localPosition, modelScale);
+
+                // The animator and ragdoll references live on the prefab's own
+                // components, so rewire them here rather than as scene overrides
+                var playerAnimator = root.GetComponent<PlayerAnimator>();
+                if (playerAnimator != null)
+                {
+                    var so = new SerializedObject(playerAnimator);
+                    so.FindProperty("animator").objectReferenceValue = dog.GetComponent<Animator>();
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                var playerRagdoll = root.GetComponent<PlayerRagdoll>();
+                if (playerRagdoll != null)
+                {
+                    var so = new SerializedObject(playerRagdoll);
+                    so.FindProperty("dogModel").objectReferenceValue = dog;
+                    if (ragdollPrefab != null)
+                        so.FindProperty("ragdollPrefab").objectReferenceValue = ragdollPrefab;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                PrefabUtility.SaveAsPrefabAsset(root, PlayerPrefabPath);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+
+            AssetDatabase.ImportAsset(PlayerPrefabPath);
+            return true;
+        }
+
+        private static void SwapModelInScene(GameObject player, GameObject modelPrefab, AnimatorController controller,
+            Vector3 localPosition, float modelScale)
+        {
+            BuildDogModel(player.transform, modelPrefab, controller, localPosition, modelScale);
+        }
+
+        /// <summary>
+        /// Ensures <paramref name="parent"/> has a "Dog Model" child that is a
+        /// prefab instance of the current model, configured for the runner's
+        /// animator. An existing child from a different model is discarded.
+        /// </summary>
+        private static GameObject BuildDogModel(Transform parent, GameObject modelPrefab, AnimatorController controller,
+            Vector3 localPosition, float modelScale)
+        {
+            var existing = parent.Find(DogName);
+            if (existing != null && !IsInstanceOf(existing.gameObject, modelPrefab))
+            {
+                Object.DestroyImmediate(existing.gameObject);
+                existing = null;
+            }
+
+            GameObject dog;
+            if (existing != null)
+            {
+                dog = existing.gameObject;
+            }
+            else
+            {
+                dog = (GameObject)PrefabUtility.InstantiatePrefab(modelPrefab, parent);
+                dog.name = DogName;
+            }
+
+            dog.transform.SetParent(parent, false);
+            dog.transform.localPosition = localPosition;
             dog.transform.localRotation = Quaternion.identity;
-            dog.transform.localScale = Vector3.one;
+            dog.transform.localScale = Vector3.one * modelScale;
 
             var animator = dog.GetComponent<Animator>();
             if (animator == null)
                 animator = dog.AddComponent<Animator>();
 
             animator.runtimeAnimatorController = controller;
+            // Deliberately no Avatar: an Avatar makes the Animator treat the root
+            // bone's curve as root motion, and the retargeted clips carry the CG
+            // rise as a plain pose curve that the clip post-processing measures.
+            animator.avatar = null;
             animator.applyRootMotion = false;
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
-            FixMaterialsIfBroken(dog);
-            return animator;
+            return dog;
+        }
+
+        private static bool IsInstanceOf(GameObject candidate, GameObject prefab)
+        {
+            var source = PrefabUtility.GetCorrespondingObjectFromSource(candidate);
+            return source != null && AssetDatabase.GetAssetPath(source) == AssetDatabase.GetAssetPath(prefab);
+        }
+
+        /// <summary>
+        /// Lowest point the retargeted feet reach across the ground gaits, in
+        /// model space. Positive means the dog hovers; negative means it sinks.
+        /// </summary>
+        private static float MeasureGroundOffset(CaicosRetarget.Session session, params AnimationClip[] clips)
+        {
+            float lowest = float.MaxValue;
+            foreach (var clip in clips)
+            {
+                if (clip == null)
+                    continue;
+                var (minFoot, _, _) = CaicosRetarget.MeasureFootHeights(session, clip);
+                lowest = Mathf.Min(lowest, minFoot);
+            }
+            CaicosRetarget.ResetCaicosPose(session);
+            return lowest == float.MaxValue ? 0f : lowest;
         }
 
         private static void FixMaterialsIfBroken(GameObject dog)
@@ -663,13 +855,11 @@ namespace RingSport.Editor
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void WirePlayerRagdoll(GameObject player, GameObject dogModel)
+        private static void WirePlayerRagdoll(GameObject player, GameObject dogModel, GameObject ragdollPrefab)
         {
-            var ragdollPath = AssetDatabase.GUIDToAssetPath(RagdollPrefabGuid);
-            var ragdollPrefab = string.IsNullOrEmpty(ragdollPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(ragdollPath);
             if (ragdollPrefab == null)
             {
-                Debug.LogWarning("[DogPlayerSetup] Wolf Lite Ragdoll.prefab not found - death falls back to the WL_Death1 animation.");
+                Debug.LogWarning("[DogPlayerSetup] No ragdoll prefab was generated - death falls back to the Die animation.");
                 return;
             }
 
@@ -1054,6 +1244,32 @@ namespace RingSport.Editor
             var parent = System.IO.Path.GetDirectoryName(path)?.Replace('\\', '/');
             var name = System.IO.Path.GetFileName(path);
             AssetDatabase.CreateFolder(parent, name);
+        }
+
+        /// <summary>Forces the next idle moment to redo the setup from scratch.</summary>
+        internal static void InvalidateAndRerun()
+        {
+            EditorPrefs.SetInt(VersionPrefKey, 0);
+            EditorApplication.delayCall += TryAutoRun;
+        }
+    }
+
+    /// <summary>
+    /// Re-exporting caicos.glb updates the mesh, materials and skeleton through
+    /// the nested prefab on its own, but the retargeted clips are baked against
+    /// the rig's rest pose - so a new export has to rebake them.
+    /// </summary>
+    public class CaicosModelPostprocessor : AssetPostprocessor
+    {
+        private static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets,
+            string[] movedAssets, string[] movedFromAssetPaths)
+        {
+            var modelPath = AssetDatabase.GUIDToAssetPath(CaicosRetarget.CaicosModelGuid);
+            if (string.IsNullOrEmpty(modelPath) || !importedAssets.Contains(modelPath))
+                return;
+
+            Debug.Log("[DogPlayerSetup] caicos.glb re-imported - rebaking the retargeted clips.");
+            DogPlayerSetup.InvalidateAndRerun();
         }
     }
 }
