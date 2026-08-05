@@ -34,8 +34,8 @@ namespace RingSport.Level
         [SerializeField] private float patchLength = 10f;
 
         [Header("Density")]
-        [Tooltip("Blades per square local unit at the track-facing edge. ~18 reads as dense lawn, ~4 as sparse desert tufts.")]
-        [SerializeField] [Range(0.5f, 40f)] private float bladesPerSquareUnit = 18f;
+        [Tooltip("Blades per square local unit at the track-facing edge. ~18 reads as dense lawn, ~2 as sparse desert tufts.")]
+        [SerializeField] [Range(0.5f, 40f)] private float bladesPerSquareUnit = 9f;
 
         [Tooltip("Density multiplier at the outer (away from track) edge; density ramps linearly toward 1 at the track edge. Saves vertices where the camera barely looks.")]
         [SerializeField] [Range(0.05f, 1f)] private float outerDensityScale = 0.45f;
