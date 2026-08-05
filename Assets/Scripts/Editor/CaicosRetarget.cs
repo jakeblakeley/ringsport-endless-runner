@@ -30,7 +30,7 @@ namespace RingSport.Editor
     public static class CaicosRetarget
     {
         // Bump to force DogPlayerSetup to rebake the clips after changing the math
-        public const int RetargetVersion = 8;
+        public const int RetargetVersion = 9;
 
         public const string CaicosModelGuid = "fce7057b86bb34da89a047199b66035b"; // Assets/Models/caicos.glb
         public const string WolfModelGuid = "08e48789449aae64095cc114539cb217";   // Wolf Lite v2.fbx
@@ -60,10 +60,11 @@ namespace RingSport.Editor
         private static readonly (string bone, float pitch, bool withDescendants)[] RestPoseAdjustments =
         {
             // The Malbers clips hold the mouth open and caicos is modelled with it
-            // open too, so closing it takes more than the gap looks: 20 degrees
-            // still leaves the teeth showing and 50 pushes a fang through the lip.
-            // Tongue rides along with the jaw.
-            ("Jaw", -45f, true),
+            // open too, so the gap closes more slowly than it looks: 20 degrees
+            // still reads as a snarl, 45 shuts it completely and 50 pushes a fang
+            // through the lip. 25 leaves it slightly open, which is the look we
+            // want. Tongue rides along with the jaw.
+            ("Jaw", -25f, true),
             // The wolf's clips carry the head higher and further back than caicos
             // was modelled with. Measured against her own rest pose, the baked
             // idle lifts the head 11 degrees and tucks the muzzle 10 - put both
