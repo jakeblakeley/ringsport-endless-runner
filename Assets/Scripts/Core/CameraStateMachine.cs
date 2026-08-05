@@ -110,6 +110,8 @@ namespace RingSport.Core
         private float speedFovVelocity;
         private float baseFov;
         private bool fovApplied;
+        private float frameOffset;
+        private bool frameOffsetApplied;
         private Vector3 impulseBasePos;
         private Quaternion impulseBaseRot = Quaternion.identity;
         private Vector3 lastWrittenPos;
@@ -159,6 +161,7 @@ namespace RingSport.Core
             currentState = newState;
             currentDistanceScale = 1f;
             currentHeightOffset = 0f;
+            frameOffset = 0f;
             ApplyStateImmediate(GetStateData(newState));
             poseInitialized = true;
         }
@@ -197,6 +200,10 @@ namespace RingSport.Core
         /// </summary>
         public void SetState(CameraStateType newState, float distanceScale, float heightOffset, Vector3? lookAtWorldPoint)
         {
+            // A frame offset belongs to the shot that asked for it, so asking for
+            // a shot drops it - callers that want one re-apply after this returns
+            frameOffset = 0f;
+
             if (currentState == newState &&
                 Mathf.Approximately(currentDistanceScale, distanceScale) &&
                 Mathf.Approximately(currentHeightOffset, heightOffset))
@@ -227,6 +234,65 @@ namespace RingSport.Core
             }
 
             transitionCoroutine = StartCoroutine(TransitionToState(targetState, targetPos, targetRot));
+        }
+
+        /// <summary>
+        /// World position the camera settles at for a state, before the impulse
+        /// layer's offset. A caller working out framing has to measure against
+        /// the settled pose, not the live one - at the moment it asks, the camera
+        /// is usually still somewhere mid-transition.
+        /// </summary>
+        public Vector3 GetStateWorldPosition(CameraStateType stateType, float distanceScale = 1f, float heightOffset = 0f)
+        {
+            CameraStateData state = GetStateData(stateType);
+            Vector3 local = state.cameraLocalPosition * distanceScale + Vector3.up * heightOffset;
+
+            if (transform.parent == null)
+                return local;
+
+            // The rig lands on the state's authored rotation when the transition
+            // finishes, so use that rather than whatever it is turned to now
+            Quaternion parentRotation = cameraRig == transform.parent
+                ? Quaternion.Euler(state.parentRotation)
+                : transform.parent.rotation;
+            return transform.parent.position + parentRotation * local;
+        }
+
+        /// <summary>
+        /// World rotation the camera settles at for a state - the other half of
+        /// <see cref="GetStateWorldPosition"/>.
+        /// </summary>
+        public Quaternion GetStateWorldRotation(CameraStateType stateType)
+        {
+            CameraStateData state = GetStateData(stateType);
+            Quaternion local = Quaternion.Euler(state.cameraLocalRotation);
+
+            if (transform.parent == null)
+                return local;
+
+            Quaternion parentRotation = cameraRig == transform.parent
+                ? Quaternion.Euler(state.parentRotation)
+                : transform.parent.rotation;
+            return parentRotation * local;
+        }
+
+        /// <summary>Field of view the states rest at, with kick and speed widening excluded.</summary>
+        public float BaseFieldOfView => baseFov;
+
+        /// <summary>
+        /// Slides the whole rendered image down the frame by <paramref name="halfFrames"/>
+        /// (1 = half the screen height), leaving the camera pointed where it was.
+        ///
+        /// Turning the camera would also push a subject down the screen, but on a
+        /// lens this wide anything shoved toward an edge leans away from the
+        /// viewer. Offsetting the projection is a lens shift instead: every
+        /// projected point moves by the same amount, so the subject is drawn
+        /// exactly as square-on as it is dead centre - it just sits lower, with
+        /// more of what is above it in frame. Pass 0 to clear.
+        /// </summary>
+        public void SetFrameOffset(float halfFrames)
+        {
+            frameOffset = halfFrames;
         }
 
         /// <summary>Add screenshake trauma (0..1, accumulates and clamps). Amplitude = trauma squared.</summary>
@@ -273,6 +339,7 @@ namespace RingSport.Core
                 kickTimer += dt;
 
             UpdateFovKick(dt);
+            ApplyFrameOffset();
 
             bool active = trauma > 0f || kickTimer < kickDuration;
             if (!active && !impulseWasApplied)
@@ -316,6 +383,39 @@ namespace RingSport.Core
             lastWrittenPos = transform.localPosition;
             lastWrittenRot = transform.localRotation;
             impulseWasApplied = applying;
+        }
+
+        /// <summary>
+        /// Rebuilds the off-axis projection every frame - FOV kicks and canvas
+        /// resizes both feed into it, and neither is worth tracking separately.
+        /// </summary>
+        private void ApplyFrameOffset()
+        {
+            if (cameraComponent == null)
+                return;
+
+            if (Mathf.Abs(frameOffset) < 0.0001f)
+            {
+                if (frameOffsetApplied)
+                {
+                    cameraComponent.ResetProjectionMatrix();
+                    frameOffsetApplied = false;
+                }
+                return;
+            }
+
+            Matrix4x4 projection = Matrix4x4.Perspective(
+                cameraComponent.fieldOfView,
+                cameraComponent.aspect,
+                cameraComponent.nearClipPlane,
+                cameraComponent.farClipPlane);
+
+            // A projected point lands at clip.y / -view.z, so this row's z term
+            // subtracts the same constant from every one of them - a slide down
+            // the frame, with no perspective change at all
+            projection.m12 += frameOffset;
+            cameraComponent.projectionMatrix = projection;
+            frameOffsetApplied = true;
         }
 
         private void UpdateFovKick(float dt)

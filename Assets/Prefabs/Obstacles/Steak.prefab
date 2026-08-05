@@ -119,10 +119,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Effects.BlobShadow
   shadowMaterial: {fileID: 2100000, guid: 718a865e9fad4c8c975f6067921350af, type: 2}
   size: 2
-  depthStretch: 1.8
+  depthStretch: 0.9
   groundY: 0
   groundOffset: 0.02
-  maxAlpha: 0.55
+  maxAlpha: 0.275
   fadeInSeconds: 0.35
   disableRealShadows: 1
 --- !u!1001 &3068655534309494977

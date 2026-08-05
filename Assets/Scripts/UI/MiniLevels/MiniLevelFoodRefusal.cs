@@ -19,8 +19,10 @@ namespace RingSport.UI
         public override MiniLevelType MiniLevelType => MiniLevelType.FoodRefusal;
 
         [Header("Game Settings")]
-        [SerializeField] private int totalSteaks = 20;
-        [SerializeField] private float steakSpawnInterval = 1f;
+        [Tooltip("Drops in a run. Trimmed from 20 when the gap between them opened up - 16 keeps the mini level around 25 seconds.")]
+        [SerializeField] private int totalSteaks = 16;
+        [Tooltip("Seconds between drops. At the fall speed this is also their spacing in the air - 1.35s leaves about 8 units between one steak and the next.")]
+        [SerializeField] private float steakSpawnInterval = 1.35f;
         [SerializeField] private float fallSpeed = 6f;
         [SerializeField] private float spawnHeight = 15f;
 
@@ -30,6 +32,13 @@ namespace RingSport.UI
 
         [Header("Lane Settings")]
         [SerializeField] private float laneDistance = 3f; // -3, 0, +3
+
+        [Header("Camera Framing")]
+        [Tooltip("Where the dog sits in the frame: 0 = bottom edge, 0.5 = dead centre. Lower drops the dog and pulls more of the steaks' fall into view.")]
+        [Range(0.1f, 0.5f)]
+        [SerializeField] private float dogScreenHeight = 0.3f;
+        [Tooltip("Point on the dog the framing is measured against, relative to its transform - which sits at the capsule centre, a metre off the ground.")]
+        [SerializeField] private float dogAimOffset = -0.5f;
 
         [Header("Collectible Settings")]
         [SerializeField] private int megaCollectibleCount = 3;
@@ -50,11 +59,17 @@ namespace RingSport.UI
         private int steaksSpawned = 0;
         private bool isGameRunning = false;
         private PlayerController playerController;
-        private int previousLane = 0;
         private float playerZPosition;
 
         // Collectible spawn indices (at steaks 5, 10, 15)
         private readonly int[] collectibleSpawnIndices = { 4, 9, 14 };
+
+        // Lane picking. NoLane stands for "nothing to avoid" - it has to be a
+        // value no real lane can take.
+        private const int NoLane = int.MinValue;
+        private static readonly int[] Lanes = { -1, 0, 1 };
+        private static readonly int[] OuterLanes = { -1, 1 };
+        private readonly List<int> laneOptions = new List<int>(3);
 
         /// <summary>
         /// Called when user clicks start, before countdown begins.
@@ -63,10 +78,14 @@ namespace RingSport.UI
         public override void OnPrepareGame()
         {
             GameLog.Info("[MiniLevelFoodRefusal] Preparing game - setting camera to MiniLevel state");
+            playerController = Object.FindAnyObjectByType<PlayerController>();
+
+            // The state's own straight-on angle, with the image slid down the
+            // frame so the dog sits low and the drop above it stays in view
             CameraStateMachine.Instance?.SetState(CameraStateType.MiniLevel);
+            CameraStateMachine.Instance?.SetFrameOffset(ComputeFrameOffset());
 
             // Dog turns around to face the straight-on mini-level camera
-            playerController = Object.FindAnyObjectByType<PlayerController>();
             playerController?.Animations?.SetFacing(true);
 
             // Get the steaks' blob shadows onto the GPU during the camera move
@@ -79,6 +98,39 @@ namespace RingSport.UI
             }
         }
 
+        /// <summary>
+        /// How far down the frame to slide the image so the dog ends up at
+        /// <see cref="dogScreenHeight"/> instead of near the middle, in half
+        /// screen heights.
+        ///
+        /// Steaks drop in from off the top edge, so the player's only warning is
+        /// however much of the fall is on screen. Dropping the dog buys that
+        /// headroom; doing it with a lens shift rather than by tilting the camera
+        /// keeps the shot as straight-on as the state authored it.
+        ///
+        /// Zero when the geometry can't be worked out - the shot then frames the
+        /// way it always did.
+        /// </summary>
+        private float ComputeFrameOffset()
+        {
+            var cameraState = CameraStateMachine.Instance;
+            if (cameraState == null || playerController == null || cameraState.BaseFieldOfView <= 0f)
+                return 0f;
+
+            Vector3 dog = playerController.transform.position + Vector3.up * dogAimOffset;
+            Vector3 inCamera = Quaternion.Inverse(cameraState.GetStateWorldRotation(CameraStateType.MiniLevel))
+                * (dog - cameraState.GetStateWorldPosition(CameraStateType.MiniLevel));
+            if (inCamera.z < 0.01f)
+                return 0f;
+
+            // Where the dog lands now and where it is wanted, both in half frames
+            float halfFrame = Mathf.Tan(cameraState.BaseFieldOfView * 0.5f * Mathf.Deg2Rad);
+            float current = inCamera.y / (inCamera.z * halfFrame);
+            float wanted = (Mathf.Clamp01(dogScreenHeight) - 0.5f) * 2f;
+
+            return current - wanted;
+        }
+
         public override void StartGame()
         {
             GameLog.Info("[MiniLevelFoodRefusal] Starting game...");
@@ -87,7 +139,6 @@ namespace RingSport.UI
             steaksSpawned = 0;
             isGameRunning = true;
             activeObjects.Clear();
-            previousLane = 0;
 
             // Enable physics by setting timeScale to 1 (required for FixedUpdate and trigger detection)
             Time.timeScale = 1f;
@@ -167,27 +218,32 @@ namespace RingSport.UI
             // yield) instead of allocating one per steak
             var spawnWait = new WaitForSecondsRealtime(steakSpawnInterval);
 
+            // Lane of the steak one beat back, and a lane the next steak has to
+            // leave alone because a collectible is coming down in it
+            int lastSteakLane = NoLane;
+            int reservedLane = NoLane;
+
             for (int i = 0; i < totalSteaks && isGameRunning; i++)
             {
                 steaksSpawned = i + 1;
 
-                // Determine lane for this steak
-                int steakLane = GetRandomLaneAvoidingRepeat(previousLane);
-                previousLane = steakLane;
+                bool collectibleDue = collectiblesSpawned < megaCollectibleCount &&
+                                      System.Array.IndexOf(collectibleSpawnIndices, i) >= 0;
 
-                // Spawn steak
+                int steakLane = GetSteakLane(lastSteakLane, reservedLane, collectibleDue);
                 SpawnSteak(steakLane);
+                reservedLane = NoLane;
 
-                // Check if we should also spawn a collectible
-                if (collectiblesSpawned < megaCollectibleCount &&
-                    System.Array.IndexOf(collectibleSpawnIndices, i) >= 0)
+                if (collectibleDue)
                 {
-                    int collectibleLane = GetSafeLane(steakLane);
+                    int collectibleLane = GetCollectibleLane(steakLane, lastSteakLane);
                     SpawnCollectible(collectibleLane);
+                    reservedLane = collectibleLane;
                     collectiblesSpawned++;
-                    GameLog.Info($"[MiniLevelFoodRefusal] Spawned collectible {collectiblesSpawned}/{megaCollectibleCount} in lane {collectibleLane}");
+                    GameLog.Info($"[MiniLevelFoodRefusal] Spawned collectible {collectiblesSpawned}/{megaCollectibleCount} in lane {collectibleLane} (steak in {steakLane})");
                 }
 
+                lastSteakLane = steakLane;
                 UpdateUI();
 
                 // Wait for next spawn (use realtime since TimeScale may be 0)
@@ -359,50 +415,59 @@ namespace RingSport.UI
             }
         }
 
-        private int GetRandomLaneAvoidingRepeat(int previousLane)
+        /// <summary>
+        /// Lane for the next steak: usually not a repeat of the last one, never
+        /// <paramref name="reservedLane"/> (a collectible is falling there and the
+        /// player has to stand in it), and held to an outer lane when a
+        /// collectible drops alongside it.
+        ///
+        /// That last rule is what makes the coins catchable. Lane changes slide
+        /// the dog through everything in between, so a steak in the middle lane
+        /// walls the board in half - a player on the wrong side has to cross
+        /// underneath it to reach a coin on the far side. Kept outside, whatever
+        /// two lanes are left are always next to each other.
+        /// </summary>
+        private int GetSteakLane(int lastLane, int reservedLane, bool outerOnly)
         {
-            int[] lanes = { -1, 0, 1 };
-            int newLane;
+            int[] source = outerOnly ? OuterLanes : Lanes;
 
-            // 70% chance to pick a different lane
-            if (Random.value < 0.7f)
+            // Moves off the last lane 70% of the time, and always if it has to
+            bool avoidRepeat = Random.value < 0.7f;
+
+            laneOptions.Clear();
+            for (int pass = 0; pass < 2 && laneOptions.Count == 0; pass++)
             {
-                // Pick a different lane
-                List<int> otherLanes = new List<int>();
-                foreach (int lane in lanes)
+                foreach (int lane in source)
                 {
-                    if (lane != previousLane)
-                        otherLanes.Add(lane);
+                    if (lane == reservedLane) continue;
+                    if (avoidRepeat && lane == lastLane) continue;
+                    laneOptions.Add(lane);
                 }
-                newLane = otherLanes[Random.Range(0, otherLanes.Count)];
-            }
-            else
-            {
-                // 30% chance to repeat the same lane
-                newLane = lanes[Random.Range(0, lanes.Length)];
+
+                // Two outer lanes minus a reserved one leaves nothing to move to
+                avoidRepeat = false;
             }
 
-            return newLane;
+            return laneOptions.Count > 0 ? laneOptions[Random.Range(0, laneOptions.Count)] : lastLane;
         }
 
-        private int GetSafeLane(int steakLane)
+        /// <summary>
+        /// Lane for a collectible: clear of the steak falling beside it and of the
+        /// one that lands a beat earlier, so the player can already be waiting in
+        /// it rather than diving in at the last moment.
+        /// </summary>
+        private int GetCollectibleLane(int steakLane, int lastSteakLane)
         {
-            // Return a lane that's not the steak lane
-            int[] options;
-            if (steakLane == 0)
+            // Three lanes less two exclusions always leaves one, and leaves two
+            // when the last steak repeated this one's lane
+            laneOptions.Clear();
+            foreach (int lane in Lanes)
             {
-                options = new[] { -1, 1 };
-            }
-            else if (steakLane == -1)
-            {
-                options = new[] { 0, 1 };
-            }
-            else // steakLane == 1
-            {
-                options = new[] { -1, 0 };
+                if (lane == steakLane || lane == lastSteakLane) continue;
+                laneOptions.Add(lane);
             }
 
-            return options[Random.Range(0, options.Length)];
+            return laneOptions[Random.Range(0, laneOptions.Count)];
         }
 
         private void UpdateUI()

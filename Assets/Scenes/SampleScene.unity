@@ -9065,13 +9065,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 35a291c0610ce43af90697b4b7e810a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.MiniLevelFoodRefusal
-  totalSteaks: 20
-  steakSpawnInterval: 1
+  totalSteaks: 16
+  steakSpawnInterval: 1.35
   fallSpeed: 6
   spawnHeight: 15
   steakPoolTag: FoodRefusalSteak
   collectiblePoolTag: FoodRefusalCollectible
   laneDistance: 3
+  dogScreenHeight: 0.3
+  dogAimOffset: -0.5
   megaCollectibleCount: 3
   megaCollectiblePoints: 100
   gamePanel: {fileID: 475346299}

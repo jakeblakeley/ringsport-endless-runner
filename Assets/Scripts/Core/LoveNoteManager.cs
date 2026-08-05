@@ -13,10 +13,10 @@ namespace RingSport.Core
     {
         /// <summary>
         /// Chance that a large (mega) coin spawns as a love note instead, while
-        /// locked notes remain. 1% - bumped from 0.5%, which never surfaced in
-        /// playtests.
+        /// locked notes remain. 2% - raised from 1% (and 0.5% before that);
+        /// notes were still turning up too rarely in playtests.
         /// </summary>
-        public const float MegaCoinReplaceChance = 0.01f;
+        public const float MegaCoinReplaceChance = 0.02f;
 
         /// <summary>
         /// Debug: every large coin spawns as a love note, ignoring the unlock
@@ -39,30 +39,46 @@ namespace RingSport.Core
         // so edit text freely but only ADD new notes at the end of the list.
         private static readonly string[] Notes =
         {
-            "You're my favorite person to do nothing with.",
-            "Every day with you is my new high score.",
-            "I love you more than the dog loves dinner time.",
-            "You make ordinary days feel like adventures.",
-            "Still my favorite hello and my hardest goodbye.",
-            "You + me + the dog = the whole world.",
-            "I'd pick you first, every time, in every lifetime.",
-            "Your laugh is my favorite sound.",
-            "Home isn't a place, it's wherever you are.",
-            "You make me want to be the person the dog thinks I am.",
-            "I love the way you get excited about little things.",
-            "Thanks for loving me even before coffee.",
-            "You're the best thing I never saw coming.",
-            "I'd run every level of this game for you.",
-            "You're proof that soulmates are real.",
-            "My favorite place is next to you.",
-            "I love you a latte. Sorry. But it's true.",
-            "You're my sunshine on the rainy days.",
-            "Life with you is my favorite story.",
-            "I still get butterflies when you walk in the room.",
-            "You're the reason I believe in lucky days.",
-            "Forever isn't long enough with you.",
-            "I love you to the finish line and back.",
-            "You caught me better than the dog catches a decoy.",
+            "I love you more than caffeine",
+            "Otters at deception pass. That's it, that's the note",
+            "I love you even if you make your dogs bite me",
+            "Loving you is the only honest work I do",
+            "You > providing shareholder value",
+            "I never learned a release cue when it comes to loving you",
+            "I will always recall to you",
+            "10/10 general allure",
+            "If y’all’d’ve seen her that first day, y’all’d’ve fallen just as hard",
+            "I loved you before Elon went crazy",
+            "Are you an astrophage? Because your body is out of this world",
+            "<3",
+            "Born Red, married up",
+            "I’d cross the parapet for you",
+            "You're a book I never want to put down",
+            "My signet is loving you",
+            "I'm sorry for not saying \"arms\" before picking you up",
+            "I’d rather worship right here beside you",
+            "You are my Eden",
+            "Our history is my favorite thing at the Burke",
+            "Married you in a building full of extinct things. We’re the exception",
+            "I love you despite your stinky feet",
+            "There’s fur on everything I own and I’d still marry you again",
+            "I love you enough to own a cat with you... Eventually",
+            "You’re the Quito my heart.",
+            "*Qatar screaming loudly* I love you",
+            "Losing you would be Qatar-strophic",
+            "Absence of handler is the cruelest. Three minutes without you is too long",
+            "You can't esquive me, you're stuck with me",
+            "Tu es le seul objet que je garde",
+            "If today goes sideways remember: even Ring III dogs blow a retrieve sometimes",
+            "You never apologized for the scallops. That confidence is why I married you",
+            "Agave you my heart on the first date",
+            "Our story started with salsa and has only gotten spicier",
+            "Loving you started as an uphill drive (to the highlands)",
+            "Only you make me tear up in the kitchen (no onions allowed)",
+            "You run True North. I just follow the heading",
+            "You put me on a variable reward schedule and I have never worked harder",
+            "You're raising Quito to be ring ready. You already were",
+            "A whole museum of natural history and you’re my favorite specimen",
         };
 
         private const string UnlockedPrefKey = "LoveNotes.Unlocked";   // CSV of note indices, oldest unlock first

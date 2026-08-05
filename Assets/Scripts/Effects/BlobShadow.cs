@@ -28,8 +28,8 @@ namespace RingSport.Effects
         [SerializeField] private Material shadowMaterial;
         [Tooltip("World-space width of the decal quad.")]
         [SerializeField] private float size = 2f;
-        [Tooltip("Stretch along Z. The mini-level camera looks down at 35 degrees, which foreshortens depth - without this the blob reads as a thin sliver.")]
-        [SerializeField] private float depthStretch = 1.8f;
+        [Tooltip("Depth along Z as a fraction of the width. The steak's own footprint is close to square, so a blob much deeper than it is wide reads as a puddle rather than its shadow.")]
+        [SerializeField] private float depthStretch = 0.9f;
         [Tooltip("Ground plane height the decal is pinned to.")]
         [SerializeField] private float groundY = 0f;
         [Tooltip("Lift above the ground so the decal never z-fights the floor.")]
@@ -38,7 +38,7 @@ namespace RingSport.Effects
         [Header("Fade In")]
         [Tooltip("Opacity the decal settles at.")]
         [Range(0f, 1f)]
-        [SerializeField] private float maxAlpha = 0.55f;
+        [SerializeField] private float maxAlpha = 0.275f;
         [Tooltip("Seconds to ramp from invisible to full opacity after spawning.")]
         [SerializeField] private float fadeInSeconds = 0.35f;
 

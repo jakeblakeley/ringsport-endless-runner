@@ -16,12 +16,15 @@ namespace RingSport.Editor
     /// shorter collider and its own angle, so it needs its own pool entry on
     /// the scene's ObjectPooler.
     ///
+    /// v3 also opens up the gap between drops and trims the run to suit - see
+    /// SpawnInterval and TotalSteaks.
+    ///
     /// Runs automatically once after compilation (version-gated so it never
     /// stomps later hand tweaks); re-run from Tools/RingSport/Setup Food Refusal.
     /// </summary>
     public static class FoodRefusalSetup
     {
-        private const int SetupVersion = 1;
+        private const int SetupVersion = 3;
         private const string VersionPrefKey = "RingSport.FoodRefusalSetup.Version";
 
         private const string CollectiblePrefabPath = "Assets/Prefabs/Collectibles/FoodRefusalCollectible.prefab";
@@ -29,6 +32,14 @@ namespace RingSport.Editor
 
         // 25% slower than the original 8 u/s
         private const float FallSpeed = 6f;
+
+        // A beat every second put the steak either side of a collectible close
+        // enough to pin the player out of the lane it was falling in; 1.35 opens
+        // the drops to ~8 units apart
+        private const float SpawnInterval = 1.35f;
+
+        // 20 at the wider spacing ran half a minute - 16 puts it back to ~25s
+        private const int TotalSteaks = 16;
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()
@@ -153,6 +164,8 @@ namespace RingSport.Editor
             var serialized = new SerializedObject(miniLevel);
             var tag = serialized.FindProperty("collectiblePoolTag");
             var speed = serialized.FindProperty("fallSpeed");
+            var interval = serialized.FindProperty("steakSpawnInterval");
+            var count = serialized.FindProperty("totalSteaks");
             bool changed = false;
 
             if (tag != null && tag.stringValue != PoolTags.FoodRefusalCollectible)
@@ -166,6 +179,20 @@ namespace RingSport.Editor
             {
                 Debug.Log($"[FoodRefusalSetup] fallSpeed {speed.floatValue} -> {FallSpeed}");
                 speed.floatValue = FallSpeed;
+                changed = true;
+            }
+
+            if (interval != null && !Mathf.Approximately(interval.floatValue, SpawnInterval))
+            {
+                Debug.Log($"[FoodRefusalSetup] steakSpawnInterval {interval.floatValue} -> {SpawnInterval}");
+                interval.floatValue = SpawnInterval;
+                changed = true;
+            }
+
+            if (count != null && count.intValue != TotalSteaks)
+            {
+                Debug.Log($"[FoodRefusalSetup] totalSteaks {count.intValue} -> {TotalSteaks}");
+                count.intValue = TotalSteaks;
                 changed = true;
             }
 
