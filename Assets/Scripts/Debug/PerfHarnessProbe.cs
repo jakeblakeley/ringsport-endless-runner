@@ -101,6 +101,20 @@ namespace RingSport.DebugTools
         private static void Bootstrap()
         {
             EnsureSpawned();
+
+#if !UNITY_EDITOR
+            // Web/dev builds have no marker file - a ?perf=1 query string on
+            // the page URL triggers the same automated run; the report JSON
+            // goes to the browser console via Debug.Log.
+            if (instance == null && !string.IsNullOrEmpty(Application.absoluteURL) &&
+                Application.absoluteURL.Contains("perf=1"))
+            {
+                var go = new GameObject("PerfProbe");
+                DontDestroyOnLoad(go);
+                instance = go.AddComponent<PerfProbe>();
+                Debug.Log("[PerfProbe] Probe spawned (URL trigger)");
+            }
+#endif
         }
 
         private Request request;
@@ -126,7 +140,7 @@ namespace RingSport.DebugTools
                 request = null;
             }
             if (request == null)
-                request = new Request();
+                request = new Request { label = Application.isEditor ? "run" : "web" };
             if (request.durationSeconds <= 0f)
                 request.durationSeconds = 60f;
 
@@ -223,9 +237,12 @@ namespace RingSport.DebugTools
             gcCollectionsStart = GC.CollectionCount(0);
             sampling = true;
 
+#if UNITY_EDITOR
             // Fixed-time screenshot: with the deterministic seed, runs capture
-            // ~the same world state, so before/after shots are comparable
+            // ~the same world state, so before/after shots are comparable.
+            // Editor only - ScreenCapture writes to the virtual FS on Web.
             StartCoroutine(CaptureShot(8f));
+#endif
 
             float start = Time.realtimeSinceStartup;
             while (Time.realtimeSinceStartup - start < request.durationSeconds)
