@@ -104,7 +104,7 @@ namespace RingSport.Editor
                     // first one (Pelvis) is the free root of the ragdoll.
                     var parentBody = FindParentBody(bone, bodies);
                     if (parentBody != null)
-                        AddJoint(bone, parentBody);
+                        AddJoint(bone, parentBody, name);
                 }
 
                 var asset = PrefabUtility.SaveAsPrefabAsset(instance, RagdollPrefabPath, out bool success);
@@ -198,6 +198,25 @@ namespace RingSport.Editor
             capsule.height = length + radius * 2f;
         }
 
+        /// <summary>
+        /// Joint limits by body part. A dog's knees and hocks are near-hinges and
+        /// barely twist, so uniform limits let the legs corkscrew into poses no
+        /// real animal could hold. Elbows/knees get almost no twist and very
+        /// little sideways swing; the spine stays modest; only the tail is loose.
+        /// </summary>
+        private static (float lowTwist, float highTwist, float swing1, float swing2) LimitsFor(string name)
+        {
+            if (name.EndsWith("Calf") || name.EndsWith("Forearm") || name.EndsWith("HorseLink"))
+                return (-5f, 5f, 20f, 5f);      // hinges
+            if (name.EndsWith("Foot") || name.EndsWith("Hand"))
+                return (-5f, 5f, 15f, 8f);      // paws
+            if (name.EndsWith("Thigh") || name.EndsWith("UpperArm"))
+                return (-10f, 10f, 28f, 12f);   // hips and shoulders
+            if (name.StartsWith("Tail"))
+                return (-15f, 15f, 35f, 25f);   // the one part that should flop
+            return (-10f, 10f, 22f, 12f);       // spine, neck, head
+        }
+
         /// <summary>CapsuleCollider.direction for the axis the bone mostly runs along.</summary>
         private static int DominantAxis(Vector3 direction)
         {
@@ -207,7 +226,7 @@ namespace RingSport.Editor
             return y >= z ? 1 : 2;
         }
 
-        private static void AddJoint(Transform bone, Rigidbody parentBody)
+        private static void AddJoint(Transform bone, Rigidbody parentBody, string name)
         {
             var joint = bone.gameObject.AddComponent<CharacterJoint>();
             joint.connectedBody = parentBody;
@@ -220,10 +239,11 @@ namespace RingSport.Editor
             joint.axis = twist;
             joint.swingAxis = Vector3.Cross(twist, Mathf.Abs(twist.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
 
-            joint.lowTwistLimit = new SoftJointLimit { limit = -20f };
-            joint.highTwistLimit = new SoftJointLimit { limit = 20f };
-            joint.swing1Limit = new SoftJointLimit { limit = 40f };
-            joint.swing2Limit = new SoftJointLimit { limit = 25f };
+            var (lowTwist, highTwist, swing1, swing2) = LimitsFor(name);
+            joint.lowTwistLimit = new SoftJointLimit { limit = lowTwist };
+            joint.highTwistLimit = new SoftJointLimit { limit = highTwist };
+            joint.swing1Limit = new SoftJointLimit { limit = swing1 };
+            joint.swing2Limit = new SoftJointLimit { limit = swing2 };
 
             // PlayerRagdoll turns projection on at spawn; setting it here too keeps
             // the prefab usable on its own

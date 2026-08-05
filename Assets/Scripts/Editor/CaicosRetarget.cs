@@ -30,7 +30,7 @@ namespace RingSport.Editor
     public static class CaicosRetarget
     {
         // Bump to force DogPlayerSetup to rebake the clips after changing the math
-        public const int RetargetVersion = 9;
+        public const int RetargetVersion = 11;
 
         public const string CaicosModelGuid = "fce7057b86bb34da89a047199b66035b"; // Assets/Models/caicos.glb
         public const string WolfModelGuid = "08e48789449aae64095cc114539cb217";   // Wolf Lite v2.fbx
@@ -133,6 +133,14 @@ namespace RingSport.Editor
             public Vector3[] RestLocalPos;
             public float[] RestWorldScale;     // accumulated uniform scale at the bone
 
+            /// <summary>
+            /// One point per bone - the lowest bit of skin that bone owns, in that
+            /// bone's local space. Together they trace the underside of the dog
+            /// (paw pads, belly, chin), which is what actually meets the floor.
+            /// </summary>
+            public int[] ProbeBone = Array.Empty<int>();
+            public Vector3[] ProbeLocal = Array.Empty<Vector3>();
+
             public void Dispose()
             {
                 if (Instance != null)
@@ -174,6 +182,7 @@ namespace RingSport.Editor
 
             ApplyRestPoseAdjustments(session.Caicos);
             session.Chains = BuildIkChains(session);
+            BuildGroundProbes(session.Caicos);
 
             Debug.Log($"[CaicosRetarget] Rigs matched: {shared} shared bones, size ratio caicos/wolf = {session.SizeRatio:F3}, {session.Chains.Length} leg chains solved by IK.");
             return session;
@@ -228,6 +237,93 @@ namespace RingSport.Editor
             }
         }
 
+        /// <summary>
+        /// Finds the lowest skinned vertex each bone owns, at rest, and remembers
+        /// it in that bone's local space. Measuring ground contact from the foot
+        /// BONE is wrong - it sits at the top of the pastern, so levelling it with
+        /// the floor buries the whole paw, which is exactly what was happening.
+        /// Tracking skin instead also gets sitting and lying right for free, where
+        /// the lowest point is the rump or the belly rather than a paw.
+        /// </summary>
+        private static void BuildGroundProbes(Rig rig)
+        {
+            var renderer = rig.Instance.GetComponentInChildren<SkinnedMeshRenderer>(true);
+            if (renderer == null || renderer.sharedMesh == null)
+            {
+                Debug.LogWarning("[CaicosRetarget] No skinned mesh on the model - clips will not be snapped to the ground.");
+                return;
+            }
+
+            var baked = new Mesh();
+            try
+            {
+                renderer.BakeMesh(baked, true);
+                var vertices = baked.vertices;
+                var weights = renderer.sharedMesh.boneWeights;
+                if (weights.Length != vertices.Length)
+                {
+                    Debug.LogWarning("[CaicosRetarget] Skin weights don't line up with the mesh - clips will not be snapped to the ground.");
+                    return;
+                }
+
+                // renderer bone index -> rig bone index
+                var rendererBones = renderer.bones;
+                var toRig = new int[rendererBones.Length];
+                for (int i = 0; i < rendererBones.Length; i++)
+                {
+                    toRig[i] = rendererBones[i] != null && rig.IndexByName.TryGetValue(rendererBones[i].name, out int r) ? r : -1;
+                }
+
+                var lowest = new float[rig.Bones.Length];
+                var lowestPoint = new Vector3[rig.Bones.Length];
+                var found = new bool[rig.Bones.Length];
+
+                for (int v = 0; v < vertices.Length; v++)
+                {
+                    var w = weights[v];
+                    int bone = toRig[w.boneIndex0];
+                    if (bone < 0 || w.weight0 < 0.5f)
+                        continue;
+
+                    var world = renderer.transform.TransformPoint(vertices[v]);
+                    if (!found[bone] || world.y < lowest[bone])
+                    {
+                        found[bone] = true;
+                        lowest[bone] = world.y;
+                        lowestPoint[bone] = world;
+                    }
+                }
+
+                var probeBones = new List<int>();
+                var probeLocal = new List<Vector3>();
+                for (int b = 0; b < rig.Bones.Length; b++)
+                {
+                    if (!found[b])
+                        continue;
+                    probeBones.Add(b);
+                    probeLocal.Add(rig.Bones[b].InverseTransformPoint(lowestPoint[b]));
+                }
+
+                rig.ProbeBone = probeBones.ToArray();
+                rig.ProbeLocal = probeLocal.ToArray();
+
+                Debug.Log($"[CaicosRetarget] Ground probes: {rig.ProbeBone.Length} bones, underside sits at y {LowestPoint(rig):F3} in the rest pose.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(baked);
+            }
+        }
+
+        /// <summary>Lowest point of the dog's skin in the pose the rig is currently in.</summary>
+        private static float LowestPoint(Rig rig)
+        {
+            float lowest = float.MaxValue;
+            for (int i = 0; i < rig.ProbeBone.Length; i++)
+                lowest = Mathf.Min(lowest, rig.Bones[rig.ProbeBone[i]].TransformPoint(rig.ProbeLocal[i]).y);
+            return lowest == float.MaxValue ? 0f : lowest;
+        }
+
         private static IkChain[] BuildIkChains(Session session)
         {
             var chains = new List<IkChain>();
@@ -257,7 +353,12 @@ namespace RingSport.Editor
         /// Bakes <paramref name="source"/> onto the caicos rig and writes it to
         /// <paramref name="outputPath"/>, overwriting any previous bake.
         /// </summary>
-        public static AnimationClip RetargetClip(Session session, AnimationClip source, string outputPath)
+        /// <param name="snapToGround">
+        /// False for clips where the dog isn't standing on the floor - the ledge
+        /// grab hangs off a palisade, the vault is mid-air over one - and where a
+        /// scripted arc owns the height instead.
+        /// </param>
+        public static AnimationClip RetargetClip(Session session, AnimationClip source, string outputPath, bool snapToGround = true)
         {
             if (session == null || source == null)
                 return null;
@@ -284,6 +385,7 @@ namespace RingSport.Editor
             var worldRot = new Quaternion[boneCount];
             var deltas = new Quaternion[boneCount];
             var wolfIndex = Enumerable.Range(0, boneCount).Select(b => WolfIndexFor(session, b)).ToArray();
+            var lowestPerFrame = new float[frameCount];
 
             for (int f = 0; f < frameCount; f++)
             {
@@ -341,9 +443,9 @@ namespace RingSport.Editor
                 // caicos's longer lower legs happen to reach; drive them instead
                 // to where the source clip had them, which is what stops the
                 // floating and skating.
+                ApplyPose(caicos, localRot, localPos, f);
                 if (session.Chains.Length > 0)
                 {
-                    ApplyPose(caicos, localRot, localPos, f);
                     SolveLegs(session);
                     for (int b = 0; b < boneCount; b++)
                     {
@@ -353,7 +455,12 @@ namespace RingSport.Editor
                         localRot[b][f] = solved;
                     }
                 }
+
+                lowestPerFrame[f] = LowestPoint(caicos);
             }
+
+            if (snapToGround)
+                SnapToGround(caicos, localPos, translates, lowestPerFrame, source.name);
 
             var clip = new AnimationClip
             {
@@ -396,6 +503,36 @@ namespace RingSport.Editor
 
             Debug.Log($"[CaicosRetarget] {source.name} -> {clip.name}: {frameCount} frames, {rotationCurves} rotation / {positionCurves} position curve sets.");
             return clip;
+        }
+
+        /// <summary>
+        /// Lifts or drops the whole clip so the moment the dog is closest to the
+        /// floor is the moment she touches it. Retargeting can't preserve ground
+        /// contact on its own - the legs are a different length, so the same joint
+        /// angles land the body at a different height, and each clip lands
+        /// somewhere slightly different. Snapping on the lowest point over the
+        /// whole clip (rather than per frame) keeps the clip's own vertical motion
+        /// - the run's bob, the jump's crouch - intact.
+        /// </summary>
+        private static void SnapToGround(Rig rig, Vector3[][] localPos, bool[] translates, float[] lowestPerFrame, string clipName)
+        {
+            if (rig.ProbeBone.Length == 0)
+                return;
+
+            int root = rig.IndexByName.TryGetValue("CG", out int cg) ? cg : 0;
+            float contact = lowestPerFrame.Min();
+            if (Mathf.Abs(contact) < 0.001f)
+                return;
+
+            // The root sits directly under the model root, so its local Y is model
+            // space Y and the shift needs no conversion
+            float parentScale = rig.ParentIndex[root] < 0 ? 1f : rig.RestWorldScale[rig.ParentIndex[root]];
+            float shift = contact / Mathf.Max(1e-4f, parentScale);
+            for (int f = 0; f < localPos[root].Length; f++)
+                localPos[root][f].y -= shift;
+            translates[root] = true;
+
+            Debug.Log($"[CaicosRetarget] {clipName}: snapped {(-contact >= 0 ? "up" : "down")} {Mathf.Abs(contact):F3}m so the lowest point meets the floor.");
         }
 
         private static void ApplyPose(Rig rig, Quaternion[][] localRot, Vector3[][] localPos, int frame)

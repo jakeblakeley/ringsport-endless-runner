@@ -149,11 +149,11 @@ namespace RingSport.Editor
             if (session == null)
                 return;
 
-            var controller = BuildAnimatorController(session, out float groundOffset);
+            var controller = BuildAnimatorController(session);
             if (controller == null)
                 return;
 
-            var animator = SetupDogModel(player, session, controller, groundOffset, out var ragdollPrefab);
+            var animator = SetupDogModel(player, session, controller, out var ragdollPrefab);
             if (animator == null)
                 return;
 
@@ -226,22 +226,20 @@ namespace RingSport.Editor
         /// once and both references point at the same asset.
         /// </summary>
         private static AnimationClip Retarget(CaicosRetarget.Session session, AnimationClip source,
-            Dictionary<AnimationClip, AnimationClip> cache)
+            Dictionary<AnimationClip, AnimationClip> cache, bool snapToGround = true)
         {
             if (source == null)
                 return null;
             if (cache.TryGetValue(source, out var existing))
                 return existing;
 
-            var baked = CaicosRetarget.RetargetClip(session, source, $"{CaicosRetarget.OutputFolder}/{source.name}.anim");
+            var baked = CaicosRetarget.RetargetClip(session, source, $"{CaicosRetarget.OutputFolder}/{source.name}.anim", snapToGround);
             cache[source] = baked;
             return baked;
         }
 
-        private static AnimatorController BuildAnimatorController(CaicosRetarget.Session session, out float groundOffset)
+        private static AnimatorController BuildAnimatorController(CaicosRetarget.Session session)
         {
-            groundOffset = 0f;
-
             var sources = new Dictionary<string, AnimationClip>
             {
                 ["idle"] = LoadClip(IdlesFbxGuid, "WL_Idle01"),
@@ -275,18 +273,17 @@ namespace RingSport.Editor
             // controller: the Malbers clips carry the wolf's bone offsets, so
             // played raw they would force wolf proportions onto this dog.
             var retargetCache = new Dictionary<AnimationClip, AnimationClip>();
-            var clips = sources.ToDictionary(kv => kv.Key, kv => Retarget(session, kv.Value, retargetCache));
+            // The clamber hangs off the palisade and the vault flies over it;
+            // PlayerController's scripted arc owns their height, so they must not
+            // be snapped down onto the floor like the ground gaits are.
+            var airborne = new HashSet<string> { "clamber", "vault" };
+            var clips = sources.ToDictionary(kv => kv.Key,
+                kv => Retarget(session, kv.Value, retargetCache, !airborne.Contains(kv.Key)));
             if (clips.Any(kv => kv.Value == null))
             {
                 Debug.LogError("[DogPlayerSetup] Retargeting failed for one or more clips - see the errors above.");
                 return null;
             }
-
-            // The new dog's legs are proportioned differently, so the wolf's joint
-            // angles put its feet at a different height. Measure where the feet
-            // actually reach across the ground gaits and drop the model by that
-            // much, otherwise the dog hovers or sinks into the floor.
-            groundOffset = MeasureGroundOffset(session, clips["idle"], clips["walk"], clips["run"]);
 
             // Sprint gait: the pack ships exactly three locomotion cycles
             // (walk/trot/run) - Malbers' own controller sprints by playing the
@@ -588,7 +585,7 @@ namespace RingSport.Editor
         }
 
         private static Animator SetupDogModel(GameObject player, CaicosRetarget.Session session,
-            AnimatorController controller, float groundOffset, out GameObject ragdollPrefab)
+            AnimatorController controller, out GameObject ragdollPrefab)
         {
             ragdollPrefab = null;
             var modelPath = AssetDatabase.GUIDToAssetPath(ModelGuid);
@@ -612,9 +609,9 @@ namespace RingSport.Editor
             // Player pivot sits at y=1 with the CharacterController capsule spanning
             // y 0..2 in world space; the model's origin is at its feet, so drop it
             // to the capsule's base. Model faces +Z, matching the -Z world scroll.
-            var localPosition = new Vector3(0f, -1f - groundOffset * modelScale, 0f);
-            if (Mathf.Abs(groundOffset) > 0.005f)
-                Debug.Log($"[DogPlayerSetup] Retargeted feet rest {groundOffset:F3}m off the ground - model dropped to y {localPosition.y:F3}.");
+            // Ground contact is handled per clip by the retargeter's snap stage,
+            // so there is no correction to apply here.
+            var localPosition = new Vector3(0f, -1f, 0f);
 
             ragdollPrefab = CaicosRagdollSetup.Build(modelPrefab, modelScale);
 
@@ -741,24 +738,6 @@ namespace RingSport.Editor
         {
             var source = PrefabUtility.GetCorrespondingObjectFromSource(candidate);
             return source != null && AssetDatabase.GetAssetPath(source) == AssetDatabase.GetAssetPath(prefab);
-        }
-
-        /// <summary>
-        /// Lowest point the retargeted feet reach across the ground gaits, in
-        /// model space. Positive means the dog hovers; negative means it sinks.
-        /// </summary>
-        private static float MeasureGroundOffset(CaicosRetarget.Session session, params AnimationClip[] clips)
-        {
-            float lowest = float.MaxValue;
-            foreach (var clip in clips)
-            {
-                if (clip == null)
-                    continue;
-                var (minFoot, _, _) = CaicosRetarget.MeasureFootHeights(session, clip);
-                lowest = Mathf.Min(lowest, minFoot);
-            }
-            CaicosRetarget.ResetCaicosPose(session);
-            return lowest == float.MaxValue ? 0f : lowest;
         }
 
         private static void FixMaterialsIfBroken(GameObject dog)
