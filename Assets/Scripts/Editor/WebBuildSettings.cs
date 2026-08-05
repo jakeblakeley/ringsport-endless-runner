@@ -23,6 +23,9 @@ namespace RingSport.EditorTools
         private const string VersionKey = "RingSport.WebBuildSettings.Version";
         private const string TemplateName = "PROJECT:RingSportItch";
         private const string ReleaseOutputDir = "Builds/Web-itch";
+        private const string WebGpuOutputDir = "Builds/Web-webgpu";
+        private const string WebGpuMarkerPath = "PerfReports/build_webgpu_request.txt";
+        private static double nextMarkerCheck;
 
         /// <summary>
         /// Desktop WebGL2 exposes S3TC/DXT; phone GPUs expose ASTC/ETC2 instead.
@@ -36,6 +39,23 @@ namespace RingSport.EditorTools
         static WebBuildSettings()
         {
             EditorApplication.delayCall += TryAutoRun;
+            EditorApplication.update += PollMarker;
+        }
+
+        /// <summary>Lets the WebGPU test build be kicked off without clicking a menu.</summary>
+        private static void PollMarker()
+        {
+            if (EditorApplication.timeSinceStartup < nextMarkerCheck)
+                return;
+            nextMarkerCheck = EditorApplication.timeSinceStartup + 1.0;
+
+            if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || EditorApplication.isUpdating)
+                return;
+            if (!File.Exists(WebGpuMarkerPath))
+                return;
+
+            File.Delete(WebGpuMarkerPath);
+            BuildWebGpuDebug();
         }
 
         private static void TryAutoRun()
@@ -208,13 +228,98 @@ namespace RingSport.EditorTools
                       $"Zip the CONTENTS of {ReleaseOutputDir} (index.html at the zip root) and upload.");
         }
 
-        /// <summary>Unity writes debug-symbol folders next to the player that must never ship.</summary>
+        /// <summary>
+        /// Development build with WebGPU first and WebGL2 behind it, into its own
+        /// output dir so the shipping build is never at risk. Every setting this
+        /// touches is restored afterwards - leaving the project on WebGPU would
+        /// silently poison the next release build.
+        /// </summary>
+        [MenuItem("Tools/RingSport/Build Web (WebGPU debug test)")]
+        public static void BuildWebGpuDebug()
+        {
+            Apply();
+
+            GraphicsDeviceType[] savedApis = PlayerSettings.GetGraphicsAPIs(BuildTarget.WebGL);
+            WebGLExceptionSupport savedExceptions = PlayerSettings.WebGL.exceptionSupport;
+            WebGLDebugSymbolMode savedSymbols = PlayerSettings.WebGL.debugSymbolMode;
+            bool savedFallback = PlayerSettings.WebGL.decompressionFallback;
+            bool savedDiagnostics = PlayerSettings.WebGL.showDiagnostics;
+
+            try
+            {
+                // WebGPU first, WebGL2 behind it. Note the fallback only covers a
+                // failed device *creation* - the 2026-08-04 failure got past that
+                // and hung on present, which no fallback can rescue. That is what
+                // the template's 45s watchdog is there to name.
+                PlayerSettings.SetGraphicsAPIs(BuildTarget.WebGL,
+                    new[] { GraphicsDeviceType.WebGPU, GraphicsDeviceType.OpenGLES3 });
+
+                // Explicit, not FullWithStacktrace: managed exceptions still carry
+                // stack traces in a development build, and Full roughly doubles the
+                // wasm - which matters a lot when this has to be uploaded to itch.
+                PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
+                // External, not Embedded: symbols move into a side-car file the
+                // loader fetches on demand, so stack traces still resolve but the
+                // wasm stays small enough to actually upload to itch.
+                PlayerSettings.WebGL.debugSymbolMode = WebGLDebugSymbolMode.External;
+                PlayerSettings.WebGL.showDiagnostics = true;
+                // On so the build loads off any plain static server as well as
+                // itch - one less variable when the question is "does it render".
+                PlayerSettings.WebGL.decompressionFallback = true;
+
+                var options = new BuildPlayerOptions
+                {
+                    scenes = new[] { "Assets/Scenes/SampleScene.unity" },
+                    target = BuildTarget.WebGL,
+                    locationPathName = WebGpuOutputDir,
+                    options = BuildOptions.Development | BuildOptions.AllowDebugging,
+                };
+
+                Debug.Log("[WebBuildSettings] Starting WebGPU DEBUG build (WebGPU -> WebGL2 fallback)...");
+                BuildReport report = BuildPipeline.BuildPlayer(options);
+
+                if (report.summary.result != BuildResult.Succeeded)
+                {
+                    Debug.LogError($"[WebBuildSettings] WebGPU build {report.summary.result} " +
+                                   $"with {report.summary.totalErrors} error(s).");
+                    return;
+                }
+
+                StripDoNotShipFolders(WebGpuOutputDir);
+                Debug.Log($"[WebBuildSettings] WebGPU debug build OK in {report.summary.totalTime.TotalSeconds:F0}s -> {WebGpuOutputDir}");
+            }
+            finally
+            {
+                PlayerSettings.SetGraphicsAPIs(BuildTarget.WebGL, savedApis);
+                PlayerSettings.WebGL.exceptionSupport = savedExceptions;
+                PlayerSettings.WebGL.debugSymbolMode = savedSymbols;
+                PlayerSettings.WebGL.decompressionFallback = savedFallback;
+                PlayerSettings.WebGL.showDiagnostics = savedDiagnostics;
+                AssetDatabase.SaveAssets();
+                Debug.Log("[WebBuildSettings] Restored shipping Web settings (WebGL2 only, Brotli/no-fallback).");
+            }
+        }
+
+        /// <summary>
+        /// Unity writes debug-symbol folders that must never ship - some inside the
+        /// output dir, and the Burst one as a SIBLING of it (Builds/&lt;product&gt;_Burst...),
+        /// so both levels have to be swept.
+        /// </summary>
         private static void StripDoNotShipFolders(string root)
         {
             if (!Directory.Exists(root))
                 return;
 
-            foreach (string dir in Directory.GetDirectories(root))
+            SweepDoNotShip(root);
+
+            string parent = Path.GetDirectoryName(Path.GetFullPath(root));
+            if (!string.IsNullOrEmpty(parent) && Directory.Exists(parent))
+                SweepDoNotShip(parent);
+        }
+
+        private static void SweepDoNotShip(string dirToScan)
+        {
+            foreach (string dir in Directory.GetDirectories(dirToScan))
             {
                 string name = Path.GetFileName(dir);
                 if (name.EndsWith("_DoNotShip", StringComparison.Ordinal) ||

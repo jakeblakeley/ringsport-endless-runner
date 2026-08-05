@@ -5,6 +5,18 @@
       "name": "web-dev-build",
       "url": "http://localhost:8765",
       "port": 8765
+    },
+    {
+      "name": "web-webgpu-build",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [".claude/serve_web.py", "Builds/Web-webgpu", "8766"],
+      "port": 8766
+    },
+    {
+      "name": "web-itch-build",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [".claude/serve_web.py", "Builds/Web-itch", "8767"],
+      "port": 8767
     }
   ]
 }

@@ -1,0 +1,115 @@
+/* Fill whatever box we are dropped into - on itch.io that is the embed
+   iframe, which has no fixed size. Never hard-code canvas pixels here. */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #14100f;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+#unity-container {
+  position: absolute;
+  inset: 0;
+}
+#unity-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #14100f;
+  outline: none;
+}
+#unity-loading-bar {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: none;
+  width: 240px;
+  text-align: center;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #f4ece4;
+}
+#unity-loading-label {
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 12px;
+}
+#unity-progress-bar-empty {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(244, 236, 228, 0.15);
+  overflow: hidden;
+}
+#unity-progress-bar-full {
+  width: 0%;
+  height: 100%;
+  border-radius: 4px;
+  background: #f4ece4;
+  transition: width 0.15s ease-out;
+}
+#unity-warning {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  z-index: 10;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+}
+#unity-fullscreen-button {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  display: none;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+#unity-fullscreen-button:hover { opacity: 0.9; }
+#unity-diagnostics-button {
+  position: absolute;
+  right: 50px;
+  bottom: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #f4ece4;
+  font: 700 15px/32px system-ui, sans-serif;
+  text-align: center;
+  cursor: pointer;
+  display: none;
+  opacity: 0.35;
+}
+#unity-diagnostics-button:hover { opacity: 0.9; }
+#unity-gfx-readout {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 10;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #f4ece4;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 4px 8px;
+  border-radius: 6px;
+  opacity: 0.75;
+  pointer-events: none;
+  white-space: pre;
+}
+#unity-fullscreen-button::before {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border: 2px solid #f4ece4;
+  border-radius: 2px;
+}
