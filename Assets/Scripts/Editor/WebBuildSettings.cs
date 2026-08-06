@@ -25,6 +25,7 @@ namespace RingSport.EditorTools
         private const string ReleaseOutputDir = "Builds/Web-itch";
         private const string WebGpuOutputDir = "Builds/Web-webgpu";
         private const string WebGpuMarkerPath = "PerfReports/build_webgpu_request.txt";
+        private const string ReleaseMarkerPath = "PerfReports/build_release_request.txt";
         private static double nextMarkerCheck;
 
         /// <summary>
@@ -51,11 +52,18 @@ namespace RingSport.EditorTools
 
             if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || EditorApplication.isUpdating)
                 return;
-            if (!File.Exists(WebGpuMarkerPath))
+            if (File.Exists(WebGpuMarkerPath))
+            {
+                File.Delete(WebGpuMarkerPath);
+                BuildWebGpuDebug();
                 return;
+            }
 
-            File.Delete(WebGpuMarkerPath);
-            BuildWebGpuDebug();
+            if (File.Exists(ReleaseMarkerPath))
+            {
+                File.Delete(ReleaseMarkerPath);
+                BuildRelease();
+            }
         }
 
         private static void TryAutoRun()

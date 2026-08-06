@@ -1,0 +1,46 @@
+# Netlify headers for the Unity Web build.
+#
+# The shipping build is Brotli with "decompression fallback" OFF, so the files
+# on disk are already compressed (e.g. <hash>.wasm.br). Netlify serves unknown
+# extensions as opaque blobs, so without Content-Encoding the loader fails with
+# "Unable to parse Build/...". These rules tell the browser what they really are.
+#
+# Build/ filenames are content hashes (nameFilesAsHashes), so caching them
+# forever is safe - a new build produces new names.
+
+/Build/*.wasm.br
+  Content-Encoding: br
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+/Build/*.js.br
+  Content-Encoding: br
+  Content-Type: application/javascript
+  Cache-Control: public, max-age=31536000, immutable
+
+/Build/*.data.br
+  Content-Encoding: br
+  Content-Type: application/octet-stream
+  Cache-Control: public, max-age=31536000, immutable
+
+/Build/*.symbols.json.br
+  Content-Encoding: br
+  Content-Type: application/json
+
+# Uncompressed fallbacks, in case the build is ever made without compression.
+/Build/*.wasm
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+/Build/*.data
+  Content-Type: application/octet-stream
+  Cache-Control: public, max-age=31536000, immutable
+
+# The entry point must never be cached, or a new deploy keeps loading the old
+# build's hashed filenames.
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/manifest.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=0, must-revalidate

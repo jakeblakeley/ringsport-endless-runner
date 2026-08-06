@@ -5,10 +5,17 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes, viewport-fit=cover">
     <!-- Standalone hint: iPhone Safari has no Fullscreen API, so the only true
-         fullscreen route is Add to Home Screen, which needs these. -->
+         fullscreen route is Add to Home Screen, which needs these. They only
+         take effect when this page is the TOP-LEVEL document - inside itch.io's
+         embed iframe the browser reads itch's <head>, not this one. -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Caicos 3">
+    <meta name="theme-color" content="#14100f">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="TemplateData/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="TemplateData/icon-192.png">
     <title>{{{ PRODUCT_NAME }}}</title>
 #if SHOW_DIAGNOSTICS
     <link rel="stylesheet" href="<<<TemplateData/diagnostics.css>>>">

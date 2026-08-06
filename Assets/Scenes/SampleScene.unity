@@ -9035,6 +9035,9 @@ MonoBehaviour:
   windowTickSound: {fileID: 8300000, guid: d62791657137142178b988da9749d29b, type: 3}
   catchScreamSound: {fileID: 8300000, guid: 7a4dac19a9f6e4704bba230373cbcb0e, type: 3}
   freezeRiserSound: {fileID: 8300000, guid: c9bcc75184928443c85b924640ab5ceb, type: 3}
+  freezeRiserVolume: 1
+  freezeRiserTailVolume: 0.3
+  freezeRiserCutSeconds: 0.18
 --- !u!114 &664844477
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10977,8 +10980,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 72.33333, y: -32}
-  m_SizeDelta: {x: 112.666664, y: 64}
+  m_AnchoredPosition: {x: 158.66667, y: -64}
+  m_SizeDelta: {x: 317.33334, y: 128}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1060011546
 MonoBehaviour:
@@ -11053,7 +11056,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 6.25
+  m_PixelsPerUnitMultiplier: 3.125
 --- !u!222 &1060011548
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -11485,8 +11488,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 192.99998, y: -32}
-  m_SizeDelta: {x: 112.666664, y: 64}
+  m_AnchoredPosition: {x: 492, y: -64}
+  m_SizeDelta: {x: 317.33334, y: 128}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1166616078
 MonoBehaviour:
@@ -11561,7 +11564,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 6.25
+  m_PixelsPerUnitMultiplier: 3.125
 --- !u!222 &1166616080
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -11986,8 +11989,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 313.66666, y: -32}
-  m_SizeDelta: {x: 112.666664, y: 64}
+  m_AnchoredPosition: {x: 825.3334, y: -64}
+  m_SizeDelta: {x: 317.33334, y: 128}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1265713326
 MonoBehaviour:
@@ -12062,7 +12065,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 6.25
+  m_PixelsPerUnitMultiplier: 3.125
 --- !u!222 &1265713328
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -12566,6 +12569,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Core.GameManager
   currentState: 0
   countdownDuration: 3
+  countdownLeadIn: 0.2
+  transitionFadeSeconds: 0.4
+  worldLoadHoldSeconds: 0.5
   homeDogFacingYaw: 138
   gameOverSound: {fileID: 8300000, guid: df6fa74fc458d4eada31bf6505c5e326, type: 3}
   deathImpactSound: {fileID: 8300000, guid: 4328d1264c00e4de9ad36b7f45482f31, type: 3}
