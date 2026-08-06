@@ -21,7 +21,7 @@ namespace RingSport.EditorTools
     [InitializeOnLoad]
     public static class LocationAmbientBake
     {
-        private const int BakeVersion = 3;
+        private const int BakeVersion = 4;
         private const string VersionKey = "RingSport.LocationAmbientBake.Version";
 
         static LocationAmbientBake()

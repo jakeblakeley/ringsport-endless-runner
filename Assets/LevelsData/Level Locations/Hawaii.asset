@@ -1,0 +1,78 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 478324e1853214d59b881293bbe0fa35, type: 3}
+  m_Name: Hawaii
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Level.LocationConfig
+  location: 4
+  mainFloorPrefab: {fileID: 1462051254498222346, guid: 71cfbaf322a4a4214b3020011bdc8263, type: 3}
+  sideFloorPrefab: {fileID: 1462051254498222346, guid: 93b082e5a1816420786c12fdd761ff5b, type: 3}
+  finishLineFloorPrefab: {fileID: 1462051254498222346, guid: 5800f2425ae934584b4b6e89dda77f65, type: 3}
+  startScenePrefab: {fileID: 464054736087749294, guid: 945c11a97a5594320a5e6cbdb7b9fe30, type: 3}
+  sceneryPrefabs:
+  - {fileID: 7912963775469056379, guid: b25388dae5e5d4b52ae10ce92830308b, type: 3}
+  - {fileID: 1954566881073986532, guid: 635f0d64b19624280b3a731f0a8d839f, type: 3}
+  - {fileID: 3166781019106838048, guid: fb8b6bbf4b7be46fd8cc6d156b089c8a, type: 3}
+  - {fileID: 2961027222108833343, guid: b95215571b3094cd58978be418030f37, type: 3}
+  - {fileID: 5705658528795780080, guid: bd77ef6eeadca4e18a3c380ea84b00be, type: 3}
+  - {fileID: 2362294256283516593, guid: 5f23c49776fe24983a5abdc915c06c19, type: 3}
+  - {fileID: 5621168663554603300, guid: 66366b4fdd7bc45e28cd8b977a1929a2, type: 3}
+  - {fileID: 8215816597911061365, guid: 49b7d34a4342a42e39f1977f5a707019, type: 3}
+  - {fileID: 5991182057827033210, guid: 0bb37b6b1c5ba47bdae30246e6a15b22, type: 3}
+  - {fileID: 163230195560980270, guid: 8654c0cb2cf4745c9ae1a6926e2b6aa7, type: 3}
+  - {fileID: 6633201167300922203, guid: 8fe634a9b78794360a59e79e3530930d, type: 3}
+  - {fileID: 7551188126641981222, guid: b7d5cfc6d3ddd48138120a80e06b1568, type: 3}
+  - {fileID: 7368264911655080738, guid: 53816007f373a411981593fe04f99648, type: 3}
+  - {fileID: 703075748506192269, guid: dea60ea3164d94fbbafdc0925df54f6f, type: 3}
+  - {fileID: 5540233669143218013, guid: c3984fa1a310c40ec82f20d6baf9453e, type: 3}
+  - {fileID: 6339742225168052127, guid: c6d417cc5b9294a4185563b6897c39f2, type: 3}
+  - {fileID: 6373316514958809806, guid: 66f362613204b4f5d826b17e076f4d2d, type: 3}
+  - {fileID: 1103939712325028382, guid: 16f24c5efd1ca4f61ac58540b3d9f923, type: 3}
+  minSceneryPerFloor: 3
+  maxSceneryPerFloor: 5
+  sceneryMinDistance: 2.2
+  sceneryPoolSize: 16
+  overrideAtmosphere: 1
+  fogColor: {r: 0.74, g: 0.88, b: 0.9, a: 1}
+  fogDensity: 0.024
+  skyboxMaterial: {fileID: 2100000, guid: 675ec8014a24441b6a65ddece4558c20, type: 2}
+  ambientSaturation: 0.6
+  ambientIntensity: 0.95
+  bakedAmbientProbe:
+  - 1.6239159
+  - -0.5247974
+  - 0
+  - 0.0000000070951556
+  - 0.00000000915445
+  - 0.000000007671659
+  - 0.05907504
+  - 9.163072e-10
+  - 0.17722492
+  - 2.3206205
+  - -0.72969085
+  - 0
+  - 5.523892e-10
+  - 9.286088e-10
+  - 0.000000014989151
+  - 0.067929365
+  - -3.0927053e-11
+  - 0.20378768
+  - 2.7553122
+  - -0.46560135
+  - 0
+  - 2.3118725e-10
+  - 2.793378e-10
+  - 0.000000010110822
+  - 0.05748679
+  - 4.5700996e-10
+  - 0.17246068
+  music: {fileID: 0}
+  ambientSound: {fileID: 8300000, guid: 1df86c025236c4c4e9a3ea1d191f64ff, type: 3}

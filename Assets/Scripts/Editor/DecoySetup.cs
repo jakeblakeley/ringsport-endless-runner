@@ -15,8 +15,14 @@ namespace RingSport.Editor
     /// the face attack / decoy battle): builds a decoy-specific
     /// AnimatorController from the Malbers human clips (jog/sprint locomotion,
     /// strafe-lean, fall-forward), assembles Assets/Prefabs/Decoy.prefab
-    /// hosting the placeholder Steve model + DecoyController, and wires the
-    /// prefab into the scene's MiniLevelFleeAttack.
+    /// hosting the decoy model + DecoyController, and wires the prefab into the
+    /// scene's MiniLevelFleeAttack.
+    ///
+    /// The model is Assets/Models/decoy.glb, rigged on the Malbers human
+    /// skeleton, so it keeps every one of those clips: DecoyAvatarSetup gives
+    /// it a Humanoid avatar and Mecanim retargets them onto it. Its catch
+    /// ragdoll comes from DecoyRagdollSetup rather than the Malbers Steve
+    /// ragdoll, so the body the dog drags around is the decoy's own.
     ///
     /// The fall-forward clip is chosen by SAMPLING the package death clips and
     /// measuring which way the body lands (the pack has no clip literally named
@@ -30,7 +36,7 @@ namespace RingSport.Editor
     public static class DecoySetup
     {
         // Bump to make the auto-run rebuild after changing this script
-        private const int SetupVersion = 11;
+        private const int SetupVersion = 16;
         private const string VersionPrefKey = "RingSport.DecoySetup.Version";
 
         private const string ControllerPath = "Assets/Animations/Decoy/DecoyHuman.controller";
@@ -38,14 +44,17 @@ namespace RingSport.Editor
         private const string OverrideFolder = "Assets/Animations/Decoy/Overrides";
         private const string FallbackMaterialPath = "Assets/Materials/DecoyHuman.mat";
         private const string ModelName = "Human Model";
-        // Uniform scale on the model (user-tuned). Everything downstream reads
-        // the live transform scale instead of this constant: DecoyController
+        // Uniform scale on the model (user-tuned), against the size the
+        // placeholder human animated at - see modelScaleCompensation, which
+        // holds the decoy to that same height. Everything downstream reads the
+        // live transform scale rather than either constant: DecoyController
         // slows the locomotion cycle and scales the ragdoll to match.
         private const float ModelScale = 1.5f;
 
+        // The decoy model itself
+        private const string ModelGuid = DecoyAvatarSetup.DecoyModelGuid;          // Assets/Models/decoy.glb
+
         // Malbers Animal Controller / Human asset GUIDs
-        private const string ModelGuid = "d9a8fb1864c033e4b990da223ac23ead";        // Steve_v2.fbx
-        private const string RagdollPrefabGuid = "820e370bc2f37df44adfbdd3b1536ed1"; // Steve Ragdoll.prefab
         private const string IdleFbxGuid = "adba5936348c1e1459e4a28103f7b697";      // S_Idle.fbx
         private const string JogFbxGuid = "c15724f994cb8bf459b9488ae4b263a1";       // S_Jog_F.fbx
         private const string SprintFbxGuid = "ab163dec8ad003e4d805b833ca7c204e";    // S_Sprint.fbx
@@ -80,7 +89,9 @@ namespace RingSport.Editor
                 return;
             }
 
-            bool prefabMissing = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null;
+            bool prefabMissing = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null ||
+                                 AssetDatabase.LoadAssetAtPath<GameObject>(DecoyRagdollSetup.RagdollPrefabPath) == null ||
+                                 AssetDatabase.LoadAssetAtPath<Avatar>(DecoyAvatarSetup.AvatarPath) == null;
 
             var controllerAsset = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
             var versionParam = controllerAsset == null
@@ -125,11 +136,26 @@ namespace RingSport.Editor
                 return;
             }
 
-            var controller = BuildAnimatorController();
+            var modelPrefab = LoadModelPrefab();
+            if (modelPrefab == null)
+                return;
+
+            EnsureFolder("Assets/Animations");
+            EnsureFolder("Assets/Animations/Decoy");
+
+            // The Malbers human clips are HUMANOID clips, so nothing can be
+            // sampled or played on the decoy until it has an avatar
+            var avatar = BuildAvatar(modelPrefab);
+            if (avatar == null)
+                return;
+
+            modelScaleCompensation = MeasureScaleCompensation(modelPrefab, avatar);
+
+            var controller = BuildAnimatorController(modelPrefab, avatar);
             if (controller == null)
                 return;
 
-            var prefab = BuildDecoyPrefab(controller);
+            var prefab = BuildDecoyPrefab(modelPrefab, avatar, controller);
             if (prefab == null)
                 return;
 
@@ -144,7 +170,7 @@ namespace RingSport.Editor
         // Animator controller
         // ------------------------------------------------------------------
 
-        private static AnimatorController BuildAnimatorController()
+        private static AnimatorController BuildAnimatorController(GameObject modelPrefab, Avatar avatar)
         {
             var clips = new Dictionary<string, AnimationClip>
             {
@@ -162,15 +188,12 @@ namespace RingSport.Editor
                 return null;
             }
 
-            var fallClip = PickFallForwardClip();
+            var fallClip = PickFallForwardClip(modelPrefab, avatar);
             if (fallClip == null)
             {
                 Debug.LogError("[DecoySetup] No usable fall/death clip found at all - cannot build the decoy controller.");
                 return null;
             }
-
-            EnsureFolder("Assets/Animations");
-            EnsureFolder("Assets/Animations/Decoy");
 
             // Rebuild in place (never delete the asset) so the controller keeps
             // its GUID and the Decoy prefab's Animator reference stays valid.
@@ -278,8 +301,8 @@ namespace RingSport.Editor
                 powerUp.speedParameterActive = true;
                 powerUp.speedParameter = "AnimSpeed";
 
-                float peakTime = MeasureHandsUpPeakTime(powerUpClip);
-                float clipSecondsByFreeze = PowerUpLeadRealSeconds / ModelScale; // seconds of clip elapsed at state speed 1
+                float peakTime = MeasureHandsUpPeakTime(powerUpClip, modelPrefab, avatar);
+                float clipSecondsByFreeze = PowerUpLeadRealSeconds / EffectiveModelScale; // seconds of clip elapsed at state speed 1
                 powerUp.speed = peakTime > 0.05f
                     ? Mathf.Clamp(peakTime / Mathf.Max(clipSecondsByFreeze, 0.01f), 0.5f, 3f)
                     : 1.2f;
@@ -309,43 +332,27 @@ namespace RingSport.Editor
         }
 
         /// <summary>
-        /// Steps the clip through on a temp Steve (same stepped-Animator
+        /// Steps the clip through on a temp decoy (same stepped-Animator
         /// sampling as the fall measurement - humanoid muscle poses need it)
         /// and returns the clip time where the hands reach their highest
         /// combined point: the arms-up peak of the power-up taunt.
         /// </summary>
-        private static float MeasureHandsUpPeakTime(AnimationClip clip)
+        private static float MeasureHandsUpPeakTime(AnimationClip clip, GameObject modelPrefab, Avatar avatar)
         {
-            var modelPath = AssetDatabase.GUIDToAssetPath(ModelGuid);
-            var modelPrefab = string.IsNullOrEmpty(modelPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
-            if (modelPrefab == null)
-                return -1f;
-
-            var temp = Object.Instantiate(modelPrefab, Vector3.zero, Quaternion.identity);
-            temp.hideFlags = HideFlags.HideAndDontSave;
+            var temp = CreateSampleInstance(modelPrefab, avatar, out var animator);
             AnimatorController samplerController = null;
             try
             {
-                var animator = temp.GetComponent<Animator>();
                 Transform handL = FindBone(temp.transform, "L Hand");
                 Transform handR = FindBone(temp.transform, "R Hand");
                 if (animator == null || (handL == null && handR == null))
                 {
-                    Debug.LogWarning($"[DecoySetup] Could not find hand bones on the Steve model - cannot measure '{clip.name}'.");
+                    Debug.LogWarning($"[DecoySetup] Could not find hand bones on the decoy model - cannot measure '{clip.name}'.");
                     return -1f;
                 }
 
-                samplerController = new AnimatorController { name = "DecoySetupPoseSampler" };
-                samplerController.AddLayer("Base");
-                var state = samplerController.layers[0].stateMachine.AddState("Clip");
-                state.motion = clip;
-
-                animator.runtimeAnimatorController = samplerController;
-                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-                animator.applyRootMotion = false; // pose only - hold in place
-
-                animator.Play("Clip", 0, 0f);
-                animator.Update(0f);
+                // Pose only - hold in place
+                samplerController = BeginSampling(animator, clip, applyRootMotion: false);
 
                 const int steps = 90;
                 float dt = clip.length / steps;
@@ -388,7 +395,7 @@ namespace RingSport.Editor
             public bool FallsForward => Fell && headAheadOfHips > 0.25f;
         }
 
-        private static AnimationClip PickFallForwardClip()
+        private static AnimationClip PickFallForwardClip(GameObject modelPrefab, Avatar avatar)
         {
             // A user-supplied clip (e.g. Mixamo) always wins
             if (AssetDatabase.IsValidFolder(OverrideFolder))
@@ -410,7 +417,7 @@ namespace RingSport.Editor
                 LoadClip(Death1FbxGuid, "H_Death1"),
                 LoadClip(Death2AnimGuid),
                 LoadClip(Death3FbxGuid, "H_Death3"),
-            }.Where(c => c != null).Select(MeasureFall).Where(m => m != null).ToList();
+            }.Where(c => c != null).Select(c => MeasureFall(c, modelPrefab, avatar)).Where(m => m != null).ToList();
 
             foreach (var candidate in candidates)
             {
@@ -452,27 +459,20 @@ namespace RingSport.Editor
         }
 
         /// <summary>
-        /// Plays the humanoid clip through on a temp Steve instance (via a
-        /// stepped PlayableGraph - humanoid muscle clips can't use
-        /// SampleAnimation, and these clips carry their vertical drop in ROOT
-        /// MOTION, so a static one-shot evaluate never leaves standing height)
-        /// and measures where the body ends up relative to its starting facing.
+        /// Plays the humanoid clip through on a temp decoy instance (stepped
+        /// Animator - humanoid muscle clips can't use SampleAnimation, and
+        /// these clips carry their vertical drop in ROOT MOTION, so a static
+        /// one-shot evaluate never leaves standing height) and measures where
+        /// the body ends up relative to its starting facing.
         /// </summary>
-        private static FallCandidate MeasureFall(AnimationClip clip)
+        private static FallCandidate MeasureFall(AnimationClip clip, GameObject modelPrefab, Avatar avatar)
         {
-            var modelPath = AssetDatabase.GUIDToAssetPath(ModelGuid);
-            var modelPrefab = string.IsNullOrEmpty(modelPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
-            if (modelPrefab == null)
-                return null;
-
-            var temp = Object.Instantiate(modelPrefab, Vector3.zero, Quaternion.identity);
-            temp.hideFlags = HideFlags.HideAndDontSave;
+            var temp = CreateSampleInstance(modelPrefab, avatar, out var animator);
             try
             {
-                var animator = temp.GetComponent<Animator>();
                 if (animator == null)
                 {
-                    Debug.LogWarning($"[DecoySetup] Steve model has no Animator - cannot measure '{clip.name}'.");
+                    Debug.LogWarning($"[DecoySetup] The decoy model has no Animator - cannot measure '{clip.name}'.");
                     return null;
                 }
 
@@ -480,7 +480,7 @@ namespace RingSport.Editor
                 Transform head = FindBone(temp.transform, "Head");
                 if (hips == null || head == null)
                 {
-                    Debug.LogWarning($"[DecoySetup] Could not find Pelvis/Head bones on the Steve model - cannot measure '{clip.name}'.");
+                    Debug.LogWarning($"[DecoySetup] Could not find Pelvis/Head bones on the decoy model - cannot measure '{clip.name}'.");
                     return null;
                 }
 
@@ -489,7 +489,12 @@ namespace RingSport.Editor
                 // The pose must be read while the sampling controller is still
                 // assigned - reassigning runtimeAnimatorController rebinds the
                 // Animator and resets every bone to the default pose
-                var samplerController = PlayClipThrough(animator, clip);
+                var samplerController = BeginSampling(animator, clip, applyRootMotion: true);
+                const int steps = 90;
+                float dt = clip.length / steps;
+                for (int i = 0; i < steps; i++)
+                    animator.Update(dt);
+
                 Vector3 hipsEnd = hips.position;
                 Vector3 headEnd = head.position;
                 Object.DestroyImmediate(samplerController);
@@ -507,37 +512,238 @@ namespace RingSport.Editor
             }
         }
 
-        private static AnimatorController PlayClipThrough(Animator animator, AnimationClip clip)
+        // ------------------------------------------------------------------
+        // Model sampling
+        // ------------------------------------------------------------------
+
+        private static GameObject LoadModelPrefab()
         {
-            // A raw PlayableGraph output in edit mode applies root motion but
-            // never writes the humanoid muscle pose to the bones; manually
-            // stepping the Animator with a throwaway controller applies both.
-            var tempController = new AnimatorController { name = "DecoySetupSampler" };
-            tempController.AddLayer("Base");
-            var state = tempController.layers[0].stateMachine.AddState("Clip");
+            var path = AssetDatabase.GUIDToAssetPath(ModelGuid);
+            var prefab = string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null)
+                Debug.LogError($"[DecoySetup] decoy.glb not found (guid {ModelGuid}). Export it to Assets/Models/ and let Unity import it.");
+            return prefab;
+        }
+
+        /// <summary>
+        /// Yaw that turns the exported model to face +Z, measured once per run
+        /// by DecoyAvatarSetup and then applied identically to the prefab and to
+        /// every sampling instance - the avatar bakes the reference pose in, so
+        /// the two must agree.
+        /// </summary>
+        private static float modelFacingYaw;
+
+        /// <summary>
+        /// Correction on ModelScale so the decoy stands the same height the
+        /// placeholder did. Mecanim sizes a humanoid by its avatar's
+        /// humanScale, which comes out of the REFERENCE POSE - and the decoy
+        /// rig's hips sit a little lower in its export than the placeholder's
+        /// did, so at the same localScale it would animate a few percent
+        /// shorter. Measured against the placeholder rather than assumed, so a
+        /// re-export from a different origin still lands.
+        /// </summary>
+        private static float modelScaleCompensation = 1f;
+
+        private static float EffectiveModelScale => ModelScale * modelScaleCompensation;
+
+        private static Avatar BuildAvatar(GameObject modelPrefab)
+        {
+            // Named and turned as it will be in the prefab: the avatar binds its
+            // skeleton by transform name, root included, and bakes in the pose
+            var temp = Object.Instantiate(modelPrefab, Vector3.zero, Quaternion.identity);
+            temp.name = ModelName;
+            temp.hideFlags = HideFlags.HideAndDontSave;
+            try
+            {
+                modelFacingYaw = DecoyAvatarSetup.MeasureFacingYaw(temp);
+                DecoyAvatarSetup.ApplyFacingYaw(temp, modelFacingYaw);
+                return DecoyAvatarSetup.Build(temp);
+            }
+            finally
+            {
+                Object.DestroyImmediate(temp);
+            }
+        }
+
+        /// <summary>
+        /// Ratio between the placeholder's animated size and the decoy's, read
+        /// straight off the two avatars (see modelScaleCompensation).
+        /// </summary>
+        private static float MeasureScaleCompensation(GameObject modelPrefab, Avatar avatar)
+        {
+            var clip = LoadClip(IdleFbxGuid, "S_Idle");
+            if (clip == null)
+                return 1f;
+
+            var decoy = CreateSampleInstance(modelPrefab, avatar, out var decoyAnimator);
+            float decoyScale = ReadHumanScale(decoy, decoyAnimator, clip);
+
+            var placeholderPath = AssetDatabase.GUIDToAssetPath(DecoyAvatarSetup.SteveModelGuid);
+            var placeholderPrefab = string.IsNullOrEmpty(placeholderPath)
+                ? null
+                : AssetDatabase.LoadAssetAtPath<GameObject>(placeholderPath);
+            if (placeholderPrefab == null)
+                return 1f;
+
+            var placeholder = Object.Instantiate(placeholderPrefab, Vector3.zero, Quaternion.identity);
+            placeholder.hideFlags = HideFlags.HideAndDontSave;
+            float placeholderScale = ReadHumanScale(placeholder, placeholder.GetComponent<Animator>(), clip);
+
+            if (decoyScale <= 0.01f || placeholderScale <= 0.01f)
+                return 1f;
+
+            float compensation = placeholderScale / decoyScale;
+            Debug.Log($"[DecoySetup] Size: the decoy's avatar reads humanScale {decoyScale:F3} against the placeholder's {placeholderScale:F3} " +
+                      $"-> scaling the model {compensation:F3}x (localScale {ModelScale * compensation:F3}) so it stands the height the game is tuned for.");
+            return compensation;
+        }
+
+        /// <summary>
+        /// The avatar's own size measure, read with a clip playing so the
+        /// Animator is bound. Destroys the instance.
+        /// </summary>
+        private static float ReadHumanScale(GameObject instance, Animator animator, AnimationClip clip)
+        {
+            AnimatorController sampler = null;
+            try
+            {
+                if (animator == null)
+                    return 0f;
+                sampler = BeginSampling(animator, clip, applyRootMotion: false);
+                return animator.humanScale;
+            }
+            finally
+            {
+                if (sampler != null)
+                    Object.DestroyImmediate(sampler);
+                Object.DestroyImmediate(instance);
+            }
+        }
+
+        /// <summary>
+        /// A throwaway decoy set up exactly like the runtime one - same root
+        /// name, same avatar - so every measurement taken off it holds in game.
+        /// </summary>
+        private static GameObject CreateSampleInstance(GameObject modelPrefab, Avatar avatar, out Animator animator)
+        {
+            var temp = Object.Instantiate(modelPrefab, Vector3.zero, Quaternion.identity);
+            temp.name = ModelName;
+            temp.hideFlags = HideFlags.HideAndDontSave;
+            DecoyAvatarSetup.ApplyFacingYaw(temp, modelFacingYaw);
+
+            animator = temp.GetComponent<Animator>();
+            if (animator == null)
+                animator = temp.AddComponent<Animator>();
+            animator.avatar = avatar;
+            return temp;
+        }
+
+        /// <summary>
+        /// Assigns a throwaway controller playing the clip and leaves the
+        /// animator at t=0, ready to be stepped with animator.Update(dt). A raw
+        /// PlayableGraph output in edit mode applies root motion but never
+        /// writes the humanoid muscle pose to the bones; stepping the Animator
+        /// by hand applies both. The caller destroys the returned controller
+        /// AFTER reading the pose - reassigning runtimeAnimatorController
+        /// rebinds the Animator and resets every bone to its default.
+        /// </summary>
+        private static AnimatorController BeginSampling(Animator animator, AnimationClip clip, bool applyRootMotion)
+        {
+            var controller = new AnimatorController { name = "DecoySetupSampler" };
+            controller.AddLayer("Base");
+            var state = controller.layers[0].stateMachine.AddState("Clip");
             state.motion = clip;
 
-            animator.runtimeAnimatorController = tempController;
+            animator.runtimeAnimatorController = controller;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-            animator.applyRootMotion = true;
+            animator.applyRootMotion = applyRootMotion;
 
             animator.Play("Clip", 0, 0f);
             animator.Update(0f);
+            return controller;
+        }
 
-            const int steps = 90;
-            float dt = clip.length / steps;
-            for (int i = 0; i < steps; i++)
-                animator.Update(dt);
+        /// <summary>
+        /// How far the model has to be lifted for its feet to rest on the floor,
+        /// in model units at scale 1. The placeholder's origin sat exactly on
+        /// its soles; the decoy rig's sits a few centimetres above them, so
+        /// without this it stands buried to the ankles. Measured off the SKIN
+        /// rather than the foot bone - the sole is the thing that touches - and
+        /// off the animated pose rather than the rest pose, because with a
+        /// humanoid avatar it is Mecanim that decides how high the hips sit.
+        /// </summary>
+        private static float MeasureGroundLift(GameObject modelPrefab, Avatar avatar,
+            AnimationClip contactClip, IEnumerable<AnimationClip> alsoReport)
+        {
+            float contact = MeasureLowestSkinPoint(modelPrefab, avatar, contactClip);
+            if (float.IsNaN(contact))
+            {
+                Debug.LogWarning("[DecoySetup] Could not measure the decoy's ground contact - leaving the model at the prefab origin.");
+                return 0f;
+            }
 
-            return tempController;
+            float lift = -contact;
+            var others = string.Join(", ", alsoReport
+                .Where(c => c != null && c != contactClip)
+                .Select(c => $"{c.name} {(MeasureLowestSkinPoint(modelPrefab, avatar, c) + lift) * EffectiveModelScale:+0.000;-0.000}m"));
+
+            Debug.Log($"[DecoySetup] Ground fit: '{contactClip.name}' rests {contact * EffectiveModelScale:+0.000;-0.000}m off the floor at scale {EffectiveModelScale:F3} " +
+                      $"-> lifting the model {lift * EffectiveModelScale:F3}m. Other clips' closest approach after the lift: {others}.");
+            return lift;
+        }
+
+        /// <summary>
+        /// Lowest point the skinned mesh reaches anywhere in the clip, in world
+        /// units on an unscaled instance.
+        /// </summary>
+        private static float MeasureLowestSkinPoint(GameObject modelPrefab, Avatar avatar, AnimationClip clip)
+        {
+            var temp = CreateSampleInstance(modelPrefab, avatar, out var animator);
+            AnimatorController samplerController = null;
+            var baked = new Mesh { hideFlags = HideFlags.HideAndDontSave };
+            try
+            {
+                var skin = temp.GetComponentInChildren<SkinnedMeshRenderer>(true);
+                if (skin == null || animator == null)
+                    return float.NaN;
+
+                samplerController = BeginSampling(animator, clip, applyRootMotion: false);
+
+                const int steps = 16;
+                float dt = clip.length / steps;
+                float lowest = float.MaxValue;
+                for (int i = 0; i <= steps; i++)
+                {
+                    // Baked without scale, so the renderer's own matrix (which
+                    // carries the rig's centimetre-to-metre 0.01) is what puts
+                    // the vertices in world space
+                    skin.BakeMesh(baked, false);
+                    var toWorld = skin.transform.localToWorldMatrix;
+                    foreach (var vertex in baked.vertices)
+                    {
+                        float y = toWorld.MultiplyPoint3x4(vertex).y;
+                        if (y < lowest)
+                            lowest = y;
+                    }
+                    if (i < steps)
+                        animator.Update(dt);
+                }
+                return lowest;
+            }
+            finally
+            {
+                Object.DestroyImmediate(baked);
+                if (samplerController != null)
+                    Object.DestroyImmediate(samplerController);
+                Object.DestroyImmediate(temp);
+            }
         }
 
         private static Transform FindBone(Transform root, string normalizedName)
         {
             foreach (var t in root.GetComponentsInChildren<Transform>(true))
             {
-                string name = t.name.StartsWith("R_") ? t.name.Substring(2) : t.name;
-                if (name == normalizedName)
+                if (DecoyController.NormalizeBoneName(t.name) == normalizedName)
                     return t;
             }
             return null;
@@ -547,22 +753,23 @@ namespace RingSport.Editor
         // Prefab
         // ------------------------------------------------------------------
 
-        private static GameObject BuildDecoyPrefab(AnimatorController controller)
+        private static GameObject BuildDecoyPrefab(GameObject modelPrefab, Avatar avatar, AnimatorController controller)
         {
-            var modelPath = AssetDatabase.GUIDToAssetPath(ModelGuid);
-            var modelPrefab = string.IsNullOrEmpty(modelPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
-            if (modelPrefab == null)
-            {
-                Debug.LogError("[DecoySetup] Steve_v2.fbx not found. Is the Malbers Animations package intact?");
-                return null;
-            }
-
-            var ragdollPath = AssetDatabase.GUIDToAssetPath(RagdollPrefabGuid);
-            var ragdollPrefab = string.IsNullOrEmpty(ragdollPath) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(ragdollPath);
+            var ragdollPrefab = DecoyRagdollSetup.Build(modelPrefab);
             if (ragdollPrefab == null)
-                Debug.LogWarning("[DecoySetup] Steve Ragdoll.prefab not found - the catch will carry the animated model instead of ragdolling.");
+                Debug.LogWarning("[DecoySetup] No decoy ragdoll was built - the catch will carry the animated model instead of ragdolling.");
             else
                 ValidateRagdollLimbs(ragdollPrefab);
+
+            // The rig's origin is not on its soles, so find the lift that puts
+            // them on the floor. Idle is the contact reference (both feet
+            // planted); the run cycles are reported against it.
+            var idle = LoadClip(IdleFbxGuid, "S_Idle");
+            float groundLift = idle == null ? 0f : MeasureGroundLift(modelPrefab, avatar, idle, new[]
+            {
+                LoadClip(JogFbxGuid, "S_Jog_F"),
+                LoadClip(SprintFbxGuid, "S_Sprint"),
+            });
 
             // Assemble fresh each run; SaveAsPrefabAsset over the same path keeps
             // the prefab GUID so scene references survive rebuilds.
@@ -572,15 +779,18 @@ namespace RingSport.Editor
                 var model = (GameObject)PrefabUtility.InstantiatePrefab(modelPrefab);
                 model.name = ModelName;
                 model.transform.SetParent(root.transform, false);
-                // Model origin is at its feet, facing +Z - matches the decoy
-                // root convention (ground level, fleeing along +Z)
-                model.transform.localPosition = Vector3.zero;
+                // Lifted so its soles sit on the decoy root's origin - which is
+                // ground level, fleeing along +Z. The turn that makes it face
+                // +Z goes on the rig root inside, not here (see ApplyFacingYaw).
+                model.transform.localPosition = new Vector3(0f, groundLift * EffectiveModelScale, 0f);
                 model.transform.localRotation = Quaternion.identity;
-                model.transform.localScale = Vector3.one * ModelScale;
+                model.transform.localScale = Vector3.one * EffectiveModelScale;
+                DecoyAvatarSetup.ApplyFacingYaw(model, modelFacingYaw);
 
                 var animator = model.GetComponent<Animator>();
                 if (animator == null)
                     animator = model.AddComponent<Animator>();
+                animator.avatar = avatar;
                 animator.runtimeAnimatorController = controller;
                 animator.applyRootMotion = false;
                 animator.updateMode = AnimatorUpdateMode.UnscaledTime;
@@ -636,7 +846,7 @@ namespace RingSport.Editor
                         continue;
                     }
 
-                    string resolved = body.name.StartsWith("R_") ? body.name.Substring(2) : body.name;
+                    string resolved = DecoyController.NormalizeBoneName(body.name);
                     bool primary = resolved == DecoyController.PrimaryBoneName(limb);
                     if (!primary)
                         fallbacks.Add($"{limb} -> {body.name}");
@@ -774,6 +984,30 @@ namespace RingSport.Editor
             var parent = System.IO.Path.GetDirectoryName(path)?.Replace('\\', '/');
             var name = System.IO.Path.GetFileName(path);
             AssetDatabase.CreateFolder(parent, name);
+        }
+    }
+
+    /// <summary>
+    /// Re-exporting decoy.glb updates the mesh, materials and skeleton through
+    /// the nested prefab instance on its own, but the avatar, the ragdoll and
+    /// the measured ground lift are all baked against the rig - so a new export
+    /// has to rebuild them.
+    /// </summary>
+    public class DecoyModelPostprocessor : AssetPostprocessor
+    {
+        private static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets,
+            string[] movedAssets, string[] movedFromAssetPaths)
+        {
+            var modelPath = AssetDatabase.GUIDToAssetPath(DecoyAvatarSetup.DecoyModelGuid);
+            if (string.IsNullOrEmpty(modelPath) || !importedAssets.Contains(modelPath))
+                return;
+
+            Debug.Log("[DecoySetup] decoy.glb re-imported - rebuilding the decoy avatar, ragdoll and prefab.");
+            EditorApplication.delayCall += () =>
+            {
+                if (!EditorApplication.isPlayingOrWillChangePlaymode)
+                    DecoySetup.Run();
+            };
         }
     }
 }

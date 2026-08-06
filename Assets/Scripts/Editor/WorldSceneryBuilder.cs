@@ -28,7 +28,7 @@ namespace RingSport.Editor
     public static class WorldSceneryBuilder
     {
         // Bump to force the auto-run to re-apply the build
-        private const int BuildVersion = 13;
+        private const int BuildVersion = 26;
         private const string VersionPrefKey = "RingSport.WorldSceneryBuilder.Version";
 
         private const string ArcShaderName = "Custom/Mobile/ArcEffect";
@@ -42,11 +42,26 @@ namespace RingSport.Editor
         private const string TEM = "Assets/Toon Enchanted Meadow/Prefabs";
         private const string DS = "Assets/Toon Desert/Prefabs";
         private const string TSTex = "Assets/Toon Series/Toon Nature Assets/Textures";
+        private const string PNB = "Assets/PolygonNatureBiomes/PNB_Tropical_Jungle/Prefabs";
+        private const string PNBTerrain = "Assets/PolygonNatureBiomes/PNB_Tropical_Jungle/Terrain";
+
+        private const string GrassShaderName = "Custom/Mobile/GrassBlades";
+        private const string SkyShaderName = "Ringsport/Gradient Skybox";
+        private const string LocationConfigFolder = "Assets/LevelsData/Level Locations";
 
         private const float BottomSink = 0.02f;
 
+        private static readonly Color LavaRock = new Color(0.3f, 0.29f, 0.28f);
+
         private static readonly StringBuilder Report = new StringBuilder();
         private static readonly List<string> Errors = new List<string>();
+
+        // Stand-in ambience for a world that ships without any. Tracked in
+        // SOUND_EFFECTS.md - tropical birds are a placeholder for surf.
+        private static readonly Dictionary<string, string> LocationAmbience = new Dictionary<string, string>
+        {
+            ["Hawaii"] = "Assets/Sounds/Ambient/ambient birds1.wav",
+        };
 
         private enum SizeMode { Height, Footprint }
 
@@ -61,6 +76,10 @@ namespace RingSport.Editor
             public string TintSuffix = "";
             // true = ships in LocationConfig.sceneryPrefabs; false = StartScene-only prop
             public bool InSpawnList = true;
+            // Which LOD of a multi-LOD source to keep. The toon packs are single
+            // -LOD art so 0 is right there; the Synty packs ship LOD0-LOD3 where
+            // LOD0 carries detail no scrolling prop ever shows through the fog.
+            public int LodIndex;
         }
 
         private class StartSceneItem
@@ -106,6 +125,7 @@ namespace RingSport.Editor
         {
             Report.Clear();
             Errors.Clear();
+            ArcTexturePaths.Clear();
             Log($"World scenery build v{BuildVersion} started {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
 
             try
@@ -116,11 +136,17 @@ namespace RingSport.Editor
 
                 EnsureFolder(WorldMatFolder);
 
-                // ---- 1. Ground materials (rename Test* in place + create France/Oregon) ----
+                // ---- 1. Ground materials (rename Test* in place + create France/Oregon/Hawaii) ----
                 BuildGroundMaterials(arcShader);
 
-                // ---- 2. France/Oregon floor prefab copies ----
+                // ---- 1b. Skyboxes this builder owns ----
+                BuildSkyboxes();
+
+                // ---- 2. France/Oregon/Hawaii floor prefab copies ----
                 BuildFloorPrefabCopies();
+
+                // ---- 2b. Side-floor grass patches (material + density per world) ----
+                BuildGrassPatches();
 
                 // ---- 3. Scenery prefabs per world ----
                 var worldPrefabs = new Dictionary<string, Dictionary<string, GameObject>>();
@@ -145,9 +171,11 @@ namespace RingSport.Editor
                 // ---- 5. LocationConfig wiring ----
                 WireLocationConfigs(worldPrefabs, startScenes);
 
-                // ---- 5b. Ring 1 Leg 1 plays in Oregon ----
+                // ---- 5b. Level -> location assignments ----
                 RemapLevelLocation("Assets/LevelsData/Level Data/Level2 - Ring 1 Leg 1.asset",
-                    Location.Oregon, "Assets/LevelsData/Level Locations/Oregon.asset");
+                    Location.Oregon, $"{LocationConfigFolder}/Oregon.asset");
+                RemapLevelLocation("Assets/LevelsData/Level Data/Level4 - Ring 2 Leg 1.asset",
+                    Location.Hawaii, $"{LocationConfigFolder}/Hawaii.asset");
 
                 // ---- 5c. Performance: GPU instancing + capped atlas sizes ----
                 ApplyPerformanceSettings();
@@ -167,6 +195,13 @@ namespace RingSport.Editor
                 // ---- 5g. Collectibles never cast shadows (mobile fill-rate) ----
                 DisableCollectibleShadows();
 
+                // ---- 5h. Re-bake the skybox ambient probes. Driven from here
+                //          rather than left to LocationAmbientBake's own auto-run:
+                //          delayCall order across [InitializeOnLoad] classes is
+                //          effectively alphabetical, so the bake would otherwise
+                //          run before a new location's config and sky exist. ----
+                EditorTools.LocationAmbientBake.Bake();
+
                 // ---- 6. Remove stale materials from earlier builds ----
                 foreach (string stale in new[]
                          {
@@ -174,8 +209,26 @@ namespace RingSport.Editor
                              $"{WorldMatFolder}/Arc_TEM_TEM_Atlas_1A_Source_2S.mat",
                              $"{WorldMatFolder}/Arc_TEM_TEM_Atlas_1A_Source_2S_Gold.mat",
                              $"{WorldMatFolder}/Arc_TEM_NoTex.mat",
+                             // v14 built this white before the tropical rocks
+                             // got their lava tint
+                             $"{WorldMatFolder}/Arc_PNB_NoTex.mat",
+                             // Hawaii's shader grass was cut - the mesh clumps
+                             // are the dune vegetation now
+                             $"{FloorMatFolder}/Grass_Hawaii.mat",
                          })
                 {
+                    // Never delete something this run just built. Arc_PNB_NoTex
+                    // went stale when the tropical rocks got their lava tint and
+                    // came straight back when a prop turned up whose material
+                    // points at a texture guid the pack never shipped - deleting
+                    // it left a live prefab pointing at nothing, which renders as
+                    // magenta and looks like a broken shader.
+                    string staleName = Path.GetFileNameWithoutExtension(stale);
+                    if (ArcMatCache.ContainsKey(staleName))
+                    {
+                        Log($"Kept {staleName}: in use by this build, no longer stale");
+                        continue;
+                    }
                     if (AssetDatabase.LoadAssetAtPath<Material>(stale) != null &&
                         AssetDatabase.DeleteAsset(stale))
                         Log($"Deleted stale material: {stale}");
@@ -276,6 +329,71 @@ namespace RingSport.Editor
                     new SceneryDef { SourcePath = $"{TS}/Rocks/Rock_Small_1A.prefab", Name = "Rock_Small_1A", TargetSize = 0.45f },
                     new SceneryDef { SourcePath = $"{TS}/Props/Fence_2A.prefab", Name = "Fence_2A", TargetSize = 1.0f, InSpawnList = false },
                     new SceneryDef { SourcePath = $"{TS}/Props/Wood_Stack_1A.prefab", Name = "Wood_Stack_1A", TargetSize = 0.8f, InSpawnList = false },
+                },
+                // Beach, not jungle: trees for the silhouette, driftwood and rock
+                // at ankle height, and nothing dense enough to wall the track in.
+                // LOD1 on every tree - they are the props repeated dozens of
+                // times and their LOD0 leaf detail never survives the fog.
+                //
+                // The spawner picks uniformly from this list, so a type's share
+                // of the list IS its share of the beach. Six tree shapes out of
+                // eighteen entries keeps trees near a third of what spawns while
+                // making a back-to-back repeat rare - two palms of the same kind
+                // in shot at once was the whole problem with the first pass.
+                //
+                // Skipped on purpose: the pack's flowers, flowering bushes and
+                // red palm take their colour from the Synty shader's flat-colour
+                // switch (red over a green atlas), so on the arc shader they come
+                // through as plain green leaves. Palm_01_Coconuts_01 is a coconut
+                // cluster meant to be attached to a trunk, not a tree.
+                ["Hawaii"] = new List<SceneryDef>
+                {
+                    // Sized down from the 7.2 a pine gets: a palm's fronds spread
+                    // nearly as wide as the trunk is tall, so height-matching one
+                    // to a conifer hangs leaves over the racing line.
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Tree_Palm_01.prefab", Name = "SM_Env_Tree_Palm_01", TargetSize = 6.2f, LodIndex = 1 },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Tree_Palm_02.prefab", Name = "SM_Env_Tree_Palm_02", TargetSize = 5.8f, LodIndex = 1 },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Tree_Palm_03.prefab", Name = "SM_Env_Tree_Palm_03", TargetSize = 5.2f, LodIndex = 1 },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Tree_Palm_04.prefab", Name = "SM_Env_Tree_Palm_04", TargetSize = 4.8f, LodIndex = 1 },
+                    // Two non-palm silhouettes. A row of palms reads as one tree
+                    // however many variants it has - the broad-canopy pohutukawa
+                    // and the squat banana are what actually break the skyline up.
+                    //
+                    // The 03/04 pohutukawas, not 01/02: those two hang their
+                    // canopy on a second `Branches_01` material whose texture guid
+                    // was never shipped with the pack, so the branch half renders
+                    // flat white - and 02's LOD1 is 6312 tris across 2 renderers
+                    // against 04's 2100 across 1.
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Tree_Pohutukawa_04.prefab", Name = "SM_Env_Tree_Pohutukawa_04", TargetSize = 4.6f, LodIndex = 1 },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Tree_Banana_02.prefab", Name = "SM_Env_Tree_Banana_02", TargetSize = 3.6f, LodIndex = 1 },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Bush_Palm_01.prefab", Name = "SM_Env_Bush_Palm_01", TargetSize = 1.5f },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Bush_Palm_02.prefab", Name = "SM_Env_Bush_Palm_02", TargetSize = 1.6f },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Bush_Palm_04.prefab", Name = "SM_Env_Bush_Palm_04", TargetSize = 1.2f },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Bush_Tropical_01.prefab", Name = "SM_Env_Bush_Tropical_01", TargetSize = 1.3f },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Grass_Med_Clump_02.prefab", Name = "SM_Env_Grass_Med_Clump_02", TargetSize = 0.9f },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Grass_Short_Clump_01.prefab", Name = "SM_Env_Grass_Short_Clump_01", TargetSize = 0.5f },
+                    // Driftwood is a long low log: matched on height it scales up
+                    // until the footprint swallows half a floor tile, so these
+                    // are sized across the ground instead.
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_DriftWood_02.prefab", Name = "SM_Env_DriftWood_02", TargetSize = 1.6f, Mode = SizeMode.Footprint },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_DriftWood_03.prefab", Name = "SM_Env_DriftWood_03", TargetSize = 1.7f, Mode = SizeMode.Footprint },
+                    // Seaweed_Beach_01 held a slot here and was cut: it is a flat
+                    // dark decal that disappears into sand at any distance.
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_DriftWood_05.prefab", Name = "SM_Env_DriftWood_05", TargetSize = 1.9f, Mode = SizeMode.Footprint },
+                    // Every rock in the tropical pack is triplanar-projected, so
+                    // it carries no UV-mapped albedo for the arc shader to sample.
+                    // No loss: the texture it projects is flat to within a 0.013
+                    // standard deviation, so a solid colour is the same picture
+                    // for one fewer 2048 atlas. Volcanic dark rather than the
+                    // pack's grey-brown - it is what a Hawaiian beach actually
+                    // has, and it reads against pale sand where grey-brown would
+                    // disappear into it.
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Rock_Round_01.prefab", Name = "SM_Env_Rock_Round_01", TargetSize = 0.8f, Tint = LavaRock, TintSuffix = "_Lava" },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Rock_Small_01.prefab", Name = "SM_Env_Rock_Small_01", TargetSize = 0.35f, Tint = LavaRock, TintSuffix = "_Lava" },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Rock_Flat_01.prefab", Name = "SM_Env_Rock_Flat_01", TargetSize = 1.2f, Mode = SizeMode.Footprint, Tint = LavaRock, TintSuffix = "_Lava" },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_Tree_Pohutukawa_03.prefab", Name = "SM_Env_Tree_Pohutukawa_03", TargetSize = 5.0f, LodIndex = 1, InSpawnList = false },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Env_DriftWood_04.prefab", Name = "SM_Env_DriftWood_04", TargetSize = 2.2f, Mode = SizeMode.Footprint, InSpawnList = false },
+                    new SceneryDef { SourcePath = $"{PNB}/SM_Prop_Starfish_01.prefab", Name = "SM_Prop_Starfish_01", TargetSize = 0.5f, Mode = SizeMode.Footprint, InSpawnList = false },
                 },
             };
         }
@@ -393,6 +511,41 @@ namespace RingSport.Editor
                     new StartSceneItem("Rock_Medium_1A", -4.4f, -7.4f, 20f, 0.9f),
                     new StartSceneItem("Rock_Medium_1A", 5.5f, 8.0f, 290f, 0.8f),
                 },
+                // A palm grove behind the line opening onto bare sand: fewer,
+                // bigger pieces than the other worlds so the beach reads empty.
+                // The camera sits at (0, 4, -5) looking forward, and a palm's
+                // fronds reach ~4 units out from its trunk - so nothing taller
+                // than a bush goes inside |x| = 6, and the trunks that frame the
+                // shot sit behind z = -8 where the fronds clear the lens.
+                ["Hawaii"] = new List<StartSceneItem>
+                {
+                    new StartSceneItem("SM_Env_Tree_Palm_02", -6.4f, -9.4f, 20f, 1.0f),
+                    new StartSceneItem("SM_Env_Tree_Palm_01", 6.8f, -9.0f, 210f, 0.95f),
+                    new StartSceneItem("SM_Env_Tree_Pohutukawa_03", -9.6f, -8.0f, 130f, 0.9f),
+                    new StartSceneItem("SM_Env_Tree_Palm_03", 9.8f, -8.4f, 300f, 1.0f),
+                    new StartSceneItem("SM_Env_Tree_Palm_04", -9.2f, -1.5f, 60f, 0.85f),
+                    new StartSceneItem("SM_Env_Tree_Pohutukawa_04", 9.4f, -0.5f, 240f, 0.8f),
+                    new StartSceneItem("SM_Env_Tree_Banana_02", -8.8f, 6.5f, 15f, 0.9f),
+                    new StartSceneItem("SM_Env_Tree_Palm_01", 9.0f, 7.5f, 190f, 0.8f),
+                    new StartSceneItem("SM_Env_Bush_Palm_02", -4.2f, -8.2f, 40f, 1.0f),
+                    new StartSceneItem("SM_Env_Bush_Palm_04", 4.0f, -8.0f, 220f, 1.1f),
+                    new StartSceneItem("SM_Env_Bush_Palm_01", -7.0f, 0.5f, 150f, 0.9f),
+                    new StartSceneItem("SM_Env_Bush_Tropical_01", 7.2f, 1.5f, 320f, 1.0f),
+                    new StartSceneItem("SM_Env_Bush_Palm_02", 6.8f, 8.5f, 80f, 0.85f),
+                    new StartSceneItem("SM_Env_DriftWood_04", -3.4f, -6.9f, 105f, 1.0f),
+                    new StartSceneItem("SM_Env_DriftWood_02", 5.2f, -3.2f, 25f, 1.0f),
+                    new StartSceneItem("SM_Env_DriftWood_02", -6.4f, 4.5f, 200f, 0.9f),
+                    new StartSceneItem("SM_Env_Rock_Round_01", 3.6f, -7.4f, 55f, 1.0f),
+                    new StartSceneItem("SM_Env_Rock_Round_01", -7.8f, -1.8f, 235f, 0.8f),
+                    new StartSceneItem("SM_Env_Rock_Small_01", -4.8f, -4.2f, 0f, 1.1f),
+                    new StartSceneItem("SM_Env_Rock_Small_01", 6.0f, 4.8f, 170f, 0.9f),
+                    new StartSceneItem("SM_Env_Grass_Med_Clump_02", -5.2f, -6.4f, 30f, 1.1f),
+                    new StartSceneItem("SM_Env_Grass_Med_Clump_02", 4.6f, -6.6f, 250f, 1.0f),
+                    new StartSceneItem("SM_Env_Grass_Short_Clump_01", -6.6f, 2.8f, 90f, 1.0f),
+                    new StartSceneItem("SM_Env_Grass_Short_Clump_01", 7.6f, -5.0f, 300f, 1.1f),
+                    new StartSceneItem("SM_Env_DriftWood_05", 5.4f, 2.0f, 65f, 1.0f),
+                    new StartSceneItem("SM_Prop_Starfish_01", -4.6f, 5.0f, 140f, 1.0f),
+                },
             };
         }
 
@@ -427,6 +580,113 @@ namespace RingSport.Editor
             CreateGroundMat(arcShader, "Ground_Oregon", dirt1A, new Color(0.64f, 0.55f, 0.44f), 5f);
             CreateGroundMat(arcShader, "Ground_Oregon_Sides", grass1A, new Color(0.72f, 0.6f, 0.4f), 5f);
             CreateGroundMat(arcShader, "Ground_Oregon_Finish", dust1A, new Color(0.68f, 0.62f, 0.5f), 4f);
+
+            // Hawaii runs on the tropical pack's own sand so the ground and the
+            // props share a palette: flat sand down the racing line, wind ripples
+            // on the dunes either side, wet pebbled sand at the finish. Tints pull
+            // the blue channel UP rather than down - the raw texture is a warm
+            // desert tan, and lifting blue bleaches it toward beach sand instead
+            // of leaving Hawaii looking like a second Arizona. These land at
+            // roughly 0.55 effective albedo, the brightest floor in the game and
+            // still short of clipping under the scene's intensity-2 sun.
+            string sandFlat = $"{PNBTerrain}/Sand_Texture_01.png";
+            string sandWavy = $"{PNBTerrain}/Sand_Wavy_Texture_01.png";
+            string sandPebbles = $"{PNBTerrain}/Sand_Pebbles_Texture_01.png";
+            CreateGroundMat(arcShader, "Ground_Hawaii", sandFlat, new Color(0.74f, 0.8f, 0.9f), 4f);
+            CreateGroundMat(arcShader, "Ground_Hawaii_Sides", sandWavy, new Color(0.74f, 0.8f, 0.89f), 3f);
+            CreateGroundMat(arcShader, "Ground_Hawaii_Finish", sandPebbles, new Color(0.7f, 0.76f, 0.86f), 4f);
+        }
+
+        // ------------------------------------------------------------------
+        // Skyboxes
+        // ------------------------------------------------------------------
+
+        private static void BuildSkyboxes()
+        {
+            // Arizona's and Oregon's gradient skies already exist; only the new
+            // world needs one. Deep tropical blue overhead falling to a bright
+            // haze at the horizon, so the sand reads as sunlit rather than lit
+            // by a flat blue dome.
+            CreateGradientSky("Sky_Hawaii_Gradient",
+                top: new Color(0.06f, 0.38f, 0.72f),
+                horizon: new Color(0.7f, 0.89f, 0.94f),
+                bottom: new Color(0.52f, 0.78f, 0.82f),
+                upExponent: 0.8f,
+                downExponent: 1.6f);
+        }
+
+        private static void CreateGradientSky(string name, Color top, Color horizon, Color bottom,
+            float upExponent, float downExponent)
+        {
+            Shader skyShader = Shader.Find(SkyShaderName);
+            if (skyShader == null)
+            {
+                LogError($"Shader '{SkyShaderName}' not found - skipping {name}");
+                return;
+            }
+
+            string path = $"{WorldMatFolder}/{name}.mat";
+            Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                mat = new Material(skyShader);
+                AssetDatabase.CreateAsset(mat, path);
+            }
+
+            mat.shader = skyShader;
+            mat.SetColor("_TopColor", top);
+            mat.SetColor("_HorizonColor", horizon);
+            mat.SetColor("_BottomColor", bottom);
+            mat.SetFloat("_UpExponent", upExponent);
+            mat.SetFloat("_DownExponent", downExponent);
+            mat.SetFloat("_Exposure", 1f);
+            EditorUtility.SetDirty(mat);
+            Log($"Gradient sky: {path}");
+        }
+
+        // ------------------------------------------------------------------
+        // Side-floor grass patches
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// The blade patch that hides the floor seam is a GrassPatch child on
+        /// each side-floor prefab, inherited by any prefab copied from Seattle's.
+        /// Hawaii does not want it: sand meets sand at that seam, so there is
+        /// nothing to hide, and the pack's own mesh grass clumps carry what
+        /// vegetation the dunes need. The other four worlds' patches were tuned
+        /// by hand and are deliberately left alone.
+        /// </summary>
+        private static void BuildGrassPatches()
+        {
+            RemoveGrassChild("Hawaii Floor Sides");
+        }
+
+        private static void RemoveGrassChild(string sideFloorName)
+        {
+            string path = $"{FloorPrefabFolder}/{sideFloorName}.prefab";
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            {
+                LogError($"Grass removal: side floor prefab not found: {path}");
+                return;
+            }
+
+            GameObject contents = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                GrassPatch[] patches = contents.GetComponentsInChildren<GrassPatch>(true);
+                if (patches.Length == 0)
+                    return;
+
+                foreach (GrassPatch patch in patches)
+                    UnityEngine.Object.DestroyImmediate(patch.gameObject);
+
+                PrefabUtility.SaveAsPrefabAsset(contents, path);
+                Log($"Grass patch removed from {sideFloorName} ({patches.Length} child object(s))");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(contents);
+            }
         }
 
         private static void RetextureGroundMat(string oldName, string newName, string texPath, Color tint, float tiling)
@@ -499,6 +759,9 @@ namespace RingSport.Editor
             CopyFloorPrefab("Seattle Floor", "Oregon Floor", "Ground_Seattle", "Ground_Oregon");
             CopyFloorPrefab("Seattle Floor Sides 1", "Oregon Floor Sides", "Ground_Seattle_Sides", "Ground_Oregon_Sides");
             CopyFloorPrefab("Seattle Finish Line Floor 1", "Oregon Finish Line Floor", "Ground_Seattle_Finish", "Ground_Oregon_Finish");
+            CopyFloorPrefab("Seattle Floor", "Hawaii Floor", "Ground_Seattle", "Ground_Hawaii");
+            CopyFloorPrefab("Seattle Floor Sides 1", "Hawaii Floor Sides", "Ground_Seattle_Sides", "Ground_Hawaii_Sides");
+            CopyFloorPrefab("Seattle Finish Line Floor 1", "Hawaii Finish Line Floor", "Ground_Seattle_Finish", "Ground_Hawaii_Finish");
         }
 
         private static void CopyFloorPrefab(string srcName, string dstName, string oldMatName, string newMatName)
@@ -574,15 +837,28 @@ namespace RingSport.Editor
                 model.transform.rotation = Quaternion.identity;
                 model.transform.localScale = Vector3.one;
 
-                // Keep only the highest-detail LOD (these packs are already low poly)
+                // Collapse the LOD chain to the one level this def wants. Scenery
+                // is pooled and scrolls past inside heavy fog, so a runtime
+                // LODGroup would only ever pay for its own bookkeeping.
                 foreach (LODGroup group in model.GetComponentsInChildren<LODGroup>(true))
                 {
                     LOD[] lods = group.GetLODs();
                     if (lods.Length > 1)
                     {
-                        var keep = new HashSet<Renderer>(lods[0].renderers.Where(r => r != null));
-                        for (int i = 1; i < lods.Length; i++)
+                        int keepLevel = Mathf.Clamp(def.LodIndex, 0, lods.Length - 1);
+                        var keep = new HashSet<Renderer>(lods[keepLevel].renderers.Where(r => r != null));
+                        // A billboard-card LOD alone would face the wrong way once
+                        // the arc bends the world - fall back to LOD0 if the
+                        // requested level turns out to be empty.
+                        if (keep.Count == 0 && keepLevel != 0)
                         {
+                            keepLevel = 0;
+                            keep = new HashSet<Renderer>(lods[0].renderers.Where(r => r != null));
+                        }
+                        for (int i = 0; i < lods.Length; i++)
+                        {
+                            if (i == keepLevel)
+                                continue;
                             foreach (Renderer r in lods[i].renderers)
                             {
                                 if (r != null && !keep.Contains(r))
@@ -651,7 +927,8 @@ namespace RingSport.Editor
                     -bounds.center.z * scale);
 
                 GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, outPath);
-                Log($"Scenery prefab: {outPath} (scale {scale:F3}, {def.Mode.ToString().ToLower()} {def.TargetSize})");
+                Log($"Scenery prefab: {outPath} (scale {scale:F3}, {def.Mode.ToString().ToLower()} {def.TargetSize}, " +
+                    $"LOD{def.LodIndex}, {TriangleCount(root)} tris, {renderers.Length} renderer(s))");
                 return prefab;
             }
             finally
@@ -661,7 +938,25 @@ namespace RingSport.Editor
             }
         }
 
+        /// <summary>Triangles a scenery prefab costs per spawned instance - the report's budget line.</summary>
+        private static int TriangleCount(GameObject root)
+        {
+            int tris = 0;
+            foreach (MeshFilter filter in root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                Mesh mesh = filter.sharedMesh;
+                if (mesh == null)
+                    continue;
+                for (int i = 0; i < mesh.subMeshCount; i++)
+                    tris += (int)(mesh.GetIndexCount(i) / 3);
+            }
+            return tris;
+        }
+
         private static readonly Dictionary<string, Material> ArcMatCache = new Dictionary<string, Material>();
+
+        /// <summary>Every atlas an arc material ended up sampling, for the texture-size cap.</summary>
+        private static readonly HashSet<string> ArcTexturePaths = new HashSet<string>();
 
         private static Material GetOrCreateArcMaterial(Material srcMat, SceneryDef def, Shader arcShader)
         {
@@ -686,28 +981,52 @@ namespace RingSport.Editor
                 Log($"Arc material: {path} (from {srcMat.name})");
             }
 
+            // These packs ship materials pointing at texture guids that were
+            // never in the package, so a null here is a silently flat-white prop
+            // rather than an obvious failure. Say so in the report.
+            if (tex == null && def.Tint == Color.white)
+                Log($"  NOTE: {srcMat.name} resolved no albedo (dangling texture guid?) - " +
+                    $"{def.Name} renders flat white. Give the def a Tint or pick another source.");
+
             // Foliage detection: leaf/flower/grass cards carry meaningful alpha
             // in their atlas (TEM vegetation). Those need cutout + double-sided;
             // solid-geometry atlases (TS/DS) have no alpha and stay opaque.
             bool texHasAlpha = false;
             if (tex != null)
             {
-                var importer = AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(tex)) as TextureImporter;
+                string texPath = AssetDatabase.GetAssetPath(tex);
+                ArcTexturePaths.Add(texPath);
+                var importer = AssetImporter.GetAtPath(texPath) as TextureImporter;
                 texHasAlpha = importer != null && importer.DoesSourceTextureHaveAlpha();
             }
             bool foliage = def.TwoSided || texHasAlpha;
+
+            // Packs disagree on where their foliage sits in the alpha ramp - the
+            // Synty vegetation shader clips at 0.3, the toon packs at 0.5. Using
+            // one number for both eats the thin edges off half the leaf cards.
+            float cutoff = 0.5f;
+            if (srcMat.HasProperty("_Cutoff"))
+            {
+                float srcCutoff = srcMat.GetFloat("_Cutoff");
+                if (srcCutoff > 0f)
+                    cutoff = srcCutoff;
+            }
 
             Color tint = def.Tint;
             if (tint == Color.white && tex != null && tex.name.StartsWith("TEM_Atlas_Vegetation"))
                 tint = new Color(0.7f, 0.78f, 0.64f);
 
             mat.shader = arcShader;
-            if (tex != null) mat.SetTexture("_BaseMap", tex);
+            // Assigned even when null: a source material whose albedo the arc
+            // shader cannot reach (triplanar projection, for one) is meant to
+            // come through as its flat tint, not as whatever texture an earlier
+            // build left in the slot.
+            mat.SetTexture("_BaseMap", tex);
             mat.SetColor("_BaseColor", tint);
             if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0f);
             if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0f);
             if (mat.HasProperty("_Cull")) mat.SetFloat("_Cull", foliage ? 0f : 2f);
-            if (mat.HasProperty("_Cutoff")) mat.SetFloat("_Cutoff", foliage ? 0.5f : 0f);
+            if (mat.HasProperty("_Cutoff")) mat.SetFloat("_Cutoff", foliage ? cutoff : 0f);
             // clip() only compiles into cutout materials; opaque ones keep early-Z
             if (foliage) mat.EnableKeyword("_ALPHATEST_ON");
             else mat.DisableKeyword("_ALPHATEST_ON");
@@ -743,6 +1062,7 @@ namespace RingSport.Editor
             if (assetPath.StartsWith("Assets/Toon Desert")) return "DS";
             if (assetPath.StartsWith("Assets/Toon Enchanted Meadow")) return "TEM";
             if (assetPath.StartsWith("Assets/Toon Series")) return "TS";
+            if (assetPath.StartsWith("Assets/PolygonNatureBiomes")) return "PNB";
             return "Misc";
         }
 
@@ -854,6 +1174,13 @@ namespace RingSport.Editor
                 ["France"] = (4, 7, 1.3f, 30),
                 ["Arizona"] = (2, 5, 1.7f, 30),
                 ["Oregon"] = (3, 6, 1.7f, 30),
+                // Still spaced widest of the five - open sand is the point of a
+                // beach - but 3-5 rather than 2-4 now that the shader grass is
+                // gone from the dunes: props are the only thing left standing on
+                // them, and at 2-4 the sides read as empty desert. The smaller
+                // pool is per TYPE, and Hawaii has 18 of them against everyone
+                // else's 9-10, so no type puts more than a handful on screen.
+                ["Hawaii"] = (3, 5, 2.2f, 16),
             };
 
             // Per-location light mood: fog color/density + skybox. Seattle keeps
@@ -866,17 +1193,18 @@ namespace RingSport.Editor
                 ["Arizona"] = (new Color(0.85f, 0.7f, 0.52f), 0.04f, "Assets/Materials/World/Sky_Arizona_Gradient.mat"),
                 ["Oregon"] = (new Color(0.62f, 0.81f, 0.87f), 0.028f, "Assets/Materials/World/Sky_Oregon_Gradient.mat"),
                 ["France"] = (new Color(0.72f, 0.8f, 0.7f), 0.035f, "Assets/Toon Enchanted Meadow/Skybox/TEM_Skybox_01A/TEM_Skybox_01A.mat"),
+                // Thinnest fog in the game (0.024 against 0.028-0.04): a beach
+                // wants a long, hazy sightline, and there is no dense canopy
+                // here for the fog to hide pop-in behind.
+                ["Hawaii"] = (new Color(0.74f, 0.88f, 0.9f), 0.024f, $"{WorldMatFolder}/Sky_Hawaii_Gradient.mat"),
             };
 
             foreach (string world in worldPrefabs.Keys)
             {
-                string configPath = $"Assets/LevelsData/Level Locations/{world}.asset";
-                var config = AssetDatabase.LoadAssetAtPath<LocationConfig>(configPath);
+                string configPath = $"{LocationConfigFolder}/{world}.asset";
+                var config = EnsureLocationConfig(world, configPath);
                 if (config == null)
-                {
-                    LogError($"LocationConfig not found: {configPath}");
                     continue;
-                }
 
                 var so = new SerializedObject(config);
 
@@ -900,6 +1228,21 @@ namespace RingSport.Editor
                 so.FindProperty("sceneryMinDistance").floatValue = dist;
                 so.FindProperty("sceneryPoolSize").intValue = pool;
 
+                // Ambience is filled only when the slot is empty, the same rule
+                // JuicePolishSetup uses - swapping the stand-in in the Inspector
+                // has to stick through the next build.
+                SerializedProperty ambientProp = so.FindProperty("ambientSound");
+                if (ambientProp.objectReferenceValue == null &&
+                    LocationAmbience.TryGetValue(world, out string ambientPath))
+                {
+                    var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(ambientPath);
+                    if (clip != null)
+                    {
+                        ambientProp.objectReferenceValue = clip;
+                        Log($"Ambient sound seeded for {world}: {Path.GetFileName(ambientPath)}");
+                    }
+                }
+
                 (Color fog, float density, string skyboxPath) = atmosphere[world];
                 so.FindProperty("overrideAtmosphere").boolValue = true;
                 so.FindProperty("fogColor").colorValue = fog;
@@ -909,7 +1252,9 @@ namespace RingSport.Editor
                     LogError($"Skybox not found for {world}: {skyboxPath}");
                 so.FindProperty("skyboxMaterial").objectReferenceValue = skybox;
 
-                if (world == "France" || world == "Oregon")
+                // Worlds whose floor prefabs this builder generates (Seattle and
+                // Arizona keep their own hand-made ones, under other names)
+                if (world == "France" || world == "Oregon" || world == "Hawaii")
                 {
                     so.FindProperty("mainFloorPrefab").objectReferenceValue =
                         AssetDatabase.LoadAssetAtPath<GameObject>($"{FloorPrefabFolder}/{world} Floor.prefab");
@@ -923,6 +1268,41 @@ namespace RingSport.Editor
                 EditorUtility.SetDirty(config);
                 Log($"LocationConfig wired: {world} ({spawnList.Count} scenery prefabs, scenery {min}-{max}/floor, minDist {dist})");
             }
+        }
+
+        /// <summary>
+        /// Loads a world's LocationConfig, creating it on first run for a world
+        /// that has no asset yet. Only the fields the builder does not own get
+        /// seeded here (ambient grading), so a later hand-tweak in the inspector
+        /// survives the next build.
+        /// </summary>
+        private static LocationConfig EnsureLocationConfig(string world, string configPath)
+        {
+            var config = AssetDatabase.LoadAssetAtPath<LocationConfig>(configPath);
+            if (config != null)
+                return config;
+
+            if (!Enum.TryParse(world, out Location location))
+            {
+                LogError($"No Location enum member named '{world}' - add it to Location.cs before building this world");
+                return null;
+            }
+
+            EnsureFolder(LocationConfigFolder);
+            config = ScriptableObject.CreateInstance<LocationConfig>();
+            AssetDatabase.CreateAsset(config, configPath);
+
+            var so = new SerializedObject(config);
+            so.FindProperty("location").enumValueIndex = (int)location;
+            // A saturated sky is the only fill light in the scene, so its raw
+            // probe re-tints everything it touches - the dog included. Pulling
+            // saturation back keeps a blue sky from turning the sand grey-blue.
+            so.FindProperty("ambientSaturation").floatValue = 0.6f;
+            so.FindProperty("ambientIntensity").floatValue = 0.95f;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(config);
+            Log($"LocationConfig created: {configPath}");
+            return config;
         }
 
         // ------------------------------------------------------------------
@@ -958,19 +1338,27 @@ namespace RingSport.Editor
                 foreach (string guid in AssetDatabase.FindAssets("t:Material", new[] { folder }))
                 {
                     var mat = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
-                    if (mat != null && !mat.enableInstancing)
-                    {
-                        mat.enableInstancing = true;
-                        EditorUtility.SetDirty(mat);
-                        instanced++;
-                    }
+                    if (mat == null || mat.enableInstancing)
+                        continue;
+                    // GrassBlades deliberately compiles no instancing variant -
+                    // one shared patch mesh across every live tile is already a
+                    // single SRP-batched draw, and flagging it here would only
+                    // claim a path the shader does not have.
+                    if (mat.shader != null && mat.shader.name == GrassShaderName)
+                        continue;
+                    mat.enableInstancing = true;
+                    EditorUtility.SetDirty(mat);
+                    instanced++;
                 }
             }
             Log($"GPU instancing enabled on {instanced} material(s)");
 
-            // Toon atlases are flat-colour art - 1024 is indistinguishable in
-            // game and much cheaper for mobile WebGL memory + download
-            string[] atlasPaths =
+            // Pack atlases are flat-colour art - 1024 is indistinguishable in
+            // game and much cheaper for mobile WebGL memory + download. Every
+            // texture an arc material actually sampled this run is covered, so a
+            // new pack (the tropical set ships 2048 leaf sheets) is capped the
+            // moment it is used rather than needing a hand-written path here.
+            var atlasPaths = new HashSet<string>(ArcTexturePaths)
             {
                 "Assets/Toon Enchanted Meadow/Textures/TEM_Atlas_Vegetation_1A.tga",
                 "Assets/Toon Enchanted Meadow/Textures/TEM_Atlas_Vegetation_1B.tga",
@@ -980,18 +1368,28 @@ namespace RingSport.Editor
                 "Assets/Toon Desert/Textures/Atlas_1A_D.png",
                 "Assets/Toon Series/Toon Nature Assets/Textures/Atlas_1A_D.png",
             };
-            foreach (string path in atlasPaths)
+            // Ground textures are sampled at tiling 3-5 across a 12-unit tile,
+            // so they need the cap as much as the prop atlases do.
+            foreach (string guid in AssetDatabase.FindAssets("t:Material", new[] { FloorMatFolder }))
+            {
+                var mat = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
+                Texture groundTex = mat != null && mat.HasProperty("_BaseMap") ? mat.GetTexture("_BaseMap") : null;
+                if (groundTex != null)
+                    atlasPaths.Add(AssetDatabase.GetAssetPath(groundTex));
+            }
+
+            int capped = 0;
+            foreach (string path in atlasPaths.OrderBy(p => p))
             {
                 var importer = AssetImporter.GetAtPath(path) as TextureImporter;
-                if (importer == null)
+                if (importer == null || importer.maxTextureSize <= 1024)
                     continue;
-                if (importer.maxTextureSize > 1024)
-                {
-                    importer.maxTextureSize = 1024;
-                    importer.SaveAndReimport();
-                    Log($"Texture capped to 1024: {Path.GetFileName(path)}");
-                }
+                importer.maxTextureSize = 1024;
+                importer.SaveAndReimport();
+                capped++;
+                Log($"Texture capped to 1024: {Path.GetFileName(path)}");
             }
+            Log($"Texture size cap: {capped} of {atlasPaths.Count} texture(s) reduced to 1024");
         }
 
         private static void ApplyArcControllerValues(float strength, float distance)

@@ -1,5 +1,12 @@
 fileFormatVersion: 2
 guid: a00fb133019e8c547a8b846e828d1142
+AssetOrigin:
+  serializedVersion: 1
+  productId: 162380
+  packageName: Toon Nature Assets
+  packageVersion: 1.3.2
+  assetPath: Assets/Toon Series/Toon Nature Assets/Textures/TNA_Dirt_1A_D.psd
+  uploadId: 960690
 TextureImporter:
   internalIDToNameTable:
   - first:
@@ -72,7 +79,7 @@ TextureImporter:
   platformSettings:
   - serializedVersion: 4
     buildTarget: DefaultTexturePlatform
-    maxTextureSize: 2048
+    maxTextureSize: 1024
     resizeAlgorithm: 0
     textureFormat: -1
     textureCompression: 2
@@ -135,6 +142,19 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 1
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 2
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
     sprites: []
@@ -157,10 +177,3 @@ TextureImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
-AssetOrigin:
-  serializedVersion: 1
-  productId: 162380
-  packageName: Toon Nature Assets
-  packageVersion: 1.3.2
-  assetPath: Assets/Toon Series/Toon Nature Assets/Textures/TNA_Dirt_1A_D.psd
-  uploadId: 960690

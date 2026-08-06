@@ -27,6 +27,7 @@ empty fields, so replacing a temp clip in the Inspector sticks.
 | Moment | Temp clip (in repo) | What we actually want | Plays from |
 |---|---|---|---|
 | Run death impact | `UI/ui-impact.wav` | Meaty thud layered with a dog yelp/whimper | `GameManager.DeathImpactSequence` |
+| Hawaii ambience (Ring 2-1) | `Ambient/ambient birds1.wav` | Surf: waves breaking and receding, gulls, a little wind — none of the five ambient clips in the repo are coastal | `LocationConfig.ambientSound` on `Hawaii.asset`, seeded by `WorldSceneryBuilder` only when empty |
 | Landing thump | `Dog/dog-footsteps3.wav` | Soft paw-on-dirt thump, 3–4 round-robin variants | `PlayerController.OnLanded` |
 | Countdown ticks (3-2-1) | `Reward/reward-pop.wav` (pitch climbs 1.0→1.12) | Short dry UI tick, low pitch | `UIManager.CountdownRoutine` |
 | "GO!" | `Reward/reward-bell.wav` (pitch 1.15) | Bright start horn / sharp whistle blast | `UIManager.CountdownRoutine` |
