@@ -9660,6 +9660,7 @@ GameObject:
   - component: {fileID: 848189151}
   - component: {fileID: 848189150}
   - component: {fileID: 848189153}
+  - component: {fileID: 848189154}
   m_Layer: 5
   m_Name: Button
   m_TagString: Untagged
@@ -9789,6 +9790,18 @@ MonoBehaviour:
   idlePulse: 0
   idlePulseAmount: 0.045
   idlePulseHz: 1.1
+--- !u!114 &848189154
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 848189148}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: afdf001847362464bb33e9acc7583606, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.PillImage
 --- !u!1 &882178472
 GameObject:
   m_ObjectHideFlags: 0
@@ -10277,6 +10290,7 @@ GameObject:
   - component: {fileID: 965865130}
   - component: {fileID: 965865129}
   - component: {fileID: 965865132}
+  - component: {fileID: 965865133}
   m_Layer: 5
   m_Name: Quit
   m_TagString: Untagged
@@ -10418,6 +10432,18 @@ MonoBehaviour:
   idlePulse: 0
   idlePulseAmount: 0.045
   idlePulseHz: 1.1
+--- !u!114 &965865133
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 965865127}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: afdf001847362464bb33e9acc7583606, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.PillImage
 --- !u!1 &996038589
 GameObject:
   m_ObjectHideFlags: 0
@@ -10926,6 +10952,7 @@ GameObject:
   - component: {fileID: 1060011546}
   - component: {fileID: 1060011549}
   - component: {fileID: 1060011550}
+  - component: {fileID: 1060011551}
   m_Layer: 5
   m_Name: Sit
   m_TagString: Untagged
@@ -11075,6 +11102,18 @@ MonoBehaviour:
   idlePulse: 0
   idlePulseAmount: 0.045
   idlePulseHz: 1.1
+--- !u!114 &1060011551
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1060011544}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: afdf001847362464bb33e9acc7583606, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.PillImage
 --- !u!114 &1065490597
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -11421,6 +11460,7 @@ GameObject:
   - component: {fileID: 1166616078}
   - component: {fileID: 1166616081}
   - component: {fileID: 1166616082}
+  - component: {fileID: 1166616083}
   m_Layer: 5
   m_Name: Down
   m_TagString: Untagged
@@ -11570,6 +11610,18 @@ MonoBehaviour:
   idlePulse: 0
   idlePulseAmount: 0.045
   idlePulseHz: 1.1
+--- !u!114 &1166616083
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1166616076}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: afdf001847362464bb33e9acc7583606, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.PillImage
 --- !u!1 &1218350517
 GameObject:
   m_ObjectHideFlags: 0
@@ -11909,6 +11961,7 @@ GameObject:
   - component: {fileID: 1265713326}
   - component: {fileID: 1265713329}
   - component: {fileID: 1265713330}
+  - component: {fileID: 1265713331}
   m_Layer: 5
   m_Name: Stand
   m_TagString: Untagged
@@ -12058,6 +12111,18 @@ MonoBehaviour:
   idlePulse: 0
   idlePulseAmount: 0.045
   idlePulseHz: 1.1
+--- !u!114 &1265713331
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1265713324}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: afdf001847362464bb33e9acc7583606, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.PillImage
 --- !u!1 &1277821156
 GameObject:
   m_ObjectHideFlags: 0
@@ -12686,6 +12751,7 @@ GameObject:
   - component: {fileID: 1372420942}
   - component: {fileID: 1372420941}
   - component: {fileID: 1372420944}
+  - component: {fileID: 1372420945}
   m_Layer: 5
   m_Name: Retry
   m_TagString: Untagged
@@ -12815,6 +12881,18 @@ MonoBehaviour:
   idlePulse: 1
   idlePulseAmount: 0.045
   idlePulseHz: 1.1
+--- !u!114 &1372420945
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1372420939}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: afdf001847362464bb33e9acc7583606, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.PillImage
 --- !u!1 &1407405938
 GameObject:
   m_ObjectHideFlags: 0
@@ -13290,6 +13368,7 @@ GameObject:
   - component: {fileID: 1506525537}
   - component: {fileID: 1506525536}
   - component: {fileID: 1506525539}
+  - component: {fileID: 1506525540}
   m_Layer: 5
   m_Name: Quit
   m_TagString: Untagged
@@ -13431,6 +13510,18 @@ MonoBehaviour:
   idlePulse: 0
   idlePulseAmount: 0.045
   idlePulseHz: 1.1
+--- !u!114 &1506525540
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1506525534}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: afdf001847362464bb33e9acc7583606, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.PillImage
 --- !u!1 &1536131751
 GameObject:
   m_ObjectHideFlags: 0
@@ -25708,6 +25799,7 @@ GameObject:
   - component: {fileID: 1949630540}
   - component: {fileID: 1949630539}
   - component: {fileID: 1949630542}
+  - component: {fileID: 1949630543}
   m_Layer: 5
   m_Name: Button
   m_TagString: Untagged
@@ -25849,6 +25941,18 @@ MonoBehaviour:
   idlePulse: 1
   idlePulseAmount: 0.045
   idlePulseHz: 1.1
+--- !u!114 &1949630543
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1949630537}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: afdf001847362464bb33e9acc7583606, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.PillImage
 --- !u!114 &1953321698
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -26013,6 +26117,7 @@ GameObject:
   - component: {fileID: 1991208903}
   - component: {fileID: 1991208902}
   - component: {fileID: 1991208905}
+  - component: {fileID: 1991208906}
   m_Layer: 5
   m_Name: Next Level
   m_TagString: Untagged
@@ -26154,6 +26259,18 @@ MonoBehaviour:
   idlePulse: 0
   idlePulseAmount: 0.045
   idlePulseHz: 1.1
+--- !u!114 &1991208906
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1991208900}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: afdf001847362464bb33e9acc7583606, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.PillImage
 --- !u!1 &2000011091
 GameObject:
   m_ObjectHideFlags: 0

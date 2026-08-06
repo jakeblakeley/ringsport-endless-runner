@@ -29,8 +29,8 @@ namespace RingSport.UI
         [SerializeField] private Button standButton;
 
         [Header("Timing Settings")]
-        [SerializeField] private float positionDisplayTime = 2f;
-        [SerializeField] private float gapBetweenPositions = 0.5f;
+        [SerializeField] private float positionDisplayTime = 0.75f;
+        [SerializeField] private float gapBetweenPositions = 0.25f;
         [SerializeField] private float incorrectFeedbackTime = 1f;
         [SerializeField] private float correctFeedbackTime = 0.3f;
         [SerializeField] private float roundTransitionTime = 1f;
@@ -213,25 +213,29 @@ namespace RingSport.UI
             HidePanel();
         }
 
-        /// <summary>Has the dog perform a named position (Sit / Down / Stand).</summary>
-        private void SetDogPose(string position)
+        /// <summary>
+        /// Has the dog perform a named position (Sit / Down / Stand). The demo
+        /// snaps (each position is only on screen for positionDisplayTime, far
+        /// less than the authored stand-to-down chain takes); the player's own
+        /// answer plays the real transition.
+        /// </summary>
+        private void SetDogPose(string position, bool snap = false)
         {
             var animations = player?.Animations;
             if (animations == null)
                 return;
 
-            switch (position)
+            DogPose pose = position switch
             {
-                case "Sit":
-                    animations.SetPose(DogPose.Sit);
-                    break;
-                case "Down":
-                    animations.SetPose(DogPose.Down);
-                    break;
-                default:
-                    animations.SetPose(DogPose.Stand);
-                    break;
-            }
+                "Sit" => DogPose.Sit,
+                "Down" => DogPose.Down,
+                _ => DogPose.Stand
+            };
+
+            if (snap)
+                animations.SetPoseImmediate(pose);
+            else
+                animations.SetPose(pose);
         }
 
         private void ShowPanel()
@@ -340,7 +344,7 @@ namespace RingSport.UI
                 // Show the position - the dog demonstrates it, its tone plays,
                 // and the matching button wiggles so the mapping sinks in
                 UpdateText(currentSequence[i]);
-                SetDogPose(currentSequence[i]);
+                SetDogPose(currentSequence[i], snap: true);
                 PlayPoseTone(currentSequence[i]);
                 PunchPrompt();
                 var shownButton = ButtonFor(currentSequence[i]);
@@ -358,9 +362,11 @@ namespace RingSport.UI
                 }
             }
 
-            // Brief pause before input phase - dog back to neutral
+            // Brief pause before input phase - dog back to neutral. Snapped
+            // like the rest of the demo: the routed down-to-stand runs 1.7s and
+            // would still be playing once the buttons go live.
             UpdateText("Your turn!");
-            SetDogPose("Stand");
+            SetDogPose("Stand", snap: true);
             yield return new WaitForSecondsRealtime(0.5f);
         }
 

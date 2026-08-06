@@ -552,6 +552,23 @@ namespace RingSport.Core
             GameLog.Info($"[LevelManager] DEBUG: showing intro for level {currentLevel}");
             GameManager.Instance?.DebugShowLevelIntro(currentLevel);
         }
+
+        /// <summary>
+        /// Debug menu: host a mini-level jump on the level that actually runs
+        /// that mini level, so the reward screen and NEXT LEVEL continue the
+        /// run forward from there (N -> N+1 ...) instead of from whatever level
+        /// the manager was last left standing on. Starts a fresh run's worth of
+        /// retries, matching the level jumps.
+        /// </summary>
+        public void DebugAdoptLevel(int level)
+        {
+            ResetProgress();
+            currentLevel = Mathf.Clamp(level, 1, maxLevels);
+            // Arena mini-level jumps never run StartLevel, so point the score
+            // bookkeeping at the hosting level by hand
+            ScoreManager.Instance?.StartLevel(currentLevel);
+            GameLog.Info($"[LevelManager] DEBUG: hosting mini level jump on level {currentLevel}");
+        }
 #endif
 
         public void ResetProgress()

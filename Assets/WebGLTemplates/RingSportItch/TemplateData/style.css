@@ -5,10 +5,18 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
+  /* dvh tracks Safari's collapsing toolbars; without it iOS sizes against the
+     tallest viewport and the bottom of the game sits under the browser chrome.
+     The 100% above stays as the fallback for anything without dvh. */
+  height: 100dvh;
   overflow: hidden;
+  position: fixed;
   background: #14100f;
   touch-action: none;
   overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 #unity-container {
   position: absolute;

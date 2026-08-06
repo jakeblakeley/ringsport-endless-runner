@@ -220,11 +220,43 @@ namespace RingSport.Level
             if (locationConfig.SkyboxMaterial != null && RenderSettings.skybox != locationConfig.SkyboxMaterial)
             {
                 RenderSettings.skybox = locationConfig.SkyboxMaterial;
-                // Ambient comes from the skybox; rebuild the ambient probe once per swap
-                DynamicGI.UpdateEnvironment();
+                ApplyAmbientForSkybox(locationConfig);
             }
 
             GameLog.Info($"Atmosphere applied for {locationConfig.Location}: fog {locationConfig.FogColor} d={locationConfig.FogDensity}, skybox {(locationConfig.SkyboxMaterial != null ? locationConfig.SkyboxMaterial.name : "unchanged")}");
+        }
+
+        /// <summary>
+        /// Ambient light for the new skybox. DynamicGI.UpdateEnvironment() derives it
+        /// by rendering the skybox to a cubemap and reading it back to the CPU, which
+        /// WebGPU does not support ("Texture Readback is not supported by WebGPU") -
+        /// it leaves the ambient probe garbage and every lit surface renders wrong,
+        /// while the skybox and UI stay correct because neither is ambient-lit.
+        /// The probe is baked per location in the editor instead; the live path is
+        /// kept only as a fallback for a location that has not been baked yet.
+        /// </summary>
+        private void ApplyAmbientForSkybox(LocationConfig locationConfig)
+        {
+            if (locationConfig.HasBakedAmbientProbe)
+            {
+                RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Custom;
+                RenderSettings.ambientProbe = locationConfig.BakedAmbientProbe;
+                return;
+            }
+
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.WebGPU)
+            {
+                // Keeping the previous ambient is wrong, but it is a mood mismatch
+                // rather than a frame of red garbage plus per-object error spam.
+                GameLog.Warn($"No baked ambient probe for {locationConfig.Location} and WebGPU cannot compute one at runtime - " +
+                             "run Tools/RingSport/Bake Location Ambient. Keeping the previous ambient.");
+                return;
+            }
+
+            // Skybox mode, or UpdateEnvironment has nothing to derive ambient from
+            // once an earlier location has switched the mode to Custom.
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Skybox;
+            DynamicGI.UpdateEnvironment();
         }
 
         /// <summary>

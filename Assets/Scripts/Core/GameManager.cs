@@ -66,11 +66,23 @@ namespace RingSport.Core
         private MiniLevelType? debugMiniLevelOverride;
 
         /// <summary>
-        /// Debug menu: jump straight into a specific mini level.
+        /// Debug menu: jump straight into a specific mini level, hosted on the
+        /// first level that runs it. Adopting that level is what lets the run
+        /// carry on forward afterwards - the reward screen names the right
+        /// level and NEXT LEVEL walks into level N+1 - so a mini level whose
+        /// own end beat is hard to reach (the face attack) is still a usable
+        /// jumping-off point for testing the levels after it.
         /// </summary>
         public void DebugStartMiniLevel(MiniLevelType type)
         {
             debugMiniLevelOverride = type;
+
+            int hostLevel = LevelGenerator.Instance?.FindFirstLevelWithMiniLevel(type) ?? -1;
+            if (hostLevel >= 1)
+                LevelManager.Instance?.DebugAdoptLevel(hostLevel);
+            else
+                GameLog.Warn($"[GameManager] DEBUG: no level runs the {type} mini level - the run will continue from level {LevelManager.Instance?.CurrentLevel ?? 1}");
+
             SetState(GameState.MiniLevel);
         }
 
@@ -328,9 +340,14 @@ namespace RingSport.Core
                 return false;
 
             // Retry on a level of this type re-enters that level's chase; a
-            // debug jump from elsewhere hosts the chase on the first level
-            // that runs this mini level
-            int targetLevel = (config != null && config.MiniLevelType == effectiveType)
+            // debug jump hosts the chase on the first level that runs this mini
+            // level (NOT the stale config's level - the type can appear twice,
+            // and DebugStartMiniLevel has already adopted the first one)
+            bool isDebugJump = false;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            isDebugJump = debugMiniLevelOverride.HasValue;
+#endif
+            int targetLevel = (!isDebugJump && config != null && config.MiniLevelType == effectiveType)
                 ? LevelManager.Instance.CurrentLevel
                 : LevelGenerator.Instance?.FindFirstLevelWithMiniLevel(effectiveType) ?? -1;
 

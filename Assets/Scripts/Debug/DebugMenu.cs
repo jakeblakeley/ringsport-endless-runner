@@ -127,7 +127,14 @@ namespace RingSport.DebugTools
 
             foreach (MiniLevelType type in System.Enum.GetValues(typeof(MiniLevelType)))
             {
-                if (GUILayout.Button(Nicify(type.ToString()), GUILayout.Height(28f)))
+                // The jump is hosted on the first level that runs this mini
+                // level, and the run carries on from there - say which
+                string label = Nicify(type.ToString());
+                int hostLevel = LevelGenerator.Instance?.FindFirstLevelWithMiniLevel(type) ?? -1;
+                if (hostLevel >= 1)
+                    label += $" (L{hostLevel})";
+
+                if (GUILayout.Button(label, GUILayout.Height(28f)))
                 {
                     isOpen = false;
                     GameManager.Instance?.DebugStartMiniLevel(type);

@@ -1,3 +1,4 @@
+using RingSport.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -18,8 +19,13 @@ namespace RingSport.Editor
     ///
     /// A pill then just needs the rendered slice to be exactly half the button
     /// height, which is what pixelsPerUnitMultiplier is set to below - so
-    /// buttons of different heights (320x128 menu buttons, 112x64 Simon Says
-    /// buttons) all come out correctly capped.
+    /// buttons of different heights (320x128 menu buttons, Simon Says'
+    /// layout-driven row) all come out correctly capped.
+    ///
+    /// The multiplier is baked here for the fixed-size buttons and kept live by
+    /// a PillImage component, which is what the Simon Says buttons need: their
+    /// panel is inactive in the scene, so the rect we can measure here is a
+    /// stale pre-layout one and any number baked from it is wrong on screen.
     ///
     /// Runs automatically once after compilation (version-gated); re-run from
     /// Tools/RingSport/Make Buttons Pills.
@@ -27,7 +33,7 @@ namespace RingSport.Editor
     public static class PillButtonSetup
     {
         // Bump to force the auto-run to re-apply the setup
-        private const int SetupVersion = 1;
+        private const int SetupVersion = 2;
         private const string VersionPrefKey = "RingSport.PillButtonSetup.Version";
 
         private const string PillSpritePath = "Assets/Textures/UI/pill.png";
@@ -135,13 +141,6 @@ namespace RingSport.Editor
         /// </summary>
         private static bool ApplyPill(Image image, Sprite pill)
         {
-            float height = image.rectTransform.rect.height;
-            if (height <= 0f)
-            {
-                Debug.LogWarning($"[PillButtonSetup] {image.name} has no height yet - skipped.");
-                return false;
-            }
-
             var canvas = image.canvas;
             float referencePixelsPerUnit = canvas != null ? canvas.referencePixelsPerUnit : 100f;
 
@@ -153,8 +152,17 @@ namespace RingSport.Editor
             image.sprite = pill;
             image.type = Image.Type.Sliced;
             image.fillCenter = true;
-            image.pixelsPerUnitMultiplier = unscaledBorder / (height * 0.5f);
+
+            float height = image.rectTransform.rect.height;
+            if (height > 0f)
+                image.pixelsPerUnitMultiplier = unscaledBorder / (height * 0.5f);
             EditorUtility.SetDirty(image);
+
+            // PillImage re-derives that multiplier from the live rect, so a
+            // layout-driven or later-resized button stays a pill
+            if (image.GetComponent<PillImage>() == null)
+                Undo.AddComponent<PillImage>(image.gameObject);
+
             return true;
         }
     }

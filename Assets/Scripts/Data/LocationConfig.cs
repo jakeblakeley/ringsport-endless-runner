@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace RingSport.Level
 {
@@ -51,6 +52,10 @@ namespace RingSport.Level
         [Tooltip("Optional skybox for this location; null keeps the current skybox")]
         [SerializeField] private Material skyboxMaterial;
 
+        [Tooltip("Ambient light probe baked from the skybox by Tools/RingSport/Bake Location Ambient. " +
+                 "27 SH coefficients (9 per RGB channel). Empty = not baked yet.")]
+        [SerializeField] [HideInInspector] private float[] bakedAmbientProbe;
+
         [Header("Audio")]
         [Tooltip("Background music for this location")]
         [SerializeField] private AudioClip music;
@@ -74,5 +79,43 @@ namespace RingSport.Level
         public Material SkyboxMaterial => skyboxMaterial;
         public AudioClip Music => music;
         public AudioClip AmbientSound => ambientSound;
+
+        public bool HasBakedAmbientProbe => bakedAmbientProbe != null && bakedAmbientProbe.Length == 27;
+
+        /// <summary>
+        /// The skybox's ambient light as spherical harmonics, baked in the editor.
+        /// Computing this at runtime means DynamicGI.UpdateEnvironment(), which reads
+        /// the skybox cubemap back to the CPU - an operation WebGPU refuses outright,
+        /// leaving the ambient probe garbage and every lit surface mis-shaded.
+        /// </summary>
+        public SphericalHarmonicsL2 BakedAmbientProbe
+        {
+            get
+            {
+                var sh = new SphericalHarmonicsL2();
+                if (!HasBakedAmbientProbe)
+                    return sh;
+
+                for (int rgb = 0; rgb < 3; rgb++)
+                {
+                    for (int coeff = 0; coeff < 9; coeff++)
+                        sh[rgb, coeff] = bakedAmbientProbe[rgb * 9 + coeff];
+                }
+                return sh;
+            }
+        }
+
+#if UNITY_EDITOR
+        /// <summary>Editor-only writer for Tools/RingSport/Bake Location Ambient.</summary>
+        public void SetBakedAmbientProbe(SphericalHarmonicsL2 sh)
+        {
+            bakedAmbientProbe = new float[27];
+            for (int rgb = 0; rgb < 3; rgb++)
+            {
+                for (int coeff = 0; coeff < 9; coeff++)
+                    bakedAmbientProbe[rgb * 9 + coeff] = sh[rgb, coeff];
+            }
+        }
+#endif
     }
 }
