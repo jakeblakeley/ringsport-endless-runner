@@ -18,10 +18,18 @@ namespace RingSport.Player
         [SerializeField] private float laneChangeSpeed = 10f;
 
         [Header("Jump Settings")]
-        // 1.7 clears the 1.5-tall hurdle colliders VISUALLY (feet above the
-        // bar at apex), not just the pivot>=1.5 gameplay check; ~0.48s air time
-        [SerializeField] private float jumpHeight = 1.7f;
-        [SerializeField] private float gravity = -60f;
+        // 1.87 clears the 1.5-tall hurdle colliders VISUALLY (feet above the
+        // bar at apex), not just the pivot>=1.5 gameplay check; ~0.48s air time.
+        //
+        // Height and gravity are a PAIR. v0 = sqrt(2*g*h) below, so air time is
+        // 2*v0/g = 2*sqrt(2h/g): it depends on the RATIO, while the apex is h.
+        // Scaling both by the same factor therefore buys height at a constant
+        // air time - and constant air time is what keeps the jump's horizontal
+        // reach, the animator's jump state, and every spacing budget in
+        // ObstacleSpawner (which is priced in seconds) exactly where they were.
+        // Raised 10% from 1.7/-60 to be more forgiving without re-spacing levels.
+        [SerializeField] private float jumpHeight = 1.87f;
+        [SerializeField] private float gravity = -66f;
         [Tooltip("A jump swipe made this long before landing is queued and fires on touchdown, so mid-air swipes aren't silently dropped.")]
         [SerializeField] private float jumpBufferDuration = 0.2f;
 
@@ -85,6 +93,12 @@ namespace RingSport.Player
         private AudioSource pantAudioSource;    // exhaustion pant loop
 
         private const float SprintAudioFadeSeconds = 0.22f;
+
+        // Ceilings on the palisade clamber alignment (see BeginClamber). Z covers
+        // the worst realistic scroll step (~0.6m at 30fps on a fast level) with
+        // headroom; X only ever tidies up a part-finished lane change.
+        private const float MaxClamberAlignZ = 0.9f;
+        private const float MaxClamberAlignX = 0.5f;
 
         // Cached manager references for performance
         private GameManager gameManager;
@@ -249,6 +263,11 @@ namespace RingSport.Player
 
         private void Update()
         {
+            // The tab-away pause freezes the run mid-pose: no gait or footstep
+            // updates, and a swipe aimed at CONTINUE must not bank a lane change
+            if (PauseScreen.IsPaused)
+                return;
+
             // Handle footsteps regardless of game state (so it can stop when not playing)
             HandleFootsteps();
             HandleSprintAudio();
@@ -531,7 +550,7 @@ namespace RingSport.Player
 
         private void TryJump()
         {
-            if (!isJumpEnabled)
+            if (!isJumpEnabled || PauseScreen.IsPaused)
                 return;
 
             if (!isGrounded)
@@ -723,7 +742,45 @@ namespace RingSport.Player
             }
         }
 
-        public System.Collections.IEnumerator AnimateOverObstacle(Vector3 obstaclePosition, float obstacleHeight)
+        /// <summary>
+        /// Starts the palisade clamber, aligning the grab pose to where the wall
+        /// actually came to rest.
+        ///
+        /// The dog never moves in Z - the world scrolls past it in whole frames,
+        /// so OnTriggerEnter fires anywhere inside the last step of travel
+        /// (~0.17m at 60fps, up to ~0.6m at 30fps) and the minigame then freezes
+        /// the scroll right there. The clamber pose offset alone assumes the wall
+        /// stopped at the ideal contact point, so any overshoot showed up as the
+        /// dog hanging in front of the palisade or buried inside it, differently
+        /// every run. Feeding the overshoot back into the pose offset cancels it.
+        ///
+        /// contactPoint: x = the wall's lane, z = the face the dog ran into.
+        /// </summary>
+        public void BeginClamber(Vector3 contactPoint)
+        {
+            // Where the face would sit had the trigger fired the instant it
+            // touched the capsule - the tight frame the pose was tuned against
+            float idealFaceZ = transform.position.z + characterController.radius;
+
+            // Clamped so a frame hitch (or a palisade reworked to a different
+            // collider) can only ever nudge the dog, never teleport it
+            Vector3 alignment = new Vector3(
+                Mathf.Clamp(contactPoint.x - transform.position.x, -MaxClamberAlignX, MaxClamberAlignX),
+                0f,
+                Mathf.Clamp(contactPoint.z - idealFaceZ, -MaxClamberAlignZ, MaxClamberAlignZ));
+
+            GameLog.Info($"Clamber alignment: wall face {contactPoint.z:F2}, ideal {idealFaceZ:F2}, correction {alignment}");
+
+            playerAnimator?.SetClamberAlignment(alignment);
+            playerAnimator?.SetClambering(true);
+        }
+
+        /// <summary>
+        /// The vault out of a finished clamber. Only the contact point's Y (the
+        /// wall's base) matters here - the arc stays in one lane, and the world
+        /// scroll is what carries the palisade out from under the dog.
+        /// </summary>
+        public System.Collections.IEnumerator AnimateOverObstacle(Vector3 obstacleContactPoint, float obstacleHeight)
         {
             float duration = 0.2f;
             float elapsed = 0f;
@@ -734,12 +791,20 @@ namespace RingSport.Player
             playerAnimator?.SetClambering(false);
             playerAnimator?.TriggerVault();
 
-            // Calculate arc height: distance from current player position to top of obstacle + clearance
-            // Tuned to the palisade's VISUAL height, which is shorter than its
-            // collider (obstacleHeight comes from collider bounds) - clearing
-            // the collider top by a full body height read ~50% too high
-            float clearanceHeight = 0.35f;
-            float obstacleTop = obstaclePosition.y + obstacleHeight;
+            // How far above the wall the PIVOT peaks. Note the start height
+            // cancels out of the arc below - the apex is always obstacleTop +
+            // clearanceHeight, wherever up the wall the dog finished clambering.
+            //
+            // Well under a body height (the pivot rides 1m above the paws)
+            // because the root arc isn't doing this alone - the vault clip
+            // supplies its own lift on top. Clearing the top by a full body
+            // height read ~50% too high.
+            //
+            // The palisade collider used to overshoot the visual by 0.225m and
+            // this was 0.35 to absorb it; the collider now ends at the visual
+            // top, so the same apex is spelled out honestly.
+            float clearanceHeight = 0.575f;
+            float obstacleTop = obstacleContactPoint.y + obstacleHeight;
             float arcHeight = (obstacleTop - startPosition.y) + clearanceHeight;
 
             // Ensure arc height is positive (in case player is already above obstacle)

@@ -136,6 +136,13 @@ namespace RingSport.UI
         // advancing to the next one.
         private bool isLevelIntro;
 
+        /// <summary>
+        /// A styled scene button (the home screen's START) for code-built
+        /// overlays to copy their look from - the pill background and the label
+        /// font live in the scene, not in anything loadable at runtime.
+        /// </summary>
+        public Button ButtonStyleTemplate => startButton;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -1070,13 +1077,13 @@ namespace RingSport.UI
             }
         }
 
-        public void ShowPalisadeMinigame(int requiredTaps, Vector3 obstaclePosition, float obstacleHeight, PlayerController player)
+        public void ShowPalisadeMinigame(int requiredTaps, Vector3 obstacleContactPoint, float obstacleHeight, PlayerController player)
         {
             GameLog.Info($"UIManager.ShowPalisadeMinigame called - requiredTaps: {requiredTaps}, palisadeMinigame: {(palisadeMinigame != null ? "assigned" : "NULL")}");
 
             if (palisadeMinigame != null)
             {
-                palisadeMinigame.StartMinigame(requiredTaps, obstaclePosition, obstacleHeight, player);
+                palisadeMinigame.StartMinigame(requiredTaps, obstacleContactPoint, obstacleHeight, player);
             }
             else
             {
@@ -1084,9 +1091,14 @@ namespace RingSport.UI
             }
         }
 
-        public void StartCountdown(float duration, Action onComplete)
+        /// <summary>
+        /// Runs the 3-2-1-GO countdown, calling back on GO. <paramref name="startDelay"/>
+        /// holds the panel hidden first - the run countdown is kicked off while the
+        /// level transition is still fading, so it waits for the level to be visible.
+        /// </summary>
+        public void StartCountdown(float duration, float startDelay, Action onComplete)
         {
-            GameLog.Info($"[UIManager] StartCountdown called. Duration: {duration}, Panel: {(countdownPanel != null ? countdownPanel.name : "NULL")}, Text: {(countdownText != null ? countdownText.name : "NULL")}");
+            GameLog.Info($"[UIManager] StartCountdown called. Duration: {duration}, Delay: {startDelay}, Panel: {(countdownPanel != null ? countdownPanel.name : "NULL")}, Text: {(countdownText != null ? countdownText.name : "NULL")}");
 
             if (countdownPanel == null || countdownText == null)
             {
@@ -1102,8 +1114,11 @@ namespace RingSport.UI
             }
 
             GameLog.Info("[UIManager] Starting countdown coroutine");
-            countdownCoroutine = StartCoroutine(CountdownRoutine(duration, onComplete));
+            countdownCoroutine = StartCoroutine(CountdownRoutine(duration, startDelay, onComplete));
         }
+
+        /// <summary>Countdown with no lead-in (mini levels, which start from a visible screen).</summary>
+        public void StartCountdown(float duration, Action onComplete) => StartCountdown(duration, 0f, onComplete);
 
         /// <summary>
         /// Stops any running countdown without invoking the callback
@@ -1122,9 +1137,18 @@ namespace RingSport.UI
                 countdownPanel.SetActive(false);
         }
 
-        private IEnumerator CountdownRoutine(float totalDuration, Action onComplete)
+        private IEnumerator CountdownRoutine(float totalDuration, float startDelay, Action onComplete)
         {
             GameLog.Info($"[UIManager] CountdownRoutine started. Panel active before: {countdownPanel.activeSelf}, Parent active: {countdownPanel.transform.parent?.gameObject.activeInHierarchy ?? true}");
+
+            // Sit out the level transition first - the coroutine lives on the
+            // UIManager, so hiding the panel here doesn't stop it
+            if (startDelay > 0f)
+            {
+                countdownPanel.SetActive(false);
+                yield return new WaitForSecondsRealtime(startDelay);
+            }
+
             countdownPanel.SetActive(true);
             countdownText.alpha = 1f; // a stopped GO fade may have left it faded
             countdownText.transform.localScale = Vector3.one;

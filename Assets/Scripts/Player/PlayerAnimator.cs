@@ -26,7 +26,7 @@ namespace RingSport.Player
         [SerializeField] private float strafeDampTime = 0.05f;
 
         [Header("Palisade Clamber")]
-        [Tooltip("Local offset applied to the dog model while clambering, so the pull-up pose lines up with the palisade face.")]
+        [Tooltip("Local offset applied to the dog model while clambering, so the pull-up pose lines up with the palisade face. Assumes the wall stopped at the ideal contact point; PlayerController.BeginClamber adds the per-hit correction on top.")]
         [SerializeField] private Vector3 clamberModelOffset = new Vector3(0f, 0f, -0.45f);
         [SerializeField] private float clamberOffsetBlendSpeed = 6f;
         [Tooltip("How fast the paused clamber clip scrubs toward the minigame progress, in normalized clip time per second.")]
@@ -112,6 +112,7 @@ namespace RingSport.Player
         private float squashDuration = 0.16f;
         private bool isClambering;
         private float clamberOffsetWeight;
+        private Vector3 clamberAlignOffset;
         private float clamberTargetProgress;
         private float clamberCurrentTime;
         private float dodgeTiltTimer = float.MaxValue;
@@ -187,7 +188,11 @@ namespace RingSport.Player
             if (modelTransform == null)
                 return;
 
-            modelTransform.localPosition = modelBasePosition + clamberModelOffset * clamberOffsetWeight + externalModelOffset;
+            // The alignment rides the same weight as the base pose offset, so it
+            // eases in with the grab and unwinds again over the vault
+            modelTransform.localPosition = modelBasePosition
+                + (clamberModelOffset + clamberAlignOffset) * clamberOffsetWeight
+                + externalModelOffset;
 
             // Camera facing: animated 180-degree turn for mini-levels and back
             currentFacingYaw = Mathf.MoveTowards(currentFacingYaw, targetFacingYaw, faceTurnSpeed * deltaTime);
@@ -389,6 +394,12 @@ namespace RingSport.Player
         }
 
         /// <summary>
+        /// Current clip playback speed, so a freeze can hand back whatever
+        /// slow-mo was running rather than assuming 1.
+        /// </summary>
+        public float AnimatorSpeed => animator != null ? animator.speed : 1f;
+
+        /// <summary>
         /// Scales the whole animator's playback (slow-mo beats like the
         /// finish-line moment). 1 = normal. Reset by ResetToLocomotion.
         /// </summary>
@@ -457,6 +468,17 @@ namespace RingSport.Player
 
             isClambering = clambering;
             animator.SetBool(ClamberHash, clambering);
+        }
+
+        /// <summary>
+        /// Per-hit correction stacked on <see cref="clamberModelOffset"/>, so the
+        /// grab reads at the same depth however far the last scroll frame carried
+        /// the palisade past the dog. Set by PlayerController.BeginClamber, which
+        /// owns the measurement; cleared when the clamber ends.
+        /// </summary>
+        public void SetClamberAlignment(Vector3 alignment)
+        {
+            clamberAlignOffset = alignment;
         }
 
         /// <summary>
@@ -581,6 +603,10 @@ namespace RingSport.Player
             isClambering = false;
             clamberTargetProgress = 0f;
             clamberCurrentTime = 0f;
+            // Deliberately NOT cleared by SetClambering(false) - the offset has to
+            // stay put while clamberOffsetWeight decays over the vault, or the dog
+            // would snap sideways the frame it lets go
+            clamberAlignOffset = Vector3.zero;
             dodgeTiltTimer = float.MaxValue;
             laneBankTimer = float.MaxValue;
             currentDodgeYaw = 0f;

@@ -37,12 +37,16 @@ namespace RingSport.Effects
         private Coroutine flashRoutine;
         private bool covering; // true from fade-out start until fade-in completes
 
+        /// <summary>True while a transition owns the screen (fade-out through fade-in).</summary>
+        public bool IsCovering => covering;
+
         /// <summary>
-        /// Fade to black, run the screen/world swap while covered, fade back in.
-        /// If a fade is already covering the screen, the swap just runs
+        /// Fade to black, run the screen/world swap while covered, optionally
+        /// hold on black while the swapped-in world finishes building, then fade
+        /// back in. If a fade is already covering the screen, the swap just runs
         /// immediately under it (nested state changes during a transition).
         /// </summary>
-        public void FadeSwap(Action atBlack, float outDuration = 0.15f, float inDuration = 0.22f)
+        public void FadeSwap(Action atBlack, float outDuration = 0.3f, float inDuration = 0.45f, float holdDuration = 0f)
         {
             if (covering)
             {
@@ -52,7 +56,7 @@ namespace RingSport.Effects
 
             if (fadeRoutine != null)
                 StopCoroutine(fadeRoutine);
-            fadeRoutine = StartCoroutine(FadeSwapRoutine(atBlack, outDuration, inDuration));
+            fadeRoutine = StartCoroutine(FadeSwapRoutine(atBlack, outDuration, inDuration, holdDuration));
         }
 
         /// <summary>Impact flash (death hit): quick tint in, eased fade out.</summary>
@@ -63,7 +67,7 @@ namespace RingSport.Effects
             flashRoutine = StartCoroutine(FlashRoutine(color, peakAlpha, inDuration, outDuration));
         }
 
-        private IEnumerator FadeSwapRoutine(Action atBlack, float outDuration, float inDuration)
+        private IEnumerator FadeSwapRoutine(Action atBlack, float outDuration, float inDuration, float holdDuration)
         {
             covering = true;
             fadeImage.raycastTarget = true; // swallow taps mid-transition
@@ -73,6 +77,11 @@ namespace RingSport.Effects
             atBlack?.Invoke();
             // Give the swapped-in screen a frame to lay out before revealing
             yield return null;
+
+            // Stay black a beat longer for heavy swaps (level generation): the
+            // build hitch and any first-frame pop happen behind the curtain
+            if (holdDuration > 0f)
+                yield return new WaitForSecondsRealtime(holdDuration);
 
             yield return AnimateFadeAlpha(1f, 0f, inDuration, Juice.OutQuad);
 

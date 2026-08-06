@@ -28,6 +28,9 @@ namespace RingSport.Level.Spawning
         private const float LaneChangeMechanic = 0.30f;  // lerp clear of the old lane
         private const float JumpMechanic = 0.05f;        // takeoff, landing-buffered
         private const float GestureCooldown = 0.2f;      // PlayerController.inputCooldown
+        // The scripted leap off the top of a palisade. Control is off for its
+        // whole length and the world scrolls at full speed underneath.
+        private const float VaultTime = 0.2f;            // PlayerController.AnimateOverObstacle
 
         private static readonly float SameLaneActionTime = GestureChainTime(0, true);    // 0.65 jump where they stand
         private static readonly float LaneChangeActionTime = GestureChainTime(1, false); // 0.90 step one lane over
@@ -38,10 +41,22 @@ namespace RingSport.Level.Spawning
         // Below this gap a two-lane crossing is not affordable, so consecutive
         // forced lanes have to stay adjacent
         private static readonly float PinChainTime = GestureChainTime(2, true);          // 1.65
-        // A player who ENGAGES a palisade (the designed path) stops for the
-        // minigame, rides the scripted vault, and regains control in the
-        // palisade's lane - nothing may need an action for this long after it
-        private const float PalisadeRecoveryTime = ReactionTime + 0.70f; // 1.30
+        // A palisade is the only obstacle that takes the player's EYES off the
+        // road: the tap minigame owns the screen, and control comes back only
+        // once the vault has already carried them past the wall. Two budgets
+        // follow from that, and both are longer than any ordinary gap.
+        //
+        // Every lane pays the vault plus reposition-and-act room. The player
+        // could read the rest of the course while they ran up to the wall, but
+        // they get it back a blind vault later than they last looked.
+        private static readonly float PalisadeRecoveryTime = VaultTime + ForcingRowLeadTime;   // 1.35
+        // The palisade's OWN lane pays the blind worst case. The wall is 2.7u
+        // of solid geometry, twice the height of anything else, so it shadows
+        // its own lane on the whole approach - an obstacle parked behind it
+        // there is never seen coming - and the vault then lands the player in
+        // exactly that lane. Assume they read it cold and have to cross the
+        // full width of the track to answer it.
+        private static readonly float PalisadeLaneRecoveryTime = VaultTime + PinChainTime;     // 1.85
 
         // Floor on the gap between consecutive obstacle spawns, whatever the
         // level config asks for. A lone obstacle blocks one lane, so an
@@ -165,6 +180,30 @@ namespace RingSport.Level.Spawning
         private float PatternTailGap => PatternTailTime * RunSpeed;
         private float PinChainReach => PinChainTime * RunSpeed;
         private float PalisadeRecoveryGap => PalisadeRecoveryTime * RunSpeed;
+        private float PalisadeLaneGap => PalisadeLaneRecoveryTime * RunSpeed;
+
+        /// <summary>
+        /// Earliest Z this lane may take a new obstacle on account of a palisade
+        /// already standing in it, or float.MinValue if it holds none. This is
+        /// the sight-shadow reservation: nothing goes behind a palisade in its
+        /// own lane until the player has had time to land the vault and answer
+        /// it from a standing start.
+        /// </summary>
+        private float PalisadeLaneFloor(int lane)
+        {
+            float palisadeZ = obstacleTracker.FrontmostPalisadeZ(lane);
+            return palisadeZ > float.MinValue ? palisadeZ + PalisadeLaneGap : float.MinValue;
+        }
+
+        /// <summary>
+        /// Clearance test every spawn path shares: the same-lane land-and-rejump
+        /// distance, plus a palisade's longer reservation on its own lane.
+        /// </summary>
+        private bool LaneBlockedAt(int lane, float z)
+        {
+            return obstacleTracker.HasObstacleInLaneBehind(lane, z, SameLaneClearance)
+                || z < PalisadeLaneFloor(lane);
+        }
 
         /// <summary>
         /// Distance to advance after placing an obstacle: the level config's
@@ -329,7 +368,7 @@ namespace RingSport.Level.Spawning
         private bool TryFindClearLane(ref int lane)
         {
             // Check if current lane has clearance
-            if (!obstacleTracker.HasObstacleInLaneBehind(lane, nextObstacleSpawnZ, SameLaneClearance))
+            if (!LaneBlockedAt(lane, nextObstacleSpawnZ))
             {
                 return true; // Current lane is clear
             }
@@ -338,7 +377,7 @@ namespace RingSport.Level.Spawning
             int[] lanes = { -1, 0, 1 };
             foreach (int testLane in lanes)
             {
-                if (!obstacleTracker.HasObstacleInLaneBehind(testLane, nextObstacleSpawnZ, SameLaneClearance))
+                if (!LaneBlockedAt(testLane, nextObstacleSpawnZ))
                 {
                     lane = testLane;
                     return true;
@@ -450,13 +489,28 @@ namespace RingSport.Level.Spawning
             if (firstForcingOffset >= 0f)
                 startZ = Mathf.Max(startZ, lastObstacleZ + ForcingRowGap - firstForcingOffset);
 
+            // FAIRNESS: a palisade already standing in one of the pattern's lanes
+            // has reserved the run behind it. Shift the whole pattern clear of
+            // that instead of throwing it away over a lane it only touches deep
+            // in - the reservation is long, so rejecting here would starve the
+            // pattern mix for the rest of the palisade's shadow.
+            foreach (var row in rows)
+            {
+                foreach (var obstacleDef in row.Obstacles)
+                {
+                    float laneFloor = PalisadeLaneFloor(obstacleDef.lane);
+                    if (laneFloor > float.MinValue)
+                        startZ = Mathf.Max(startZ, laneFloor - row.Offset);
+                }
+            }
+
             // Check clearance for all obstacles in the pattern
             foreach (var row in rows)
             {
                 foreach (var obstacleDef in row.Obstacles)
                 {
                     // Check if this position has clearance issues
-                    if (obstacleTracker.HasObstacleInLaneBehind(obstacleDef.lane, startZ + row.Offset, SameLaneClearance))
+                    if (LaneBlockedAt(obstacleDef.lane, startZ + row.Offset))
                     {
                         GameLog.Info($"Pattern '{pattern.patternName}' failed clearance check at lane {obstacleDef.lane}, Z offset {row.Offset}");
                         return false;
@@ -519,6 +573,9 @@ namespace RingSport.Level.Spawning
             float stretchedPrev = 0f;
             bool first = true;
             int reachable = startLanes;
+            // Palisade row still owing recovery room to the rows behind it
+            float palisadeOffset = float.MinValue;
+            int palisadeLanes = 0;
 
             foreach (var kv in byOffset)
             {
@@ -528,7 +585,27 @@ namespace RingSport.Level.Spawning
                 if (!first)
                     offset = stretchedPrev + Mathf.Max(kv.Key - authoredPrev, required);
 
+                // A palisade earlier in the pattern still owes this row its
+                // recovery room. The row-to-row lead above cannot see that debt:
+                // it prices the gesture the row demands, and the wall is not
+                // what the player is reacting to by the time they reach here.
+                if (palisadeOffset > float.MinValue)
+                {
+                    offset = Mathf.Max(offset, palisadeOffset + PalisadeRecoveryGap);
+                    if (RowOccupiesAny(kv.Value, palisadeLanes))
+                        offset = Mathf.Max(offset, palisadeOffset + PalisadeLaneGap);
+                }
+
                 rows.Add(new PatternRow { Offset = offset, Obstacles = kv.Value });
+
+                // From here on, this row's palisades own the recovery clock
+                int lanesHere = PalisadeLaneMask(kv.Value);
+                if (lanesHere != 0)
+                {
+                    palisadeOffset = offset;
+                    palisadeLanes = lanesHere;
+                }
+
                 authoredPrev = kv.Key;
                 stretchedPrev = offset;
                 first = false;
@@ -544,6 +621,29 @@ namespace RingSport.Level.Spawning
 
         /// <summary>Bit for a lane in a reachable-lane mask (-1/0/1 -> 0/1/2).</summary>
         private static int Bit(int lane) => 1 << (lane + 1);
+
+        /// <summary>Lanes in this row holding a palisade, as a lane mask.</summary>
+        private static int PalisadeLaneMask(List<ObstacleDefinition> row)
+        {
+            int mask = 0;
+            foreach (var def in row)
+            {
+                if (def.obstacleType == PoolTags.ObstaclePalisade)
+                    mask |= Bit(def.lane);
+            }
+            return mask;
+        }
+
+        /// <summary>Anything in this row sits in one of the masked lanes.</summary>
+        private static bool RowOccupiesAny(List<ObstacleDefinition> row, int laneMask)
+        {
+            foreach (var def in row)
+            {
+                if ((laneMask & Bit(def.lane)) != 0)
+                    return true;
+            }
+            return false;
+        }
 
         /// <summary>
         /// Cheapest time the player needs to meet this row from any lane they
@@ -757,8 +857,8 @@ namespace RingSport.Level.Spawning
             }
 
             // Check clearance for both lanes
-            if (obstacleTracker.HasObstacleInLaneBehind(lane1, nextObstacleSpawnZ, SameLaneClearance) ||
-                obstacleTracker.HasObstacleInLaneBehind(lane2, nextObstacleSpawnZ, SameLaneClearance))
+            if (LaneBlockedAt(lane1, nextObstacleSpawnZ) ||
+                LaneBlockedAt(lane2, nextObstacleSpawnZ))
             {
                 // Clearance failed for row - try spawning a single obstacle instead
                 GameLog.Info("Two-lane row clearance failed, retrying with single obstacle");
@@ -796,9 +896,9 @@ namespace RingSport.Level.Spawning
             nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastObstacleZ + ForcingRowGap, SpawnFloor);
 
             // Check clearance for all 3 lanes
-            if (obstacleTracker.HasObstacleInLaneBehind(-1, nextObstacleSpawnZ, SameLaneClearance) ||
-                obstacleTracker.HasObstacleInLaneBehind(0, nextObstacleSpawnZ, SameLaneClearance) ||
-                obstacleTracker.HasObstacleInLaneBehind(1, nextObstacleSpawnZ, SameLaneClearance))
+            if (LaneBlockedAt(-1, nextObstacleSpawnZ) ||
+                LaneBlockedAt(0, nextObstacleSpawnZ) ||
+                LaneBlockedAt(1, nextObstacleSpawnZ))
             {
                 // Clearance failed for 3-lane row - try a simpler two-lane row instead
                 GameLog.Info("Three-lane row clearance failed, retrying with two-lane row");
@@ -925,14 +1025,14 @@ namespace RingSport.Level.Spawning
             int lane = Random.Range(-1, 2);
 
             // Try to find a clear lane
-            if (obstacleTracker.HasObstacleInLaneBehind(lane, nextObstacleSpawnZ, SameLaneClearance))
+            if (LaneBlockedAt(lane, nextObstacleSpawnZ))
             {
                 int[] lanes = { -1, 0, 1 };
                 bool foundClearLane = false;
 
                 foreach (int testLane in lanes)
                 {
-                    if (!obstacleTracker.HasObstacleInLaneBehind(testLane, nextObstacleSpawnZ, SameLaneClearance))
+                    if (!LaneBlockedAt(testLane, nextObstacleSpawnZ))
                     {
                         lane = testLane;
                         foundClearLane = true;

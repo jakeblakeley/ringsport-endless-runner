@@ -16,7 +16,7 @@ empty fields, so replacing a temp clip in the Inspector sticks.
 | Sprint wind layer | `wind speed layer.wav` | Looping, fades in with the sprint; volume + pitch ride the world scroll speed | `PlayerController.HandleSprintAudio` |
 | Sprint exhausted pant | `sprint exhausted pant.wav` | Looping, starts when stamina empties and stops the moment sprint is usable again (it *is* the lockout's voice) | `PlayerController.HandleSprintAudio` |
 | Confetti pops | `confetti pops.flac` | Three pitched pops staggered ~70ms apart, layered *under* the existing moment — the finish-line sting stays | `LevelManager.PlayConfettiPops`, called from `FinishMomentRoutine` and `SecretNotePanel.Open` |
-| Face-attack freeze riser | `face-attack freeze.wav` | Hits on the freeze and sustains under the limb QTE (~4.3s clip vs a ~2.3–2.9s window) | `MiniLevelFaceAttack.EnterReveal` |
+| Face-attack freeze riser | `face-attack freeze.wav` | Own source (not a one-shot, so it can be shaped): hits full on the freeze, decays to a ~30% bed across the reveal + tap window, then a 0.18s cut the moment the beat resolves — tap, dodge or failure. The ~4.3s clip never outlives the ~2.3–2.9s beat | `MiniLevelFaceAttack.EnterReveal` / `ResolveCorrectTap` / `FailQte` |
 | Steak splat | `steak splat.aiff` | Wet hit alongside the dust burst + camera shake | `MiniLevelFoodRefusal.OnSteakHit` |
 | Simon Says correct | `simon says hurray.mp3` | Replaced `reward-coin` | `MiniLevelPositionsSimonSays` round pass |
 | Simon Says wrong | `simons says buzzer.wav` | Replaced `meme-bruh` | `MiniLevelPositionsSimonSays.HandleIncorrectInput` |

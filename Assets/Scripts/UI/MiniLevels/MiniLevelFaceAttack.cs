@@ -172,8 +172,16 @@ namespace RingSport.UI
         [SerializeField] private AudioClip windowTickSound;
         [Tooltip("Decoy scream layered onto the catch (temporary clip - see SOUND_EFFECTS.md).")]
         [SerializeField] private AudioClip catchScreamSound;
-        [Tooltip("Riser that hits as the world freezes mid-pounce and holds under the limb QTE.")]
+        [Tooltip("Riser that hits as the world freezes mid-pounce and decays under the limb QTE. Plays on its own source so it can be faded.")]
         [SerializeField] private AudioClip freezeRiserSound;
+        [Tooltip("Riser volume at the freeze, before the decay.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float freezeRiserVolume = 1f;
+        [Tooltip("Fraction of the riser left by the time the tap window runs out - it bleeds off across the whole frozen beat so the tick and the tap can breathe.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float freezeRiserTailVolume = 0.3f;
+        [Tooltip("Fast fade out when the QTE resolves - a correct tap, a dodge or any failure.")]
+        [SerializeField] private float freezeRiserCutSeconds = 0.18f;
 
         // Runtime state
         private FacePhase phase = FacePhase.Inactive;
@@ -251,6 +259,11 @@ namespace RingSport.UI
         // Retry scoring (same pattern as the flee/stop attacks)
         private int preChaseScore = -1;
         private bool retryEntryPending;
+
+        // Freeze riser: its own source, so the clip can decay under the QTE
+        // and be cut short the instant the beat resolves
+        private AudioSource riserSource;
+        private Coroutine riserRoutine;
 
         // Banner UI
         private Canvas bannerCanvas;
@@ -733,9 +746,10 @@ namespace RingSport.UI
 
             // Bullet time gets quiet: the music drops to a whisper until the
             // window resolves (the urgency tick lives in UpdateWindow), with
-            // the riser hitting on the freeze and sustaining under the QTE
+            // the riser hitting on the freeze and then bleeding away across
+            // the whole frozen beat
             GameManager.Instance?.SetMusicDuck(true);
-            LevelManager.Instance?.PlayCollectSound(freezeRiserSound);
+            PlayFreezeRiser();
 
             GameLog.Info($"[MiniLevelFaceAttack] Time frozen mid-pounce - correct limb: {QteLimbs[correctTargetIndex]}");
         }
@@ -869,6 +883,7 @@ namespace RingSport.UI
             CollectBurstVFX.PlayLife(limbPos);
             CameraStateMachine.Instance?.AddShake(0.25f);
             GameManager.Instance?.SetMusicDuck(false);
+            CutFreezeRiser();
 
             HideQteTargets();
 
@@ -1051,6 +1066,7 @@ namespace RingSport.UI
             phase = FacePhase.Failed;
             HideQteTargets();
             GameManager.Instance?.SetMusicDuck(false);
+            CutFreezeRiser();
             ShowBanner(message, xColor, 1.6f, 110f);
 
             GameLog.Info($"[MiniLevelFaceAttack] Failed encounter {currentEncounter + 1}: {message}");
@@ -1113,6 +1129,106 @@ namespace RingSport.UI
             // NotifyExternalPose forgot the applied scale, so this always
             // transitions back from wherever the standoff shot crept to
             CameraStateMachine.Instance?.SetState(CameraStateType.Gameplay);
+        }
+
+        // ------------------------------------------------------------------
+        // Freeze riser audio
+        //
+        // The riser clip outlives the beat it scores (~4.3s against a 2.9s
+        // worst-case frozen window), so it gets its own source rather than a
+        // fire-and-forget PlayOneShot: it hits full-volume on the freeze,
+        // bleeds down to a bed across the reveal + tap window (leaving room
+        // for the accelerating urgency tick), then cuts fast the moment the
+        // beat resolves - a tap, a dodge or a failure. Everything runs on
+        // unscaled time, like the banners.
+        // ------------------------------------------------------------------
+
+        private void PlayFreezeRiser()
+        {
+            if (freezeRiserSound == null)
+                return;
+
+            EnsureRiserSource();
+
+            if (riserRoutine != null)
+                StopCoroutine(riserRoutine);
+
+            riserSource.clip = freezeRiserSound;
+            riserSource.volume = freezeRiserVolume;
+            riserSource.Play();
+
+            riserRoutine = StartCoroutine(RiserDecayRoutine(RevealSeconds + TapWindowSeconds[difficulty]));
+        }
+
+        private IEnumerator RiserDecayRoutine(float duration)
+        {
+            float tail = freezeRiserVolume * freezeRiserTailVolume;
+            float t = 0f;
+            while (t < duration && riserSource != null)
+            {
+                t += Time.unscaledDeltaTime;
+                riserSource.volume = Mathf.Lerp(freezeRiserVolume, tail, Mathf.Clamp01(t / duration));
+                yield return null;
+            }
+            if (riserSource != null)
+                riserSource.volume = tail;
+            riserRoutine = null;
+        }
+
+        /// <summary>
+        /// The quick fade as the QTE resolves. Runs on through the game over
+        /// state on a failure (Update is gated there, coroutines are not).
+        /// </summary>
+        private void CutFreezeRiser()
+        {
+            if (riserSource == null || !riserSource.isPlaying)
+                return;
+
+            if (riserRoutine != null)
+                StopCoroutine(riserRoutine);
+            riserRoutine = StartCoroutine(RiserCutRoutine());
+        }
+
+        private IEnumerator RiserCutRoutine()
+        {
+            float from = riserSource.volume;
+            float t = 0f;
+            while (t < freezeRiserCutSeconds && riserSource != null)
+            {
+                t += Time.unscaledDeltaTime;
+                riserSource.volume = Mathf.Lerp(from, 0f, Mathf.Clamp01(t / freezeRiserCutSeconds));
+                yield return null;
+            }
+            riserRoutine = null; // cleared first: StopFreezeRiser would stop this very coroutine
+            if (riserSource != null)
+            {
+                riserSource.Stop();
+                riserSource.volume = freezeRiserVolume;
+            }
+        }
+
+        /// <summary>Hard stop, for teardown (a retry re-triggers the whole beat).</summary>
+        private void StopFreezeRiser()
+        {
+            if (riserRoutine != null)
+            {
+                StopCoroutine(riserRoutine);
+                riserRoutine = null;
+            }
+            if (riserSource == null)
+                return;
+            riserSource.Stop();
+            riserSource.volume = freezeRiserVolume;
+        }
+
+        private void EnsureRiserSource()
+        {
+            if (riserSource != null)
+                return;
+            riserSource = gameObject.AddComponent<AudioSource>();
+            riserSource.playOnAwake = false;
+            riserSource.loop = false;
+            riserSource.spatialBlend = 0f;
         }
 
         // ------------------------------------------------------------------
@@ -1729,6 +1845,7 @@ namespace RingSport.UI
 
             DestroyDecoy();
             HideQteTargets();
+            StopFreezeRiser();
 
             foreach (var obst in chaseObstacles)
             {

@@ -27,6 +27,16 @@ namespace RingSport.Core
 
         [Header("Countdown Settings")]
         [SerializeField] private float countdownDuration = 3f;
+        [Tooltip("Quiet beat between the level becoming visible and \"3\" appearing, so the run doesn't start the instant the fade lifts.")]
+        [SerializeField] private float countdownLeadIn = 0.2f;
+
+        [Header("Screen Transitions")]
+        [Tooltip("Fade-to-black duration on every screen swap (start, next level, retry, quit).")]
+        [SerializeField] private float transitionFadeOutSeconds = 0.3f;
+        [Tooltip("Fade-back-in duration once the new screen is in place.")]
+        [SerializeField] private float transitionFadeInSeconds = 0.45f;
+        [Tooltip("Extra time held on full black for swaps that rebuild the world (level generation, home scene) - covers the loading hitch.")]
+        [SerializeField] private float worldLoadHoldSeconds = 0.5f;
 
         [Header("Home Screen")]
         [Tooltip("Model yaw for the dog greeting the player on the home screen - aims it at the angled Start camera (180 would face straight back down the track).")]
@@ -150,15 +160,28 @@ namespace RingSport.Core
         }
 
         /// <summary>
-        /// SetState wrapped in a quick fade-to-black, hiding the hard screen
-        /// swap and the world resets behind it (player teleport, camera snap).
-        /// If a fade is already covering the screen, the swap runs immediately
-        /// under it. Death does NOT come through here - TriggerGameOver has
-        /// its own impact beat.
+        /// SetState wrapped in a fade-to-black, hiding the hard screen swap and
+        /// the world resets behind it (player teleport, camera snap). States that
+        /// build a level or the home scene also hold on black afterwards so the
+        /// generation hitch never shows. If a fade is already covering the
+        /// screen, the swap runs immediately under it. Death does NOT come
+        /// through here - TriggerGameOver has its own impact beat.
         /// </summary>
         public void TransitionToState(GameState newState)
         {
-            ScreenFader.Instance.FadeSwap(() => SetState(newState));
+            float hold = RebuildsWorld(newState) ? worldLoadHoldSeconds : 0f;
+            ScreenFader.Instance.FadeSwap(() => SetState(newState),
+                transitionFadeOutSeconds, transitionFadeInSeconds, hold);
+        }
+
+        /// <summary>
+        /// True for the states whose entry generates geometry (a run's level, the
+        /// home/start scene) rather than just swapping panels - those are the
+        /// swaps worth holding black for.
+        /// </summary>
+        private static bool RebuildsWorld(GameState state)
+        {
+            return state == GameState.Playing || state == GameState.Home || state == GameState.MiniLevel;
         }
 
         public void SetState(GameState newState)
@@ -250,10 +273,19 @@ namespace RingSport.Core
             UIManager.Instance?.ShowGameHUD();
 
             GameLog.Info($"[GameManager] HandlePlayingState - About to start countdown. UIManager exists: {UIManager.Instance != null}");
-            UIManager.Instance?.StartCountdown(countdownDuration, OnCountdownComplete);
+            UIManager.Instance?.StartCountdown(countdownDuration, CountdownStartDelay, OnCountdownComplete);
 
             // Note: Location audio is started by LevelManager.StartLevel() after level is generated
         }
+
+        /// <summary>
+        /// How long the countdown waits before its first number. HandlePlayingState
+        /// runs inside the transition's at-black callback, so the countdown is
+        /// kicked off while the screen is still covered: it has to wait out the
+        /// hold and the fade-in, then a lead-in beat, before "3" is visible.
+        /// </summary>
+        private float CountdownStartDelay =>
+            worldLoadHoldSeconds + transitionFadeInSeconds + countdownLeadIn;
 
         private void OnCountdownComplete()
         {

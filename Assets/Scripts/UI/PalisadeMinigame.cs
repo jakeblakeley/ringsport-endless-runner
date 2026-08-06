@@ -40,7 +40,7 @@ namespace RingSport.UI
         private int currentTaps = 0;
         private int requiredTaps = 0;
         private float timeRemaining = 0f;
-        private Vector3 obstaclePosition;
+        private Vector3 obstacleContactPoint;
         private float obstacleHeight;
         private PlayerController player;
         private AudioSource sfxSource;
@@ -193,6 +193,11 @@ namespace RingSport.UI
             if (!isActive)
                 return;
 
+            // This timer is unscaled, so the tab-away pause has to be honoured
+            // here by hand - timeScale alone would not stop the clock
+            if (PauseScreen.IsPaused)
+                return;
+
             // Countdown timer using unscaled time
             timeRemaining -= Time.unscaledDeltaTime;
 
@@ -253,7 +258,7 @@ namespace RingSport.UI
             sfxSource.PlayOneShot(clip, juiceSfxVolume * volumeScale);
         }
 
-        public void StartMinigame(int tapsRequired, Vector3 obstaclePos, float obstHeight, PlayerController playerController)
+        public void StartMinigame(int tapsRequired, Vector3 contactPoint, float obstHeight, PlayerController playerController)
         {
             GameLog.Info($"=== PalisadeMinigame.StartMinigame called ===");
             GameLog.Info($"Required taps: {tapsRequired}, Panel assigned: {(minigamePanel != null ? "YES" : "NO")}");
@@ -262,7 +267,7 @@ namespace RingSport.UI
             currentTaps = 0;
             requiredTaps = tapsRequired;
             timeRemaining = timeLimit;
-            obstaclePosition = obstaclePos;
+            obstacleContactPoint = contactPoint;
             obstacleHeight = obstHeight;
             player = playerController;
 
@@ -271,14 +276,23 @@ namespace RingSport.UI
             player?.PauseMovement();
             GameLog.Info("Game paused");
 
-            // Dog grabs the palisade and hangs on while the player taps
-            player?.Animations?.SetClambering(true);
+            // Dog grabs the palisade and hangs on while the player taps. The
+            // pose is aligned to where the wall actually stopped scrolling -
+            // see PlayerController.BeginClamber.
+            player?.BeginClamber(obstacleContactPoint);
 
             // Wall-hit impact: thud + shake + dust where the dog grabbed on
             PlayClip(wallHitSound);
             CameraStateMachine.Instance?.AddShake(0.3f);
             if (player != null)
-                ImpactVFX.PlayDust(player.transform.position + Vector3.up * 0.5f, 10);
+            {
+                // On the wall face, not the dog's pivot, so the burst reads as
+                // the impact against the palisade
+                ImpactVFX.PlayDust(new Vector3(
+                    player.transform.position.x,
+                    player.transform.position.y + 0.5f,
+                    obstacleContactPoint.z), 10);
+            }
 
             // Reset timer urgency visuals and the smoothed bar
             if (timerText != null)
@@ -326,7 +340,7 @@ namespace RingSport.UI
         {
             GameLog.Info($"OnTapPressed called! isActive: {isActive}, currentTaps: {currentTaps}, requiredTaps: {requiredTaps}");
 
-            if (!isActive)
+            if (!isActive || PauseScreen.IsPaused)
                 return;
 
             currentTaps++;
@@ -346,7 +360,7 @@ namespace RingSport.UI
         {
             GameLog.Info($"OnMobileTap called! isActive: {isActive}, currentTaps: {currentTaps}, requiredTaps: {requiredTaps}");
 
-            if (!isActive)
+            if (!isActive || PauseScreen.IsPaused)
                 return;
 
             currentTaps++;
@@ -422,7 +436,7 @@ namespace RingSport.UI
             PlayClip(successBarkSound);
 
             // Animate player over obstacle
-            yield return player.StartCoroutine(player.AnimateOverObstacle(obstaclePosition, obstacleHeight));
+            yield return player.StartCoroutine(player.AnimateOverObstacle(obstacleContactPoint, obstacleHeight));
 
             // Trigger recovery zone in level generator (fairness feature)
             if (LevelGenerator.Instance != null)

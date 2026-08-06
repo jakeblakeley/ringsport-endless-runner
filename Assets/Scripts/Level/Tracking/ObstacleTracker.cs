@@ -65,6 +65,34 @@ namespace RingSport.Level
         }
 
         /// <summary>
+        /// Z of the furthest-along palisade tracked in this lane, or
+        /// float.MinValue if the lane holds none.
+        ///
+        /// FAIRNESS: a palisade is 2.7u of solid wall - twice the height of any
+        /// other obstacle - so from the chase camera it casts a sight shadow
+        /// down its own lane and hides whatever is parked behind it until the
+        /// player is over the top. The spawner reserves a longer clear run
+        /// behind a palisade than behind anything else; this is the query it
+        /// measures that reservation from.
+        /// </summary>
+        public float FrontmostPalisadeZ(int lane)
+        {
+            float frontmost = float.MinValue;
+
+            foreach (ObstacleData obstacle in obstaclePositions)
+            {
+                if (obstacle.lane == lane &&
+                    obstacle.obstacleType == PoolTags.ObstaclePalisade &&
+                    obstacle.zPosition > frontmost)
+                {
+                    frontmost = obstacle.zPosition;
+                }
+            }
+
+            return frontmost;
+        }
+
+        /// <summary>
         /// Check if there are any obstacles in the specified lane ahead of the given Z position
         /// FAIRNESS: Used to prevent coin trains from leading into obstacles
         /// </summary>

@@ -181,17 +181,21 @@ namespace RingSport.Level
             GameLog.Info($"Palisade requires {requiredTaps} taps (hit at {hitHeightPercent * 100f:F1}%)");
             GameLog.Info($"About to call UIManager.ShowPalisadeMinigame, UIManager.Instance: {(uiManager != null ? "EXISTS" : "NULL")}");
 
-            // Pass obstacle bottom position for accurate arc calculation
-            Vector3 obstacleBottomPosition = new Vector3(
+            // Where the dog should end up gripping the wall:
+            //   x = the wall's lane, y = its base (the vault arc), z = the FACE
+            //   the dog ran into. The world scrolls in whole frames, so this
+            //   face is wherever the last scroll step happened to leave it -
+            //   the player aligns its clamber pose against it.
+            Vector3 contactPoint = new Vector3(
                 transform.position.x,
                 obstacleBottom,
-                transform.position.z
+                obstacleCollider.bounds.min.z
             );
 
             // Trigger the minigame
             uiManager?.ShowPalisadeMinigame(
                 requiredTaps,
-                obstacleBottomPosition,
+                contactPoint,
                 obstacleHeight,
                 player
             );
