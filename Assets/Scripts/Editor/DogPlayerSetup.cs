@@ -20,7 +20,7 @@ namespace RingSport.Editor
     public static class DogPlayerSetup
     {
         // Bump to make the auto-run rebuild the controller after changing this script
-        private const int SetupVersion = 19;
+        private const int SetupVersion = 20;
         private const string VersionPrefKey = "RingSport.DogPlayerSetup.Version";
 
         // The retarget math is part of what the generated assets depend on, so a
@@ -410,10 +410,18 @@ namespace RingSport.Editor
             toJump.duration = 0.08f;
             toJump.AddCondition(AnimatorConditionMode.If, 0f, "Jump");
 
-            // Exit time tuned to the ~0.48s air time of the 1.7m jump
+            // Landing fires on Grounded, but hasExitTime ALSO gates it: the
+            // clip is 1.533s at speed 1.3, so the state runs 1.180s and each
+            // 0.1 of exitTime is 118ms of wall clock. At 0.4 the gate sat at
+            // 472ms - 4ms under the old 476ms air time, i.e. the landing was
+            // riding the gate rather than the touchdown, and shortening the
+            // jump to 460ms put Grounded on the wrong side of it (the dog held
+            // the jump pose ~12ms past touchdown). 0.3 puts the gate at 354ms,
+            // clear of any air time from ~0.36s up, while still being far
+            // enough past takeoff to swallow a stray one-frame Grounded.
             var jumpLand = jump.AddTransition(locomotion);
             jumpLand.hasExitTime = true;
-            jumpLand.exitTime = 0.4f;
+            jumpLand.exitTime = 0.3f;
             jumpLand.hasFixedDuration = true;
             jumpLand.duration = 0.2f;
             jumpLand.AddCondition(AnimatorConditionMode.If, 0f, "Grounded");

@@ -25,6 +25,34 @@ namespace RingSport.Level
             // Collectibles can spawn above jumps and palisades
             return obstacleType == "ObstacleJump" || obstacleType == "ObstaclePalisade";
         }
+
+        /// <summary>
+        /// Contact with this obstacle is game over at ANY height - there is no
+        /// "cleared it high enough" grace the way a hurdle has. The dog can
+        /// still hop clean over both (barrel top 1.0u, pylon 0.9u, both under
+        /// the trigger sphere at the top of the jump arc), but the window is
+        /// tighter and a graze kills. Callers use this to keep flat coin lines
+        /// out of these lanes.
+        /// </summary>
+        public bool IsInstantDeath()
+        {
+            return obstacleType == PoolTags.ObstacleAvoid || obstacleType == PoolTags.ObstaclePylon;
+        }
+
+        /// <summary>
+        /// Whether a coin arc may be drawn over this obstacle. Every type
+        /// qualifies: the arc traces the DOG's jump, not the obstacle, so a
+        /// short barrel gets the same shape as a hurdle. The spawner gates how
+        /// often the instant-death types actually get one.
+        /// </summary>
+        public bool CanHaveCoinArc()
+        {
+            return obstacleType == PoolTags.ObstacleJump ||
+                   obstacleType == PoolTags.ObstaclePalisade ||
+                   obstacleType == PoolTags.ObstacleBroadJump ||
+                   obstacleType == PoolTags.ObstacleAvoid ||
+                   obstacleType == PoolTags.ObstaclePylon;
+        }
     }
 
     /// <summary>
@@ -133,30 +161,62 @@ namespace RingSport.Level
         }
 
         /// <summary>
-        /// Check for upcoming jumpable obstacles within arc range
-        /// Returns the obstacle data if found, null otherwise
+        /// Nearest obstacle ahead that could carry a coin arc, skipping any
+        /// whose arc has already been decided (drawn OR declined).
+        ///
+        /// Nearest rather than first-in-list, and the exclusion is a parameter
+        /// rather than a check on the result, because a declined obstacle stays
+        /// in front of the spawn cursor: matching it again every frame would
+        /// starve everything behind it of an arc.
         /// </summary>
-        public ObstacleData? GetUpcomingJumpableObstacle(float zPosition, float lookAheadDistance = 8f)
+        public ObstacleData? GetUpcomingArcObstacle(float zPosition, HashSet<float> alreadyDecided, float lookAheadDistance = 8f)
         {
+            ObstacleData? nearest = null;
+            float nearestDistance = float.MaxValue;
+
             foreach (ObstacleData obstacle in obstaclePositions)
             {
                 // Check if obstacle is ahead of current position
                 float distanceAhead = obstacle.zPosition - zPosition;
 
                 // Only consider obstacles within the look-ahead range
-                if (distanceAhead > 0 && distanceAhead <= lookAheadDistance)
+                if (distanceAhead <= 0 || distanceAhead > lookAheadDistance)
+                    continue;
+
+                if (!obstacle.CanHaveCoinArc())
+                    continue;
+
+                if (alreadyDecided != null && alreadyDecided.Contains(obstacle.zPosition))
+                    continue;
+
+                if (distanceAhead < nearestDistance)
                 {
-                    // Check if it's a jumpable obstacle type
-                    if (obstacle.obstacleType == "ObstacleJump" ||
-                        obstacle.obstacleType == "ObstaclePalisade" ||
-                        obstacle.obstacleType == "ObstacleBroadJump")
-                    {
-                        return obstacle;
-                    }
+                    nearestDistance = distanceAhead;
+                    nearest = obstacle;
                 }
             }
 
-            return null;
+            return nearest;
+        }
+
+        /// <summary>
+        /// Whether a barrel or pylon sits in this lane within the given Z
+        /// window. A flat coin line placed here would be uncollectable without
+        /// dying, so the collectible spawner routes around it.
+        /// </summary>
+        public bool HasDeadlyObstacleInLane(int lane, float zPosition, float radius)
+        {
+            foreach (ObstacleData obstacle in obstaclePositions)
+            {
+                if (obstacle.lane == lane &&
+                    obstacle.IsInstantDeath() &&
+                    Mathf.Abs(zPosition - obstacle.zPosition) < radius)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

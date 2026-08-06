@@ -43,10 +43,12 @@ namespace RingSport.Effects
         /// <summary>
         /// Fade to black, run the screen/world swap while covered, optionally
         /// hold on black while the swapped-in world finishes building, then fade
-        /// back in. If a fade is already covering the screen, the swap just runs
-        /// immediately under it (nested state changes during a transition).
+        /// back in. Equal out/in durations give a symmetrical dip - InQuad to
+        /// black is the exact time-reversal of OutQuad back out. If a fade is
+        /// already covering the screen, the swap just runs immediately under it
+        /// (nested state changes during a transition).
         /// </summary>
-        public void FadeSwap(Action atBlack, float outDuration = 0.3f, float inDuration = 0.45f, float holdDuration = 0f)
+        public void FadeSwap(Action atBlack, float outDuration = 0.4f, float inDuration = 0.4f, float holdDuration = 0f)
         {
             if (covering)
             {

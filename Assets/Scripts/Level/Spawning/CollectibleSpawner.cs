@@ -18,8 +18,9 @@ namespace RingSport.Level.Spawning
         private int coinTrainRemaining = 0;
         private int coinTrainLane = 0;
 
-        // Coin arc tracking (to prevent duplicate arcs for same obstacle)
-        private HashSet<float> obstaclesWithArcs = new HashSet<float>();
+        // Obstacles whose coin arc has been decided - drawn OR rolled against -
+        // so each one is only considered once
+        private HashSet<float> arcDecidedObstacles = new HashSet<float>();
 
         private SpawnContext context;
         private ObstacleTracker obstacleTracker;
@@ -50,7 +51,7 @@ namespace RingSport.Level.Spawning
             coinTrainLane = 0;
 
             // Reset coin arc tracking
-            obstaclesWithArcs.Clear();
+            arcDecidedObstacles.Clear();
         }
 
         /// <summary>
@@ -87,33 +88,44 @@ namespace RingSport.Level.Spawning
         }
 
         /// <summary>
-        /// Tries to spawn a coin arc for an upcoming jumpable obstacle
+        /// Tries to spawn a coin arc over the next obstacle that can carry one
         /// Returns true if a coin arc was spawned
         /// </summary>
         private bool TrySpawnCoinArcForObstacle()
         {
-            // Check if there's an upcoming jumpable obstacle that needs a coin arc
-            ObstacleData? upcomingObstacle = obstacleTracker.GetUpcomingJumpableObstacle(nextCollectibleSpawnZ);
+            // Nearest obstacle ahead that hasn't had its arc decided yet
+            ObstacleData? upcoming = obstacleTracker.GetUpcomingArcObstacle(nextCollectibleSpawnZ, arcDecidedObstacles);
 
-            if (upcomingObstacle.HasValue && !obstaclesWithArcs.Contains(upcomingObstacle.Value.zPosition))
+            if (!upcoming.HasValue)
             {
-                // Spawn coin arc for this obstacle
-                SpawnCoinArc(upcomingObstacle.Value);
-
-                // Mark this obstacle as having an arc
-                obstaclesWithArcs.Add(upcomingObstacle.Value.zPosition);
-
-                // Advance spawn position past the arc (obstacle position + 3.5 units after + a small buffer)
-                nextCollectibleSpawnZ = upcomingObstacle.Value.zPosition + 4.5f;
-
-                // End any coin train that might be active
-                isInCoinTrain = false;
-                coinTrainRemaining = 0;
-
-                return true; // Coin arc spawned
+                return false; // Nothing in range
             }
 
-            return false; // No coin arc spawned
+            ObstacleData obstacle = upcoming.Value;
+
+            // Whatever we decide, this obstacle is settled - don't reconsider it
+            arcDecidedObstacles.Add(obstacle.zPosition);
+
+            // Barrels and pylons arc only sometimes. The jump over them is real
+            // but tight, and the generator prices them as lane changes: a pylon
+            // slalom down the outside lanes is meant to be free to a player
+            // sitting in the centre, so arcing every one would drag them out of
+            // the safe lane for a coin. Passable obstacles always arc.
+            if (obstacle.IsInstantDeath() && Random.value >= context.CurrentConfig.CollectibleAboveObstacleChance)
+            {
+                return false; // Declined - fall through to a regular collectible
+            }
+
+            SpawnCoinArc(obstacle);
+
+            // Advance spawn position past the arc (obstacle position + 3.5 units after + a small buffer)
+            nextCollectibleSpawnZ = obstacle.zPosition + 4.5f;
+
+            // End any coin train that might be active
+            isInCoinTrain = false;
+            coinTrainRemaining = 0;
+
+            return true; // Coin arc spawned
         }
 
         /// <summary>
@@ -202,7 +214,7 @@ namespace RingSport.Level.Spawning
                 // Near an obstacle but not spawning above it
                 // Spawn in a different lane than the obstacle
                 int[] otherLanes = GetLanesExcept(obstacle.lane);
-                lane = otherLanes[Random.Range(0, otherLanes.Length)];
+                lane = PickSafestLane(otherLanes);
 
                 // Maybe start a coin train (40% chance)
                 if (!isInCoinTrain && Random.value < 0.4f)
@@ -232,10 +244,59 @@ namespace RingSport.Level.Spawning
         }
 
         /// <summary>
+        /// Distance either side of a barrel or pylon that a flat coin line is
+        /// kept out of its lane. Roughly the depth of the prop plus the coin's
+        /// own pickup radius, so a coin never reads as sitting on top of one.
+        /// </summary>
+        private const float DeadlyObstacleCoinClearance = 2f;
+
+        /// <summary>
+        /// Pick from the candidate lanes, preferring any that doesn't have a
+        /// barrel or pylon sitting at this Z. Falls back to a plain random pick
+        /// when they're all occupied - the arc path handles the "over it" case.
+        /// </summary>
+        private int PickSafestLane(int[] candidates)
+        {
+            int safeCount = 0;
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                if (!obstacleTracker.HasDeadlyObstacleInLane(candidates[i], nextCollectibleSpawnZ, DeadlyObstacleCoinClearance))
+                    safeCount++;
+            }
+
+            if (safeCount == 0)
+            {
+                return candidates[Random.Range(0, candidates.Length)];
+            }
+
+            int pick = Random.Range(0, safeCount);
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                if (obstacleTracker.HasDeadlyObstacleInLane(candidates[i], nextCollectibleSpawnZ, DeadlyObstacleCoinClearance))
+                    continue;
+                if (pick == 0)
+                    return candidates[i];
+                pick--;
+            }
+
+            return candidates[0]; // Unreachable
+        }
+
+        /// <summary>
         /// Spawns a single collectible at the specified lane and height
         /// </summary>
         private void SpawnSingleCollectible(int lane, float spawnHeight)
         {
+            // Last line of defence for every path into here (coin train, lane
+            // bias, open space): never park a flat coin on a barrel or pylon.
+            // Skip the coin rather than jog the lane - a one-coin hole in a
+            // train reads as nothing, a sideways kink reads as a bug.
+            if (obstacleTracker.HasDeadlyObstacleInLane(lane, nextCollectibleSpawnZ, DeadlyObstacleCoinClearance))
+            {
+                nextCollectibleSpawnZ += Random.Range(context.CurrentConfig.MinCollectibleSpacing, context.CurrentConfig.MaxCollectibleSpacing);
+                return;
+            }
+
             float xPosition = lane * 3f;
 
             // Anchor to world origin (0,0,0) for grid alignment
@@ -366,8 +427,13 @@ namespace RingSport.Level.Spawning
             {
                 peakHeight = 2.5f; // Medium arc for broad jumps
             }
-            else // ObstacleJump
+            else // ObstacleJump, and the barrels and pylons
             {
+                // Barrels (top 1.0u) and pylons (0.9u) are SHORTER than a
+                // hurdle (1.35u) but share its peak: the arc is a picture of
+                // the dog's jump, and that jump is the same one either way.
+                // Scaling the peak to the obstacle would flatten these two into
+                // a coin line that no longer reads as "hop this".
                 peakHeight = 2.0f; // Standard arc for regular jumps
             }
 

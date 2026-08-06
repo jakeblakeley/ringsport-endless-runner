@@ -18,20 +18,34 @@ namespace RingSport.Player
         [SerializeField] private float laneChangeSpeed = 10f;
 
         [Header("Jump Settings")]
-        // 1.87 clears the 1.5-tall hurdle colliders VISUALLY (feet above the
-        // bar at apex), not just the pivot>=1.5 gameplay check; ~0.48s air time.
+        // 1.8 clears the 1.5-tall hurdle colliders VISUALLY (feet above the
+        // bar at apex), not just the pivot>=1.5 gameplay check.
         //
-        // Height and gravity are a PAIR. v0 = sqrt(2*g*h) below, so air time is
-        // 2*v0/g = 2*sqrt(2h/g): it depends on the RATIO, while the apex is h.
-        // Scaling both by the same factor therefore buys height at a constant
-        // air time - and constant air time is what keeps the jump's horizontal
-        // reach, the animator's jump state, and every spacing budget in
-        // ObstacleSpawner (which is priced in seconds) exactly where they were.
-        // Raised 10% from 1.7/-60 to be more forgiving without re-spacing levels.
-        [SerializeField] private float jumpHeight = 1.87f;
-        [SerializeField] private float gravity = -66f;
+        // Height and gravity are a PAIR, and neither one alone is a dial:
+        // v0 = sqrt(2*g*h) below, so the apex is h while the air time is
+        // 2*v0/g = 2*sqrt(2h/g) - the RATIO. Pick the pair from the two things
+        // that are actually tuned, via g = 8h/T^2: h 1.8 puts the apex at 2.95
+        // (the root rests at y=1.15) and g 68 gives T = 0.4602s.
+        //
+        // Air time is the half that levels care about. It sets the jump's
+        // horizontal reach (6.90u at L1 up to 9.20u at L8) and how soon the dog
+        // is back on the ground for the next gesture; the spacing budgets in
+        // ObstacleSpawner are priced in seconds and never read these fields, so
+        // a SHORTER air time only ever buys more landing room, never less.
+        [SerializeField] private float jumpHeight = 1.8f;
+        [SerializeField] private float gravity = -68f;
         [Tooltip("A jump swipe made this long before landing is queued and fires on touchdown, so mid-air swipes aren't silently dropped.")]
         [SerializeField] private float jumpBufferDuration = 0.2f;
+
+        // Root Y with the capsule standing on the floor. The whole game runs on
+        // one ground plane, so this is a constant - but it's a MEASURED one:
+        // HandleGroundCheck overwrites it from the first grounded frame, so a
+        // resized capsule or a re-authored floor can't leave the snap behind.
+        // The serialized value only has to carry the very first snap, before any
+        // run has happened (the scene authors the player at y=1; the capsule
+        // settles at 1.15 once physics has had a frame).
+        [Tooltip("Root Y where the capsule rests on the floor. Seeds the ground snap; measured live from the first grounded frame onward.")]
+        [SerializeField] private float groundRestY = 1.15f;
 
         [Header("Sprint Stamina Settings")]
         [SerializeField] private float maxSprintDuration = 5f;
@@ -116,6 +130,19 @@ namespace RingSport.Player
         private void Awake()
         {
             characterController = GetComponent<CharacterController>();
+
+            // The prefab's 0.001 min move distance made the dog report AIRBORNE
+            // while standing still: the pre-run countdown holds timeScale at 0,
+            // so the per-frame Move is exactly zero, and a move under this
+            // threshold is discarded WITH its collision flags - isGrounded went
+            // false for the whole countdown (visible in Editor.log as ten
+            // seconds of "isGrounded: False, position.y: 1.15"). Everything that
+            // reads IsGrounded believed it: taps banked as buffered jumps
+            // instead of firing, footsteps stayed silent, and the finish beat's
+            // wait-until-grounded had to be talked out of freezing the dog.
+            // Zero keeps the sweep running so a still frame still finds the floor.
+            characterController.minMoveDistance = 0f;
+
             playerInput = GetComponent<PlayerInput>();
             playerAnimator = GetComponentInChildren<PlayerAnimator>(true);
             playerRagdoll = GetComponentInChildren<PlayerRagdoll>(true);
@@ -279,7 +306,21 @@ namespace RingSport.Player
             bool isValidState = gameManager?.CurrentState == GameState.Playing ||
                                gameManager?.CurrentState == GameState.MiniLevel;
 
-            if (!isValidState || isMovementPaused)
+            // Every other state (Home, GameOver, LevelComplete) runs no movement
+            // step at all, so the dog has to be put back on the floor explicitly
+            // - see SettleToGround. Deliberately ahead of the isMovementPaused
+            // check: a run death pauses movement and never unpauses it, which is
+            // exactly the case that used to strand the dog in the air.
+            if (!isValidState)
+            {
+                SettleToGround();
+                return;
+            }
+
+            // Movement paused DURING gameplay is a deliberate hold (the face
+            // attack parks the dog mid-pounce for its bullet-time limb pick) -
+            // nothing to settle, the pose is the point
+            if (isMovementPaused)
                 return;
 
             // Use unscaled delta time during mini-levels (TimeScale may be 0)
@@ -325,9 +366,15 @@ namespace RingSport.Player
         {
             isGrounded = characterController.isGrounded;
 
-            if (isGrounded && velocity.y < 0)
+            if (isGrounded)
             {
-                velocity.y = -2f;
+                // Re-measure the rest height from wherever the capsule actually
+                // came to rest, so SnapToGround stays honest without anyone
+                // having to keep a hand-tuned number in sync with the collider
+                groundRestY = transform.position.y;
+
+                if (velocity.y < 0)
+                    velocity.y = -2f;
             }
 
             // Debug ground state occasionally
@@ -391,6 +438,67 @@ namespace RingSport.Player
         private void HandleGravity(float deltaTime)
         {
             velocity.y += gravity * deltaTime;
+        }
+
+        /// <summary>
+        /// Puts the dog back on the floor in the states that run no movement
+        /// step: Home, GameOver and LevelComplete.
+        ///
+        /// Nothing else touches the capsule there. A death or a finish taken
+        /// mid-jump therefore parked the dog at whatever Y it was passing
+        /// through - it held that height behind the game over panel, ResetPosition
+        /// preserved it (it only ever rewrote X), and the dog then hung in the
+        /// air on the home screen, or through the entire pre-run countdown on a
+        /// retry, before dropping the moment timeScale went back to 1.
+        ///
+        /// Unscaled, because LevelComplete and the countdown both sit at
+        /// timeScale 0. Floored at the rest height rather than left to the
+        /// collider: the home screen clears the floor pool before it respawns
+        /// the tiles, and a frame of gravity landing in that gap would drop the
+        /// dog through the world instead.
+        /// </summary>
+        private void SettleToGround()
+        {
+            if (transform.position.y > groundRestY)
+            {
+                velocity.y += gravity * Time.unscaledDeltaTime;
+                characterController.Move(Vector3.up * (velocity.y * Time.unscaledDeltaTime));
+
+                // Still falling - keep the arc, it reads as a real drop
+                if (transform.position.y > groundRestY)
+                    return;
+            }
+
+            SnapToGround();
+        }
+
+        /// <summary>Parks the capsule exactly on the floor plane and kills any fall.</summary>
+        private void SnapToGround()
+        {
+            velocity.y = 0f;
+
+            // Nothing calls Move in these states, so the controller's own flag
+            // would stay stuck at whatever the last gameplay frame left behind;
+            // say plainly that the dog is down. HandleGroundCheck takes the
+            // reading back over on the first gameplay frame.
+            isGrounded = true;
+
+            if (Mathf.Abs(transform.position.y - groundRestY) < 0.001f)
+                return;
+
+            Teleport(new Vector3(transform.position.x, groundRestY, transform.position.z));
+        }
+
+        /// <summary>
+        /// Moves the capsule without sweeping. The CharacterController keeps its
+        /// own copy of the position, so the component has to be off for a direct
+        /// transform write to survive the next Move.
+        /// </summary>
+        private void Teleport(Vector3 position)
+        {
+            characterController.enabled = false;
+            transform.position = position;
+            characterController.enabled = true;
         }
 
         private void NotifyLaneChange(bool toRight)
@@ -685,10 +793,12 @@ namespace RingSport.Player
             wasAirborne = false;
             airborneTime = 0f;
 
-            // Disable CharacterController to allow direct position change
-            characterController.enabled = false;
-            transform.position = new Vector3(0f, transform.position.y, transform.position.z);
-            characterController.enabled = true;
+            // Centre lane, standing on the floor. Y matters as much as X here:
+            // this used to carry transform.position.y through untouched, which
+            // meant a reset was only ever as grounded as the moment that
+            // preceded it - a mid-jump death or finish handed its airborne Y
+            // straight on to the home screen and to the next run's countdown.
+            Teleport(new Vector3(0f, groundRestY, transform.position.z));
 
             // Reset stamina system
             staminaSystem.Reset();

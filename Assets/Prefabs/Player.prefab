@@ -4993,9 +4993,10 @@ MonoBehaviour:
   sprintMultiplier: 1.5
   laneDistance: 3
   laneChangeSpeed: 10
-  jumpHeight: 1.87
-  gravity: -66
+  jumpHeight: 1.8
+  gravity: -68
   jumpBufferDuration: 0.2
+  groundRestY: 1.15
   maxSprintDuration: 5
   sprintDrainRate: 1
   sprintRefillRate: 1

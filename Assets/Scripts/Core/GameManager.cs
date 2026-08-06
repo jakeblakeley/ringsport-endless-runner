@@ -31,10 +31,8 @@ namespace RingSport.Core
         [SerializeField] private float countdownLeadIn = 0.2f;
 
         [Header("Screen Transitions")]
-        [Tooltip("Fade-to-black duration on every screen swap (start, next level, retry, quit).")]
-        [SerializeField] private float transitionFadeOutSeconds = 0.3f;
-        [Tooltip("Fade-back-in duration once the new screen is in place.")]
-        [SerializeField] private float transitionFadeInSeconds = 0.45f;
+        [Tooltip("Duration of BOTH halves of a screen swap (start, next level, retry, quit) - out and back in are symmetrical.")]
+        [SerializeField] private float transitionFadeSeconds = 0.4f;
         [Tooltip("Extra time held on full black for swaps that rebuild the world (level generation, home scene) - covers the loading hitch.")]
         [SerializeField] private float worldLoadHoldSeconds = 0.5f;
 
@@ -163,15 +161,17 @@ namespace RingSport.Core
         /// SetState wrapped in a fade-to-black, hiding the hard screen swap and
         /// the world resets behind it (player teleport, camera snap). States that
         /// build a level or the home scene also hold on black afterwards so the
-        /// generation hitch never shows. If a fade is already covering the
-        /// screen, the swap runs immediately under it. Death does NOT come
-        /// through here - TriggerGameOver has its own impact beat.
+        /// generation hitch never shows. Both halves get the same duration, and
+        /// the fader's eases are mirror images, so the swap reads as one
+        /// symmetrical dip. If a fade is already covering the screen, the swap
+        /// runs immediately under it. Death does NOT come through here -
+        /// TriggerGameOver has its own impact beat.
         /// </summary>
         public void TransitionToState(GameState newState)
         {
             float hold = RebuildsWorld(newState) ? worldLoadHoldSeconds : 0f;
             ScreenFader.Instance.FadeSwap(() => SetState(newState),
-                transitionFadeOutSeconds, transitionFadeInSeconds, hold);
+                transitionFadeSeconds, transitionFadeSeconds, hold);
         }
 
         /// <summary>
@@ -285,7 +285,7 @@ namespace RingSport.Core
         /// hold and the fade-in, then a lead-in beat, before "3" is visible.
         /// </summary>
         private float CountdownStartDelay =>
-            worldLoadHoldSeconds + transitionFadeInSeconds + countdownLeadIn;
+            worldLoadHoldSeconds + transitionFadeSeconds + countdownLeadIn;
 
         private void OnCountdownComplete()
         {
