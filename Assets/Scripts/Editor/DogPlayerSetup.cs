@@ -20,7 +20,7 @@ namespace RingSport.Editor
     public static class DogPlayerSetup
     {
         // Bump to make the auto-run rebuild the controller after changing this script
-        private const int SetupVersion = 20;
+        private const int SetupVersion = 21;
         private const string VersionPrefKey = "RingSport.DogPlayerSetup.Version";
 
         // The retarget math is part of what the generated assets depend on, so a
@@ -337,6 +337,9 @@ namespace RingSport.Editor
             controller.AddParameter("MoveSpeed", AnimatorControllerParameterType.Float);
             controller.AddParameter("Strafe", AnimatorControllerParameterType.Float);
             controller.AddParameter(new AnimatorControllerParameter { name = "AnimSpeed", type = AnimatorControllerParameterType.Float, defaultFloat = 1f });
+            // Playback multiplier on the Jump state, boosted by PlayerAnimator at
+            // touchdown so the landing recovery resolves instead of sliding
+            controller.AddParameter(new AnimatorControllerParameter { name = "LandSpeed", type = AnimatorControllerParameterType.Float, defaultFloat = 1f });
             controller.AddParameter(new AnimatorControllerParameter { name = "Grounded", type = AnimatorControllerParameterType.Bool, defaultBool = true });
             controller.AddParameter("Jump", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("Vault", AnimatorControllerParameterType.Trigger);
@@ -403,6 +406,13 @@ namespace RingSport.Editor
             var jump = sm.AddState("Jump", new Vector3(560f, 20f));
             jump.motion = jumpFlat;
             jump.speed = 1.3f;
+            // Effective playback is speed * LandSpeed. PlayerAnimator holds
+            // LandSpeed at 1 through the air (so the exitTime gate below keeps
+            // its measured wall-clock timing) and boosts it at touchdown, which
+            // fast-forwards the clip's landing recovery under the blend instead
+            // of letting the planted pose ride the scrolling ground.
+            jump.speedParameterActive = true;
+            jump.speedParameter = "LandSpeed";
 
             var toJump = locomotion.AddTransition(jump);
             toJump.hasExitTime = false;
@@ -419,18 +429,33 @@ namespace RingSport.Editor
             // the jump pose ~12ms past touchdown). 0.3 puts the gate at 354ms,
             // clear of any air time from ~0.36s up, while still being far
             // enough past takeoff to swallow a stray one-frame Grounded.
+            //
+            // Blend length is what the slide actually costs: the whole time the
+            // outgoing jump clip has weight, the paws are planted while the
+            // ground scrolls under them. 0.2s was ~2-3m of travel on a planted
+            // pose. Registered sprint-first - transitions are evaluated in
+            // order, so the sprint variant wins when MoveSpeed is at the sprint
+            // tier and the slower ground speed falls through to the general one.
+            var jumpLandSprint = jump.AddTransition(locomotion);
+            jumpLandSprint.hasExitTime = true;
+            jumpLandSprint.exitTime = 0.3f;
+            jumpLandSprint.hasFixedDuration = true;
+            jumpLandSprint.duration = 0.06f;
+            jumpLandSprint.AddCondition(AnimatorConditionMode.If, 0f, "Grounded");
+            jumpLandSprint.AddCondition(AnimatorConditionMode.Greater, 1.5f, "MoveSpeed");
+
             var jumpLand = jump.AddTransition(locomotion);
             jumpLand.hasExitTime = true;
             jumpLand.exitTime = 0.3f;
             jumpLand.hasFixedDuration = true;
-            jumpLand.duration = 0.2f;
+            jumpLand.duration = 0.09f;
             jumpLand.AddCondition(AnimatorConditionMode.If, 0f, "Grounded");
 
             var jumpEnd = jump.AddTransition(locomotion);
             jumpEnd.hasExitTime = true;
             jumpEnd.exitTime = 0.95f;
             jumpEnd.hasFixedDuration = true;
-            jumpEnd.duration = 0.25f;
+            jumpEnd.duration = 0.12f;
 
             // --- Palisade clamber: paused clip, scrubbed by PlayerAnimator to match
             // the minigame's tap progress ---

@@ -9070,6 +9070,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.UI.MiniLevelFoodRefusal
   totalSteaks: 16
   steakSpawnInterval: 1.35
+  doubleDropChance: 0.33333334
   fallSpeed: 6
   spawnHeight: 15
   steakPoolTag: FoodRefusalSteak
@@ -12578,6 +12579,10 @@ MonoBehaviour:
   musicVolume: 0.5
   ambientVolume: 1
   sfxVolume: 1
+  homeMusic: {fileID: 8300000, guid: 289f76715efd2475f9e805456e5c2c03, type: 3}
+  homeMusicVolume: 0.18
+  homeMusicFadeInSeconds: 1.2
+  homeMusicFadeOutSeconds: 0.9
   deathHitStopSeconds: 0.09
   gameOverPanelDelay: 1
 --- !u!4 &1338864902

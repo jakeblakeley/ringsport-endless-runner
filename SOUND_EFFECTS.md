@@ -20,6 +20,7 @@ empty fields, so replacing a temp clip in the Inspector sticks.
 | Steak splat | `steak splat.aiff` | Wet hit alongside the dust burst + camera shake | `MiniLevelFoodRefusal.OnSteakHit` |
 | Simon Says correct | `simon says hurray.mp3` | Replaced `reward-coin` | `MiniLevelPositionsSimonSays` round pass |
 | Simon Says wrong | `simons says buzzer.wav` | Replaced `meme-bruh` | `MiniLevelPositionsSimonSays.HandleIncorrectInput` |
+| Home screen music | `Music/ES_Croissants Et Baguettes - Trabant 33.mp3` | Loops quietly (0.18) under the home screen, fades in over 1.2s and out over 0.9s starting at the START press, so it rides the screen fade rather than cutting. Own AudioSource, so a level's music can fade in over the top | `GameManager.PlayHomeMusic` / `StopHomeMusic`, wired by `HomeMusicSetup.cs` |
 
 ## Wired this pass (temporary stand-ins)
 

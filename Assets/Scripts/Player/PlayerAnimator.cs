@@ -62,6 +62,12 @@ namespace RingSport.Player
         [SerializeField] private float jumpMaxPitch = 25f;
         [SerializeField] private float jumpPitchChangeSpeed = 240f;
 
+        [Header("Landing")]
+        [Tooltip("Playback boost on the jump clip from touchdown until the blend into locomotion finishes. The recovery pose has planted paws, so at 1x it slides against the scrolling ground; fast-forwarding it lands the absorb inside the blend.")]
+        [SerializeField] private float landSpeedBoost = 2.2f;
+        [Tooltip("Same boost while sprinting, where the ground moves further per frame and the slide reads worse.")]
+        [SerializeField] private float landSpeedBoostSprint = 3.2f;
+
         [Header("Camera Facing")]
         [Tooltip("Turn speed (deg/sec) when the dog turns to face the camera for mini-levels and back again.")]
         [SerializeField] private float faceTurnSpeed = 270f;
@@ -81,6 +87,7 @@ namespace RingSport.Player
         private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
         private static readonly int StrafeHash = Animator.StringToHash("Strafe");
         private static readonly int AnimSpeedHash = Animator.StringToHash("AnimSpeed");
+        private static readonly int LandSpeedHash = Animator.StringToHash("LandSpeed");
         private static readonly int GroundedHash = Animator.StringToHash("Grounded");
         private static readonly int JumpHash = Animator.StringToHash("Jump");
         private static readonly int VaultHash = Animator.StringToHash("Vault");
@@ -124,6 +131,7 @@ namespace RingSport.Player
         private float currentLaneYaw;
         private float verticalVelocity;
         private bool isGroundedCached = true;
+        private float currentMoveSpeed;
         private float currentJumpPitch;
         private float currentFacingYaw;
         private float targetFacingYaw;
@@ -339,6 +347,10 @@ namespace RingSport.Player
             // the camera-facing turn feeds a synthetic strafe that must not leak
             laneYawStrafe = (!FacingCamera && !IsTurning) ? Mathf.Clamp(strafe, -1f, 1f) : 0f;
 
+            // Kept raw (the animator's own MoveSpeed is damped) so a touchdown
+            // reads the gait tier the dog took off in, not one mid-blend
+            currentMoveSpeed = moveSpeed;
+
             // Facing the camera mirrors the model left/right on screen
             if (FacingCamera)
                 strafe = -strafe;
@@ -360,6 +372,17 @@ namespace RingSport.Player
         {
             if (animator == null)
                 return;
+
+            // Touchdown: fast-forward the jump clip so its landing recovery
+            // plays out inside the (short) blend into locomotion rather than
+            // holding planted paws over the scrolling ground. Sprint boosts
+            // harder - the same pose covers more ground per frame up there.
+            if (grounded && !isGroundedCached)
+            {
+                animator.SetFloat(LandSpeedHash, currentMoveSpeed > 1.5f
+                    ? landSpeedBoostSprint
+                    : landSpeedBoost);
+            }
 
             isGroundedCached = grounded;
             animator.SetBool(GroundedHash, grounded);
@@ -443,6 +466,10 @@ namespace RingSport.Player
             if (animator == null)
                 return;
 
+            // Back to 1x for the airborne stretch: the Jump state's exit gate is
+            // normalized-time, so leaving the last landing's boost in would move
+            // the gate earlier in wall clock than DogPlayerSetup measured it for
+            animator.SetFloat(LandSpeedHash, 1f);
             animator.SetTrigger(JumpHash);
         }
 
@@ -600,6 +627,8 @@ namespace RingSport.Player
             animator.SetInteger(PoseHash, 0);
             animator.SetFloat(MoveSpeedHash, 0f);
             animator.SetFloat(StrafeHash, 0f);
+            animator.SetFloat(LandSpeedHash, 1f);
+            currentMoveSpeed = 0f;
             isClambering = false;
             clamberTargetProgress = 0f;
             clamberCurrentTime = 0f;

@@ -21,7 +21,7 @@ namespace RingSport.EditorTools
     [InitializeOnLoad]
     public static class LocationAmbientBake
     {
-        private const int BakeVersion = 1;
+        private const int BakeVersion = 3;
         private const string VersionKey = "RingSport.LocationAmbientBake.Version";
 
         static LocationAmbientBake()
@@ -97,6 +97,8 @@ namespace RingSport.EditorTools
                         continue;
                     }
 
+                    probe = Grade(probe, config.AmbientSaturation, config.AmbientIntensity);
+
                     Undo.RecordObject(config, "Bake Location Ambient");
                     config.SetBakedAmbientProbe(probe);
                     EditorUtility.SetDirty(config);
@@ -115,6 +117,37 @@ namespace RingSport.EditorTools
 
             Debug.Log($"[LocationAmbientBake] Baked {baked.Count}: {string.Join(", ", baked)}" +
                       (skipped.Count > 0 ? $" | Skipped {skipped.Count}: {string.Join(", ", skipped)}" : ""));
+        }
+
+        /// <summary>
+        /// Art-directs the sky's ambient without touching the sky itself. A saturated
+        /// gradient sky bakes to a heavily tinted probe, and because that probe is the
+        /// only fill light in the scene it re-tints every surface it lands on - the
+        /// player included. Pulling the probe towards its own luma decouples "what the
+        /// sky looks like" from "what colour the world is lit by".
+        ///
+        /// Saturation is a lerp towards luma and intensity is a scale; both are linear
+        /// and per-channel-independent of direction, so applying them to the SH
+        /// coefficients is identical to applying them to the result for every normal.
+        /// </summary>
+        private static SphericalHarmonicsL2 Grade(SphericalHarmonicsL2 sh, float saturation, float intensity)
+        {
+            if (Mathf.Approximately(saturation, 1f) && Mathf.Approximately(intensity, 1f))
+                return sh;
+
+            var graded = new SphericalHarmonicsL2();
+            for (int coeff = 0; coeff < 9; coeff++)
+            {
+                float r = sh[0, coeff];
+                float g = sh[1, coeff];
+                float b = sh[2, coeff];
+                float luma = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+
+                graded[0, coeff] = Mathf.Lerp(luma, r, saturation) * intensity;
+                graded[1, coeff] = Mathf.Lerp(luma, g, saturation) * intensity;
+                graded[2, coeff] = Mathf.Lerp(luma, b, saturation) * intensity;
+            }
+            return graded;
         }
 
         /// <summary>An all-zero probe means the bake did not actually take.</summary>

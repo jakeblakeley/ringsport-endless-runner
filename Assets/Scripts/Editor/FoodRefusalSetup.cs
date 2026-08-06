@@ -17,14 +17,14 @@ namespace RingSport.Editor
     /// the scene's ObjectPooler.
     ///
     /// v3 also opens up the gap between drops and trims the run to suit - see
-    /// SpawnInterval and TotalSteaks.
+    /// SpawnInterval and TotalSteaks. v4 turns on double drops.
     ///
     /// Runs automatically once after compilation (version-gated so it never
     /// stomps later hand tweaks); re-run from Tools/RingSport/Setup Food Refusal.
     /// </summary>
     public static class FoodRefusalSetup
     {
-        private const int SetupVersion = 3;
+        private const int SetupVersion = 4;
         private const string VersionPrefKey = "RingSport.FoodRefusalSetup.Version";
 
         private const string CollectiblePrefabPath = "Assets/Prefabs/Collectibles/FoodRefusalCollectible.prefab";
@@ -40,6 +40,9 @@ namespace RingSport.Editor
 
         // 20 at the wider spacing ran half a minute - 16 puts it back to ~25s
         private const int TotalSteaks = 16;
+
+        // Roughly one beat in three drops two steaks instead of one
+        private const float DoubleDropChance = 1f / 3f;
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()
@@ -166,6 +169,7 @@ namespace RingSport.Editor
             var speed = serialized.FindProperty("fallSpeed");
             var interval = serialized.FindProperty("steakSpawnInterval");
             var count = serialized.FindProperty("totalSteaks");
+            var doubleChance = serialized.FindProperty("doubleDropChance");
             bool changed = false;
 
             if (tag != null && tag.stringValue != PoolTags.FoodRefusalCollectible)
@@ -193,6 +197,13 @@ namespace RingSport.Editor
             {
                 Debug.Log($"[FoodRefusalSetup] totalSteaks {count.intValue} -> {TotalSteaks}");
                 count.intValue = TotalSteaks;
+                changed = true;
+            }
+
+            if (doubleChance != null && !Mathf.Approximately(doubleChance.floatValue, DoubleDropChance))
+            {
+                Debug.Log($"[FoodRefusalSetup] doubleDropChance {doubleChance.floatValue} -> {DoubleDropChance}");
+                doubleChance.floatValue = DoubleDropChance;
                 changed = true;
             }
 

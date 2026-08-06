@@ -51,6 +51,15 @@ namespace RingSport.Core
         [SerializeField] [Range(0f, 1f)] private float ambientVolume = 0.3f;
         [SerializeField] [Range(0f, 1f)] private float sfxVolume = 1.0f;
 
+        [Header("Home Screen Music")]
+        [Tooltip("Menu loop for the home screen - plays quietly under the idle dog and fades out the moment START is pressed.")]
+        [SerializeField] private AudioClip homeMusic;
+        [Tooltip("Deliberately low: it's a bed under the UI clicks and the dog's idle barks, not a foreground track.")]
+        [SerializeField] [Range(0f, 1f)] private float homeMusicVolume = 0.18f;
+        [SerializeField] private float homeMusicFadeInSeconds = 1.2f;
+        [Tooltip("Fade-out on leaving home. Kicked off at the button press so it rides the screen fade to black rather than starting under it.")]
+        [SerializeField] private float homeMusicFadeOutSeconds = 0.9f;
+
         [Header("Death Feel")]
         [Tooltip("Seconds the world freezes on the hit (scroll pinned, dog frozen mid-pose) before the ragdoll launches.")]
         [SerializeField] private float deathHitStopSeconds = 0.09f;
@@ -60,7 +69,10 @@ namespace RingSport.Core
         private AudioSource musicAudioSource;
         private AudioSource ambientAudioSource;
         private AudioSource sfxAudioSource;
+        private AudioSource homeMusicAudioSource;
         private Coroutine musicFadeRoutine;
+        private Coroutine homeMusicFadeRoutine;
+        private bool homeMusicFadingOut;
         private Coroutine duckRoutine;
         private bool deathSequenceRunning;
 
@@ -149,6 +161,13 @@ namespace RingSport.Core
             sfxAudioSource.playOnAwake = false;
             sfxAudioSource.volume = sfxVolume;
 
+            // Its own source, not the location music one: home music has to be
+            // able to fade out while a level's music is already fading in.
+            homeMusicAudioSource = gameObject.AddComponent<AudioSource>();
+            homeMusicAudioSource.playOnAwake = false;
+            homeMusicAudioSource.loop = true;
+            homeMusicAudioSource.volume = 0f;
+
             DontDestroyOnLoad(gameObject);
         }
 
@@ -188,6 +207,12 @@ namespace RingSport.Core
         {
             previousState = currentState;
             currentState = newState;
+
+            // The home loop belongs to the home screen only. StartGame fades it
+            // early so it rides the screen fade; this catches every other exit
+            // (debug jumps, a level intro walking straight into a run).
+            if (newState != GameState.Home)
+                StopHomeMusic(homeMusicFadeOutSeconds);
 
             // Idle flourishes (bark, shake...) only ever run on the home screen
             Object.FindAnyObjectByType<PlayerController>()?.Animations
@@ -242,6 +267,9 @@ namespace RingSport.Core
 
             // Stop location audio when returning home
             StopLocationAudio(0.3f);
+
+            // ...and bring the menu loop back up under the idle dog
+            PlayHomeMusic();
 
             // Load first level's location and start scene for home screen visuals
             LevelGenerator.Instance?.LoadHomeScene();
@@ -491,6 +519,13 @@ namespace RingSport.Core
             }
 
             GameLog.Info("[GameManager] StartGame called - this resets progress!");
+
+            // Start the music fade here rather than in SetState: SetState runs
+            // at the bottom of the fade to black, so leaving it there would cut
+            // the loop dead a beat after the press instead of easing it out
+            // alongside the screen.
+            StopHomeMusic(homeMusicFadeOutSeconds);
+
             LevelManager.Instance?.ResetProgress();
             TransitionToState(GameState.Playing);
         }
@@ -598,6 +633,95 @@ namespace RingSport.Core
             GameLog.Info("[GameManager] RestartMiniLevel called");
             // Does NOT finalize score - player keeps their running section score
             TransitionToState(GameState.MiniLevel);
+        }
+
+        /// <summary>
+        /// Start (or keep) the home screen's menu loop, fading up to its quiet
+        /// bed volume. Idempotent: re-entering home while it's already playing
+        /// just re-aims the fade, so the loop never restarts from the top when
+        /// the player bounces home -> game over -> home.
+        /// </summary>
+        private void PlayHomeMusic()
+        {
+            if (homeMusic == null || homeMusicAudioSource == null)
+                return;
+
+            if (homeMusicFadeRoutine != null)
+            {
+                StopCoroutine(homeMusicFadeRoutine);
+                homeMusicFadeRoutine = null;
+            }
+
+            homeMusicFadingOut = false;
+
+            if (homeMusicAudioSource.clip != homeMusic)
+                homeMusicAudioSource.clip = homeMusic;
+
+            if (!homeMusicAudioSource.isPlaying)
+            {
+                homeMusicAudioSource.volume = 0f;
+                homeMusicAudioSource.Play();
+            }
+
+            homeMusicFadeRoutine = StartCoroutine(
+                FadeHomeMusic(homeMusicVolume, homeMusicFadeInSeconds, false));
+        }
+
+        /// <summary>
+        /// Fade the home loop out and stop it. A no-op when it isn't sounding,
+        /// so the every-state-change guard in SetState is free.
+        /// </summary>
+        private void StopHomeMusic(float fadeSeconds)
+        {
+            if (homeMusicAudioSource == null)
+                return;
+            if (!homeMusicAudioSource.isPlaying && homeMusicFadeRoutine == null)
+                return;
+            // StartGame fades early and SetState fades again at the bottom of
+            // the screen fade - restarting the ramp there would stretch the
+            // 0.9s into a limp 1.3s tail. First call wins.
+            if (homeMusicFadingOut)
+                return;
+
+            if (homeMusicFadeRoutine != null)
+            {
+                StopCoroutine(homeMusicFadeRoutine);
+                homeMusicFadeRoutine = null;
+            }
+
+            if (fadeSeconds <= 0f)
+            {
+                homeMusicAudioSource.Stop();
+                homeMusicAudioSource.volume = 0f;
+                return;
+            }
+
+            homeMusicFadingOut = true;
+            homeMusicFadeRoutine = StartCoroutine(FadeHomeMusic(0f, fadeSeconds, true));
+        }
+
+        /// <summary>
+        /// Unscaled fade from wherever the volume currently sits - the home and
+        /// reward screens run at timeScale 0, and an interrupted fade has to
+        /// pick up from its own partial volume rather than snapping.
+        /// </summary>
+        private IEnumerator FadeHomeMusic(float target, float duration, bool stopAtEnd)
+        {
+            float start = homeMusicAudioSource.volume;
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                homeMusicAudioSource.volume = Mathf.Lerp(start, target, Mathf.Clamp01(elapsed / duration));
+                yield return null;
+            }
+
+            homeMusicAudioSource.volume = target;
+            if (stopAtEnd)
+                homeMusicAudioSource.Stop();
+            homeMusicFadeRoutine = null;
+            homeMusicFadingOut = false;
         }
 
         /// <summary>

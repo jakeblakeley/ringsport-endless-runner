@@ -52,6 +52,15 @@ namespace RingSport.Level
         [Tooltip("Optional skybox for this location; null keeps the current skybox")]
         [SerializeField] private Material skyboxMaterial;
 
+        [Tooltip("Pulls the baked ambient towards neutral grey. 1 keeps the skybox's own colour, " +
+                 "0 is fully desaturated. A strongly tinted sky can stay as a backdrop without " +
+                 "dragging every lit surface with it.")]
+        [SerializeField] [Range(0f, 1f)] private float ambientSaturation = 1f;
+
+        [Tooltip("Scales the baked ambient. Below 1 pulls a bright sky's fill light back so lit " +
+                 "surfaces keep their albedo instead of washing out.")]
+        [SerializeField] [Range(0.25f, 2f)] private float ambientIntensity = 1f;
+
         [Tooltip("Ambient light probe baked from the skybox by Tools/RingSport/Bake Location Ambient. " +
                  "27 SH coefficients (9 per RGB channel). Empty = not baked yet.")]
         [SerializeField] [HideInInspector] private float[] bakedAmbientProbe;
@@ -77,6 +86,8 @@ namespace RingSport.Level
         public Color FogColor => fogColor;
         public float FogDensity => fogDensity;
         public Material SkyboxMaterial => skyboxMaterial;
+        public float AmbientSaturation => ambientSaturation;
+        public float AmbientIntensity => ambientIntensity;
         public AudioClip Music => music;
         public AudioClip AmbientSound => ambientSound;
 

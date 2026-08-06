@@ -19,10 +19,13 @@ namespace RingSport.UI
         public override MiniLevelType MiniLevelType => MiniLevelType.FoodRefusal;
 
         [Header("Game Settings")]
-        [Tooltip("Drops in a run. Trimmed from 20 when the gap between them opened up - 16 keeps the mini level around 25 seconds.")]
+        [Tooltip("Drops in a run - beats, not steaks, since a beat can drop two. Trimmed from 20 when the gap between them opened up - 16 keeps the mini level around 25 seconds.")]
         [SerializeField] private int totalSteaks = 16;
         [Tooltip("Seconds between drops. At the fall speed this is also their spacing in the air - 1.35s leaves about 8 units between one steak and the next.")]
         [SerializeField] private float steakSpawnInterval = 1.35f;
+        [Tooltip("Chance a beat drops two steaks at once, leaving a single safe lane to be standing in. 0 = only ever one steak.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float doubleDropChance = 1f / 3f;
         [SerializeField] private float fallSpeed = 6f;
         [SerializeField] private float spawnHeight = 15f;
 
@@ -70,6 +73,11 @@ namespace RingSport.UI
         private static readonly int[] Lanes = { -1, 0, 1 };
         private static readonly int[] OuterLanes = { -1, 1 };
         private readonly List<int> laneOptions = new List<int>(3);
+
+        // Lanes as a bitmask, used to carry where the player can possibly be
+        // from one beat to the next
+        private const int AllLanesMask = 0b111;
+        private static int LaneBit(int lane) => 1 << (lane + 1);
 
         /// <summary>
         /// Called when user clicks start, before countdown begins.
@@ -223,6 +231,11 @@ namespace RingSport.UI
             int lastSteakLane = NoLane;
             int reservedLane = NoLane;
 
+            // Lanes the player can be standing in when the next beat drops. The
+            // countdown leaves the dog in the middle; after that it is whatever
+            // the last beat didn't fill with steak.
+            int playerLanes = LaneBit(0);
+
             for (int i = 0; i < totalSteaks && isGameRunning; i++)
             {
                 steaksSpawned = i + 1;
@@ -230,20 +243,56 @@ namespace RingSport.UI
                 bool collectibleDue = collectiblesSpawned < megaCollectibleCount &&
                                       System.Array.IndexOf(collectibleSpawnIndices, i) >= 0;
 
-                int steakLane = GetSteakLane(lastSteakLane, reservedLane, collectibleDue);
-                SpawnSteak(steakLane);
+                // A double fills two of the three lanes, so it can't share a beat
+                // with a collectible, and it can't run while one is still falling
+                // (reservedLane) - either way there'd be no lane left to catch it
+                // in. Never on the opening beat: the player has had no drop yet to
+                // read the timing off.
+                bool doubleAllowed = i > 0 && !collectibleDue && reservedLane == NoLane;
+                int safeLane = doubleAllowed && Random.value < doubleDropChance
+                    ? GetDoubleSafeLane(playerLanes)
+                    : NoLane;
+
+                int steakLanes;
+                int steakLane = NoLane;
+
+                if (safeLane != NoLane)
+                {
+                    foreach (int lane in Lanes)
+                    {
+                        if (lane != safeLane)
+                            SpawnSteak(lane);
+                    }
+                    steakLanes = AllLanesMask & ~LaneBit(safeLane);
+
+                    // The next single is picked with no memory of a double: it has
+                    // a lane each way to land in, and landing in the safe lane the
+                    // player is pinned in is a fair one-lane dodge.
+                    lastSteakLane = NoLane;
+                    GameLog.Info($"[MiniLevelFoodRefusal] Double drop - safe lane {safeLane}");
+                }
+                else
+                {
+                    steakLane = GetSteakLane(lastSteakLane, reservedLane, collectibleDue);
+                    SpawnSteak(steakLane);
+                    steakLanes = LaneBit(steakLane);
+                }
+
                 reservedLane = NoLane;
 
                 if (collectibleDue)
                 {
-                    int collectibleLane = GetCollectibleLane(steakLane, lastSteakLane);
+                    int collectibleLane = GetCollectibleLane(steakLane, playerLanes);
                     SpawnCollectible(collectibleLane);
                     reservedLane = collectibleLane;
                     collectiblesSpawned++;
                     GameLog.Info($"[MiniLevelFoodRefusal] Spawned collectible {collectiblesSpawned}/{megaCollectibleCount} in lane {collectibleLane} (steak in {steakLane})");
                 }
 
-                lastSteakLane = steakLane;
+                if (steakLane != NoLane)
+                    lastSteakLane = steakLane;
+
+                playerLanes = AllLanesMask & ~steakLanes;
                 UpdateUI();
 
                 // Wait for next spawn (use realtime since TimeScale may be 0)
@@ -452,19 +501,63 @@ namespace RingSport.UI
         }
 
         /// <summary>
-        /// Lane for a collectible: clear of the steak falling beside it and of the
-        /// one that lands a beat earlier, so the player can already be waiting in
-        /// it rather than diving in at the last moment.
+        /// The one lane a double drop leaves open, or <see cref="NoLane"/> when no
+        /// fair one exists and the beat should stay a single steak.
+        ///
+        /// A double names the lane the player has to be in, so it is only fair if
+        /// they can get there from wherever they currently are. One swipe moves one
+        /// lane and PlayerController gates swipes behind a cooldown, so a two-lane
+        /// crossing costs two of them - more than the 1.35s between beats buys.
+        /// Hence: the safe lane has to be within one lane of every lane the player
+        /// could be standing in.
         /// </summary>
-        private int GetCollectibleLane(int steakLane, int lastSteakLane)
+        private int GetDoubleSafeLane(int playerLanes)
         {
-            // Three lanes less two exclusions always leaves one, and leaves two
-            // when the last steak repeated this one's lane
             laneOptions.Clear();
             foreach (int lane in Lanes)
             {
-                if (lane == steakLane || lane == lastSteakLane) continue;
+                if (IsOneLaneFromAll(lane, playerLanes))
+                    laneOptions.Add(lane);
+            }
+
+            return laneOptions.Count > 0 ? laneOptions[Random.Range(0, laneOptions.Count)] : NoLane;
+        }
+
+        /// <summary>True when <paramref name="lane"/> is at most one lane change from every lane in the mask.</summary>
+        private static bool IsOneLaneFromAll(int lane, int laneMask)
+        {
+            foreach (int from in Lanes)
+            {
+                if ((laneMask & LaneBit(from)) == 0) continue;
+                if (Mathf.Abs(lane - from) > 1) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Lane for a collectible: clear of the steak falling beside it, and one
+        /// the player could already be standing in rather than diving into at the
+        /// last moment.
+        /// </summary>
+        private int GetCollectibleLane(int steakLane, int playerLanes)
+        {
+            laneOptions.Clear();
+            foreach (int lane in Lanes)
+            {
+                if (lane == steakLane) continue;
+                if ((playerLanes & LaneBit(lane)) == 0) continue;
                 laneOptions.Add(lane);
+            }
+
+            // Only when a double pinned the player in the very lane this beat's
+            // steak fell in - they have to move regardless, so any lane will do
+            if (laneOptions.Count == 0)
+            {
+                foreach (int lane in Lanes)
+                {
+                    if (lane != steakLane)
+                        laneOptions.Add(lane);
+                }
             }
 
             return laneOptions[Random.Range(0, laneOptions.Count)];

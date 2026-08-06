@@ -5125,6 +5125,8 @@ MonoBehaviour:
   jumpPitchPerVelocity: 2
   jumpMaxPitch: 25
   jumpPitchChangeSpeed: 240
+  landSpeedBoost: 2.2
+  landSpeedBoostSprint: 3.2
   faceTurnSpeed: 270
   faceTurnWalkAmount: 0.35
   flourishDelayRange: {x: 3, y: 7}

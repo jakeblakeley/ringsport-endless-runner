@@ -36,6 +36,8 @@ MonoBehaviour:
   fogColor: {r: 0.5396, g: 0.7997, b: 0.8113, a: 1}
   fogDensity: 0.04
   skyboxMaterial: {fileID: 2100000, guid: 4dfd11b20db5b45c5a3ae55bae6f81de, type: 2}
+  ambientSaturation: 1
+  ambientIntensity: 1
   bakedAmbientProbe:
   - 0.89405197
   - -0.000000007935479

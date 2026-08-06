@@ -175,6 +175,17 @@ namespace RingSport.DebugTools
                 isOpen = false;
                 UIManager.Instance?.ShowSecretNote();
             }
+
+            // Fakes the fullscreen status-bar inset so the top row can be checked
+            // without a phone - the real value only arrives from the browser.
+            float safeArea = TopSafeArea.DebugFractionOverride;
+            string safeAreaLabel = safeArea < 0f ? "auto" : $"{safeArea * 100f:0}%";
+            if (GUILayout.Button($"Top Safe Area: {safeAreaLabel}", GUILayout.Height(28f)))
+            {
+                if (safeArea < 0f) TopSafeArea.DebugFractionOverride = 0.04f;
+                else if (safeArea < 0.05f) TopSafeArea.DebugFractionOverride = 0.08f;
+                else TopSafeArea.DebugFractionOverride = -1f;
+            }
         }
 
         /// <summary>
