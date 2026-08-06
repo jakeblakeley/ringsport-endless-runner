@@ -39,12 +39,14 @@ namespace RingSport.Player
 
         // Root Y with the capsule standing on the floor. The whole game runs on
         // one ground plane, so this is a constant - but it's a MEASURED one:
-        // HandleGroundCheck overwrites it from the first grounded frame, so a
-        // resized capsule or a re-authored floor can't leave the snap behind.
-        // The serialized value only has to carry the very first snap, before any
-        // run has happened (the scene authors the player at y=1; the capsule
-        // settles at 1.15 once physics has had a frame).
-        [Tooltip("Root Y where the capsule rests on the floor. Seeds the ground snap; measured live from the first grounded frame onward.")]
+        // MeasureGroundRestY probes the floor at Awake and HandleGroundCheck
+        // overwrites it from every grounded frame after that, so a resized
+        // capsule or a re-authored floor can't leave the snap behind. The
+        // serialized value is only the fallback for a probe that finds nothing;
+        // don't trust it on sight, it is one stray prefab apply from being some
+        // height the dog was falling through (the scene authors the player at
+        // y=1; the capsule settles at 1.15 once physics has had a frame).
+        [Tooltip("Fallback root Y for the ground snap. Measured from the real floor at Awake and from every grounded frame after that.")]
         [SerializeField] private float groundRestY = 1.15f;
 
         [Header("Sprint Stamina Settings")]
@@ -142,6 +144,13 @@ namespace RingSport.Player
             // wait-until-grounded had to be talked out of freezing the dog.
             // Zero keeps the sweep running so a still frame still finds the floor.
             characterController.minMoveDistance = 0f;
+
+            // Take the rest height off the floor that's actually under the dog
+            // rather than off the serialized seed. That number lives on the
+            // prefab, and a stray "apply overrides" from a live scene wrote a
+            // mid-fall height into it once already - the home screen then buried
+            // the dog to the shoulders before the run had even started.
+            MeasureGroundRestY();
 
             playerInput = GetComponent<PlayerInput>();
             playerAnimator = GetComponentInChildren<PlayerAnimator>(true);
@@ -452,24 +461,72 @@ namespace RingSport.Player
         /// retry, before dropping the moment timeScale went back to 1.
         ///
         /// Unscaled, because LevelComplete and the countdown both sit at
-        /// timeScale 0. Floored at the rest height rather than left to the
-        /// collider: the home screen clears the floor pool before it respawns
-        /// the tiles, and a frame of gravity landing in that gap would drop the
-        /// dog through the world instead.
+        /// timeScale 0. The controller's own collision is what stops the drop;
+        /// the remembered rest height is only the backstop under it, because the
+        /// home screen clears the floor pool before it respawns the tiles and a
+        /// frame of gravity landing in that gap would drop the dog through the
+        /// world instead.
         /// </summary>
         private void SettleToGround()
         {
-            if (transform.position.y > groundRestY)
-            {
-                velocity.y += gravity * Time.unscaledDeltaTime;
-                characterController.Move(Vector3.up * (velocity.y * Time.unscaledDeltaTime));
+            // Clamped: the first frame back from a tab-away or a long load
+            // carries a huge unscaled delta, and an unclamped gravity step there
+            // would fling the capsule through the floor in one move
+            float deltaTime = Mathf.Min(Time.unscaledDeltaTime, 0.05f);
 
-                // Still falling - keep the arc, it reads as a real drop
-                if (transform.position.y > groundRestY)
-                    return;
+            velocity.y += gravity * deltaTime;
+            characterController.Move(Vector3.up * (velocity.y * deltaTime));
+
+            // Landed on real geometry - take the measurement. Letting the
+            // controller's own collision call it keeps this honest on whatever
+            // floor is actually there, instead of driving the dog to a
+            // remembered height that may not match this level (or, when the seed
+            // has been clobbered, may be underground).
+            if (characterController.isGrounded)
+            {
+                groundRestY = transform.position.y;
+                SnapToGround();
+                return;
             }
 
-            SnapToGround();
+            // Nothing underneath. Above the last known rest height the fall
+            // reads as a real drop, so keep the arc; at it, park. The home
+            // screen clears the floor pool before it respawns the tiles, and a
+            // frame of gravity landing in that gap would drop the dog through
+            // the world.
+            if (transform.position.y <= groundRestY)
+                SnapToGround();
+        }
+
+        /// <summary>
+        /// Seeds <see cref="groundRestY"/> from the floor beneath the dog, so
+        /// the first snap is right before any run has had a chance to measure
+        /// one. Leaves the serialized value alone if the probe finds nothing.
+        /// </summary>
+        private void MeasureGroundRestY()
+        {
+            // Start above the capsule so the ray can't begin inside the floor,
+            // and ignore the dog's own colliders on the way down
+            Vector3 origin = transform.position + Vector3.up * (characterController.height * 0.5f + 0.5f);
+            RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, 60f, ~0, QueryTriggerInteraction.Ignore);
+
+            float floorY = float.NegativeInfinity;
+            foreach (RaycastHit hit in hits)
+            {
+                if (hit.collider.transform.IsChildOf(transform))
+                    continue;
+
+                // Highest surface at or below the root: an obstacle the dog is
+                // standing next to must not pass for the floor
+                if (hit.point.y <= transform.position.y && hit.point.y > floorY)
+                    floorY = hit.point.y;
+            }
+
+            if (float.IsNegativeInfinity(floorY))
+                return;
+
+            groundRestY = floorY + characterController.height * 0.5f
+                - characterController.center.y + characterController.skinWidth;
         }
 
         /// <summary>Parks the capsule exactly on the floor plane and kills any fall.</summary>

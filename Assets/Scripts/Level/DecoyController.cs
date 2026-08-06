@@ -72,10 +72,12 @@ namespace RingSport.Level
         [SerializeField] private float randomTumble = 1.5f;
 
         [Header("Carry Clearance")]
-        [Tooltip("Sideways kick given to the body at the bite, so it clears the dog straight away instead of waiting for the hang to swing it out (m/s). The side is picked from where the bite lands - see ResolveCarrySide.")]
-        [SerializeField] private float carrySideImpulse = 1.2f;
-        [Tooltip("Sideways acceleration held for the rest of the carry (m/s^2, against gravity's 9.8). This is what sets the angle the body hangs at - roughly atan(this/9.8) off vertical - so it keeps clear of the dog instead of drifting back through it. 0 disables the clearance push.")]
-        [SerializeField] private float carrySideAcceleration = 4f;
+        [Tooltip("Sideways acceleration held for the whole carry (m/s^2), out from under the dog. The side is picked from where the bite lands - see ResolveCarrySide.")]
+        [SerializeField] private float carrySideAcceleration = 7f;
+        [Tooltip("Downward acceleration on the carried body, ON TOP of gravity's 9.8 (m/s^2). Sinks the body onto the floor so it drags rather than hanging clear of it - a leg grab needs this most, since the torso sits at the far end of the longest chain. Tuned WITH the sideways figure: the two make one vector, so the body hangs atan(side / (9.8 + this)) off vertical - raising this alone flattens the lean.")]
+        [SerializeField] private float carryDownAcceleration = 8f;
+        [Tooltip("One-off kick along that same out-and-down direction at the bite (m/s), so the body clears the dog and drops immediately instead of waiting for the pull to build.")]
+        [SerializeField] private float carryKickImpulse = 2.5f;
 
         [Header("Ragdoll Weight")]
         [Tooltip("Mass multiplier on the pelvis/spine bodies. The Malbers ragdoll gives the torso less mass than the legs, so whichever limb is in the dog's mouth whips the body around. Loading up the middle makes the torso the thing that drags and the limbs the things that follow.")]
@@ -448,8 +450,32 @@ namespace RingSport.Level
             mouthAnchor.SetParent(mouth, true);
 
             // Reparenting out of the inactive holder ACTIVATES the ragdoll -
-            // physics wakes here, with final scale, pose and kinematic flags
-            ragdollInstance.transform.SetParent(mouthAnchor, true);
+            // physics wakes here, with final scale, pose and kinematic flags.
+            //
+            // ONLY the kinematic pin goes under the anchor. The body itself
+            // wakes at the scene root, because a DYNAMIC rigidbody parented
+            // under an animated transform stops being simulated in any useful
+            // sense: moving a parent moves its children's transforms, and
+            // Unity syncs those moved transforms back into the physics engine
+            // as teleports every step. Under the jaw that meant the dog's own
+            // 10 m/s of travel, plus every head bob, was being written onto
+            // each bone before the solver ever ran - the body rode along at
+            // mouth height like it was welded there, and gravity never got a
+            // say. Off the hierarchy, the only thing connecting it to the dog
+            // is the joint chain up to the pin, which is what makes it hang,
+            // fall and drag.
+            ragdollInstance.transform.SetParent(null, true);
+
+            // ONLY the grabbed bone rides the jaw, not its subtree - a thigh
+            // bite still has a calf and a foot hanging below it, and they would
+            // be transform-driven by the jaw for exactly the same reason. The
+            // joints are what hold the chain together (they connect by
+            // rigidbody, not by parenting), and the skinning reads each bone's
+            // world pose rather than its place in the hierarchy, so the rest of
+            // the limb can hang off the ragdoll root and stay simulated.
+            for (int i = grabBody.transform.childCount - 1; i >= 0; i--)
+                grabBody.transform.GetChild(i).SetParent(ragdollInstance.transform, true);
+
             grabBody.transform.SetParent(mouthAnchor, true);
             Destroy(spawnHolder);
 
@@ -490,6 +516,13 @@ namespace RingSport.Level
         // one side fixes that, and doing it as an acceleration rather than a
         // one-off shove is what makes it hold: the body is a pendulum swinging
         // off the jaw, so a kick alone just swings back through the dog.
+        //
+        // The pull goes DOWN as well as out. Leaning the body sideways swings
+        // it up an arc - at 20 degrees off vertical the far end rides about 6%
+        // of its length higher - and the extra gravity pays that back and then
+        // some, so the body still folds down onto the floor and scrubs along
+        // it. The two components are one vector, so the hang angle is
+        // atan(side / (9.8 + down)) and they get tuned together.
         // ------------------------------------------------------------------
 
         /// <summary>
@@ -533,21 +566,34 @@ namespace RingSport.Level
         }
 
         /// <summary>
-        /// Holds the hang angle for the length of the carry. Applied as an
-        /// acceleration so it reads as gravity tilted a few degrees sideways -
-        /// every bone leans by the same amount whatever the mass profile did,
-        /// and the pose stays the pose.
+        /// The carry pull in world space: out to the chosen side and down.
+        /// Re-read every step so it keeps following the dog.
+        /// </summary>
+        private Vector3 CarryPullWorld()
+        {
+            return CarryLateralWorld() * (carrySide * carrySideAcceleration)
+                   + Vector3.down * carryDownAcceleration;
+        }
+
+        /// <summary>
+        /// Holds the carry pose for the length of the carry. Applied as an
+        /// acceleration so it reads as a heavier gravity tilted a few degrees
+        /// sideways - every bone leans and sinks by the same amount whatever
+        /// the mass profile did, and the pose stays the pose.
         /// </summary>
         private void FixedUpdate()
         {
-            if (!IsCarried || carrySide == 0f || carrySideAcceleration <= 0f)
+            if (!IsCarried || carrySide == 0f)
                 return;
 
-            Vector3 push = CarryLateralWorld() * (carrySide * carrySideAcceleration);
+            Vector3 pull = CarryPullWorld();
+            if (pull.sqrMagnitude <= 0f)
+                return;
+
             foreach (var body in carriedBodies)
             {
                 if (body != null && !body.isKinematic)
-                    body.AddForce(push, ForceMode.Acceleration);
+                    body.AddForce(pull, ForceMode.Acceleration);
             }
         }
 
@@ -690,6 +736,14 @@ namespace RingSport.Level
         /// stiff so the torso drags as one mass. Swings are symmetric, so the
         /// hinges stay well under a full human flex rather than letting an elbow
         /// or knee bend the wrong way by the same amount.
+        ///
+        /// The knee and hip get more of swing1 than that rule alone would give
+        /// them, because the leg grabs hang the whole body off the far end of
+        /// the longest chain in the rig: the fold that drops the torso to the
+        /// floor has to come out of those two joints, and at the old figures
+        /// the body ran out of bend and rode along held up by the leg. swing1
+        /// is the flexion plane only - twist and swing2 stay tight, so this
+        /// buys the fold without letting the leg corkscrew.
         /// </summary>
         private static (float lowTwist, float highTwist, float swing1, float swing2) JointLimitsFor(string boneName)
         {
@@ -698,7 +752,7 @@ namespace RingSport.Level
             if (name.EndsWith("Forearm"))
                 return (-5f, 5f, 40f, 5f);      // elbows
             if (name.EndsWith("Calf"))
-                return (-5f, 5f, 35f, 5f);      // knees
+                return (-5f, 5f, 50f, 5f);      // knees
             if (name.EndsWith("Hand"))
                 return (-10f, 10f, 30f, 15f);   // wrists
             if (name.EndsWith("Foot"))
@@ -706,7 +760,7 @@ namespace RingSport.Level
             if (name.EndsWith("UpperArm"))
                 return (-25f, 25f, 55f, 35f);   // shoulders
             if (name.EndsWith("Thigh"))
-                return (-15f, 15f, 45f, 25f);   // hips
+                return (-15f, 15f, 65f, 25f);   // hips
             if (name == "Head" || name == "Neck")
                 return (-20f, 20f, 25f, 15f);
             return (-10f, 10f, 14f, 10f);       // spine
@@ -819,10 +873,11 @@ namespace RingSport.Level
                     Physics.IgnoreCollision(ragdollCollider, playerCollider, true);
             }
 
-            // Sideways kick out from under the dog, on top of (not clamped
-            // with) the carried-over animation velocity - the sustained lean in
-            // FixedUpdate is what holds it there, this just gets it clear now
-            Vector3 sideKick = CarryLateralWorld() * (carrySide * carrySideImpulse);
+            // Kick out from under the dog and down toward the floor, on top of
+            // (not clamped with) the carried-over animation velocity - the
+            // sustained pull in FixedUpdate is what holds it there, this just
+            // gets it clear now
+            Vector3 kick = CarryPullWorld().normalized * carryKickImpulse;
 
             var boneLookup = BuildTrackedBoneLookup();
             foreach (var body in bodies)
@@ -832,7 +887,7 @@ namespace RingSport.Level
 
                 // Gradual handover: each limb keeps the velocity it had in the
                 // fall animation instead of popping to a dead stop
-                body.linearVelocity = EstimateBoneVelocity(body.name, boneLookup) + sideKick;
+                body.linearVelocity = EstimateBoneVelocity(body.name, boneLookup) + kick;
                 // Most of the tumble goes to the limbs; a torso that spins on
                 // its own axis undoes the weight the mass profile just gave it
                 float tumble = IsTorsoBone(body.name) ? randomTumble * 0.25f : randomTumble;
@@ -956,11 +1011,13 @@ namespace RingSport.Level
 
         private void OnDestroy()
         {
-            // The ragdoll and its anchor live under the dog's jaw once caught -
-            // tear them down with the decoy so a chase cleanup can't orphan them
+            // Once caught the ragdoll lives at the scene root and its pin under
+            // the dog's jaw, so neither goes away with the decoy on its own -
+            // tear both down here or a chase cleanup orphans them. The anchor
+            // owns the pinned limb's subtree; the instance owns the rest.
             if (mouthAnchor != null)
                 Destroy(mouthAnchor.gameObject);
-            else if (ragdollInstance != null)
+            if (ragdollInstance != null)
                 Destroy(ragdollInstance);
         }
     }

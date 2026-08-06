@@ -141,7 +141,15 @@ namespace RingSport.Editor
             changed |= MigrateFloat(so, "pounceCamBehindDog", 1.35f, 1f);
             changed |= MigrateFloat(so, "pounceCamSideOffset", 1.1f, 0.85f);
             changed |= MigrateFloat(so, "pounceCamHeight", 0.2f, 0.15f);
-            changed |= MigrateFloat(so, "pounceCamMinDecoyDistance", 1.7f, 1.35f);
+
+            // Push the standoff shot in harder (2026-08-06). The QTE beat is
+            // only 1.4-2s, so the creep speed is most of what decides how far
+            // the shot travels; the stop distance comes in with it so the
+            // extra travel isn't clamped away on a close bite. Both old
+            // values are migrated so a scene at either generation lands here.
+            changed |= MigrateFloat(so, "pounceCamCreepSpeed", 0.25f, 0.45f);
+            changed |= MigrateFloat(so, "pounceCamMinDecoyDistance", 1.7f, 1.2f);
+            changed |= MigrateFloat(so, "pounceCamMinDecoyDistance", 1.35f, 1.2f);
 
             if (changed)
                 so.ApplyModifiedPropertiesWithoutUndo();

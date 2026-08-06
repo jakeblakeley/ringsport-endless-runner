@@ -9028,8 +9028,8 @@ MonoBehaviour:
   pounceCamSideOffset: 0.85
   pounceCamHeight: 0.15
   pounceAimBias: 0.5
-  pounceCamCreepSpeed: 0.25
-  pounceCamMinDecoyDistance: 1.35
+  pounceCamCreepSpeed: 0.45
+  pounceCamMinDecoyDistance: 1.2
   tapSound: {fileID: 8300000, guid: 1e0f86ed704b146f4aaa5a2b3f28990e, type: 3}
   catchSound: {fileID: 8300000, guid: 050d614e8be69421c9384b88af1e62dd, type: 3}
   windowTickSound: {fileID: 8300000, guid: d62791657137142178b988da9749d29b, type: 3}

@@ -4953,7 +4953,7 @@ Transform:
   m_GameObject: {fileID: 1495670350691839861}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.6963935e-18, y: -11.17691, z: -54.972694}
+  m_LocalPosition: {x: 0, y: 1.15, z: 9}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -5006,7 +5006,7 @@ MonoBehaviour:
   jumpHeight: 1.8
   gravity: -68
   jumpBufferDuration: 0.2
-  groundRestY: 0.11543263
+  groundRestY: 1.15
   maxSprintDuration: 5
   sprintDrainRate: 1
   sprintRefillRate: 1

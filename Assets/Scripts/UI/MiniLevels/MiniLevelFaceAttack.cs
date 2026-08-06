@@ -160,10 +160,10 @@ namespace RingSport.UI
         [Tooltip("Aim point between the two: 0 = the dog, 1 = the decoy's chest.")]
         [Range(0f, 1f)]
         [SerializeField] private float pounceAimBias = 0.5f;
-        [Tooltip("Slow dolly-in (m/s) that keeps creeping toward the decoy through the frozen QTE until it resolves or fails.")]
-        [SerializeField] private float pounceCamCreepSpeed = 0.25f;
+        [Tooltip("Slow dolly-in (m/s) that keeps creeping toward the decoy through the frozen QTE until it resolves or fails. The beat is short - 2s on the easy pass, 1.4s on the finale - so this is most of what decides how far the shot pushes in: roughly this many meters per second out of a ~3m starting distance.")]
+        [SerializeField] private float pounceCamCreepSpeed = 0.45f;
         [Tooltip("The creep stops this far from the decoy's chest.")]
-        [SerializeField] private float pounceCamMinDecoyDistance = 1.35f;
+        [SerializeField] private float pounceCamMinDecoyDistance = 1.2f;
 
         [Header("Audio")]
         [SerializeField] private AudioClip tapSound;
