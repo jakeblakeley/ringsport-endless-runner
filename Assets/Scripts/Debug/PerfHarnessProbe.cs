@@ -31,6 +31,8 @@ namespace RingSport.DebugTools
         {
             public string label = "run";
             public float durationSeconds = 60f;
+            /// <summary>Which level's world to sample. 1 = the historic baseline.</summary>
+            public int level = 1;
         }
 
         [Serializable]
@@ -221,7 +223,11 @@ namespace RingSport.DebugTools
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = -1;
 
-            Debug.Log($"[PerfProbe] Starting sampled run '{request.label}' ({request.durationSeconds:F0}s max)");
+            // StartGame() calls ResetProgress(), which drops to level 1; this is the
+            // hook that survives it, so a sample can target any world.
+            LevelManager.PerfPendingStartLevel = request.level;
+
+            Debug.Log($"[PerfProbe] Starting sampled run '{request.label}' at level {request.level} ({request.durationSeconds:F0}s max)");
             GameManager.Instance.StartGame();
 
             deadline = Time.realtimeSinceStartup + 25f;

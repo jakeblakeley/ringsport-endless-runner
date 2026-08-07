@@ -188,7 +188,6 @@ Shader "Toon/TEM_CustomTerrain"
 
 			
 
-			#pragma multi_compile_fragment _ALPHATEST_ON
 			#pragma shader_feature_local _RECEIVE_SHADOWS_OFF
 			#pragma multi_compile_instancing
 			#pragma instancing_options renderinglayer
@@ -793,7 +792,6 @@ Shader "Toon/TEM_CustomTerrain"
 
 			
 
-			#pragma multi_compile _ALPHATEST_ON
 			#pragma multi_compile_instancing
 			#pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
 			#define ASE_FOG 1
@@ -1107,7 +1105,6 @@ Shader "Toon/TEM_CustomTerrain"
 
 			
 
-			#pragma multi_compile _ALPHATEST_ON
 			#pragma multi_compile_instancing
 			#pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
 			#define ASE_FOG 1
@@ -1906,7 +1903,6 @@ Shader "Toon/TEM_CustomTerrain"
 
 			
 
-        	#pragma multi_compile _ALPHATEST_ON
         	#pragma multi_compile_instancing
         	#pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
         	#define ASE_FOG 1

@@ -121,6 +121,37 @@ namespace RingSport.Level
         }
 
         /// <summary>
+        /// Z of the furthest-along obstacle tracked in this lane IF it is a
+        /// jumpable one, or float.MinValue otherwise (including an empty lane).
+        ///
+        /// FAIRNESS: a hurdle is answered by jumping it, and the player who
+        /// does that is committed to its lane from takeoff to touchdown. An
+        /// instant-death obstacle parked in the same lane right behind it has
+        /// to be far enough out that they can land and still get clear; this
+        /// is the query the spawner measures that reservation from.
+        ///
+        /// Only the FRONTMOST obstacle counts, and only if it is jumpable: a
+        /// barrel already standing further along drove the player out of this
+        /// lane, so nobody is left in it to owe the reservation to.
+        /// </summary>
+        public float FrontmostJumpableZ(int lane)
+        {
+            float frontmost = float.MinValue;
+            bool jumpable = false;
+
+            foreach (ObstacleData obstacle in obstaclePositions)
+            {
+                if (obstacle.lane == lane && obstacle.zPosition > frontmost)
+                {
+                    frontmost = obstacle.zPosition;
+                    jumpable = !obstacle.IsInstantDeath();
+                }
+            }
+
+            return jumpable ? frontmost : float.MinValue;
+        }
+
+        /// <summary>
         /// Check if there are any obstacles in the specified lane ahead of the given Z position
         /// FAIRNESS: Used to prevent coin trains from leading into obstacles
         /// </summary>

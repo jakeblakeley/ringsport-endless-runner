@@ -167,7 +167,7 @@ namespace RingSport.Level.Spawning
             if (obstacleTracker.HasObstacleInLaneAhead(coinTrainLane, nextCollectibleSpawnZ, lookaheadDistance))
             {
                 // Obstacle detected ahead - end coin train early for safety
-                GameLog.Info($"Coin train lookahead detected obstacle in lane {coinTrainLane}, ending train early");
+                GameLog.Verbose($"Coin train lookahead detected obstacle in lane {coinTrainLane}, ending train early");
                 isInCoinTrain = false;
                 coinTrainRemaining = 0;
 
@@ -500,7 +500,7 @@ namespace RingSport.Level.Spawning
                 }
             }
 
-            GameLog.Info($"Spawned coin arc with {coinCount} coins over {obstacle.obstacleType} at lane {obstacle.lane}, peak height {peakHeight}");
+            GameLog.Verbose($"Spawned coin arc with {coinCount} coins over {obstacle.obstacleType} at lane {obstacle.lane}, peak height {peakHeight}");
         }
 
         /// <summary>

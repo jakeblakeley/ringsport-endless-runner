@@ -28,7 +28,7 @@ namespace RingSport.Editor
     public static class WorldSceneryBuilder
     {
         // Bump to force the auto-run to re-apply the build
-        private const int BuildVersion = 26;
+        private const int BuildVersion = 27;
         private const string VersionPrefKey = "RingSport.WorldSceneryBuilder.Version";
 
         private const string ArcShaderName = "Custom/Mobile/ArcEffect";
@@ -1171,7 +1171,15 @@ namespace RingSport.Editor
             var spawnTuning = new Dictionary<string, (int min, int max, float dist, int pool)>
             {
                 ["Seattle"] = (3, 6, 1.8f, 30),
-                ["France"] = (4, 7, 1.3f, 30),
+                // France was (4,7, 1.3) - the game's densest spawn AND tightest
+                // spacing, stacked on the game's heaviest tree (TEM_Tree_01A,
+                // 6,678 tris) and six two-sided cutout patch types. Fine on
+                // desktop; on the phone it was the one world that lagged
+                // (2026-08-06). Overlapping alpha-tested quads are the killer on
+                // Apple GPUs - the wider min-distance matters as much as the
+                // count. Densest-in-game is now the verge grass, which Seattle
+                // proves the phone can afford.
+                ["France"] = (3, 5, 1.7f, 30),
                 ["Arizona"] = (2, 5, 1.7f, 30),
                 ["Oregon"] = (3, 6, 1.7f, 30),
                 // Still spaced widest of the five - open sand is the point of a
@@ -1382,14 +1390,17 @@ namespace RingSport.Editor
             foreach (string path in atlasPaths.OrderBy(p => p))
             {
                 var importer = AssetImporter.GetAtPath(path) as TextureImporter;
-                if (importer == null || importer.maxTextureSize <= 1024)
+                if (importer == null)
                     continue;
-                importer.maxTextureSize = 1024;
+                int cap = SmallVegetationCaps.TryGetValue(Path.GetFileName(path), out int small) ? small : 1024;
+                if (importer.maxTextureSize <= cap)
+                    continue;
+                importer.maxTextureSize = cap;
                 importer.SaveAndReimport();
                 capped++;
-                Log($"Texture capped to 1024: {Path.GetFileName(path)}");
+                Log($"Texture capped to {cap}: {Path.GetFileName(path)}");
             }
-            Log($"Texture size cap: {capped} of {atlasPaths.Count} texture(s) reduced to 1024");
+            Log($"Texture size cap: {capped} of {atlasPaths.Count} texture(s) reduced");
         }
 
         private static void ApplyArcControllerValues(float strength, float distance)

@@ -41,6 +41,15 @@ namespace RingSport.Level.Spawning
         // Below this gap a two-lane crossing is not affordable, so consecutive
         // forced lanes have to stay adjacent
         private static readonly float PinChainTime = GestureChainTime(2, true);          // 1.65
+        // A hurdle is answered by JUMPING it - that is the whole read of the
+        // shape - and the player who does that is committed to its lane from
+        // takeoff to touchdown. An instant-death obstacle behind it in the same
+        // lane is the one same-lane case the land-and-rejump distance
+        // under-prices: a barrel can be hopped, but its window is tight and a
+        // graze kills, so the honest answer is a dodge, and the gap has to buy
+        // the jump plus a lane change out. Same arithmetic as a forcing row's
+        // lead, read in the other order: act, then reposition.
+        private static readonly float DodgeAfterJumpTime = GestureChainTime(1, true);    // 1.15
         // A palisade is the only obstacle that takes the player's EYES off the
         // road: the tap minigame owns the screen, and control comes back only
         // once the vault has already carried them past the wall. Two budgets
@@ -181,28 +190,44 @@ namespace RingSport.Level.Spawning
         private float PinChainReach => PinChainTime * RunSpeed;
         private float PalisadeRecoveryGap => PalisadeRecoveryTime * RunSpeed;
         private float PalisadeLaneGap => PalisadeLaneRecoveryTime * RunSpeed;
+        private float DodgeAfterJumpGap => DodgeAfterJumpTime * RunSpeed;
 
         /// <summary>
-        /// Earliest Z this lane may take a new obstacle on account of a palisade
-        /// already standing in it, or float.MinValue if it holds none. This is
-        /// the sight-shadow reservation: nothing goes behind a palisade in its
-        /// own lane until the player has had time to land the vault and answer
-        /// it from a standing start.
+        /// Earliest Z this lane may take an obstacle of the given type on
+        /// account of what is already standing in it, or float.MinValue if
+        /// nothing reserves it. Two reservations, both longer than the ordinary
+        /// same-lane gap:
+        /// - a palisade's sight shadow, which applies to anything at all;
+        /// - a jumpable obstacle, which only reserves the run behind it against
+        ///   an instant-death follower - the player is committed to the lane
+        ///   through the jump and then has to leave it.
         /// </summary>
-        private float PalisadeLaneFloor(int lane)
+        private float LaneFloorFor(string poolTag, int lane)
         {
+            float floor = float.MinValue;
+
             float palisadeZ = obstacleTracker.FrontmostPalisadeZ(lane);
-            return palisadeZ > float.MinValue ? palisadeZ + PalisadeLaneGap : float.MinValue;
+            if (palisadeZ > float.MinValue)
+                floor = palisadeZ + PalisadeLaneGap;
+
+            if (!IsObstaclePassable(poolTag))
+            {
+                float jumpableZ = obstacleTracker.FrontmostJumpableZ(lane);
+                if (jumpableZ > float.MinValue)
+                    floor = Mathf.Max(floor, jumpableZ + DodgeAfterJumpGap);
+            }
+
+            return floor;
         }
 
         /// <summary>
         /// Clearance test every spawn path shares: the same-lane land-and-rejump
-        /// distance, plus a palisade's longer reservation on its own lane.
+        /// distance, plus the longer per-lane reservations above.
         /// </summary>
-        private bool LaneBlockedAt(int lane, float z)
+        private bool LaneBlockedAt(int lane, float z, string poolTag)
         {
             return obstacleTracker.HasObstacleInLaneBehind(lane, z, SameLaneClearance)
-                || z < PalisadeLaneFloor(lane);
+                || z < LaneFloorFor(poolTag, lane);
         }
 
         /// <summary>
@@ -346,7 +371,7 @@ namespace RingSport.Level.Spawning
             int lane = Random.Range(-1, 2);
 
             // Try to find a clear lane if the random one is blocked
-            if (!TryFindClearLane(ref lane))
+            if (!TryFindClearLane(poolTag, ref lane))
             {
                 // No clear lane available, skip this spawn and try again later
                 nextObstacleSpawnZ += NextObstacleGap();
@@ -365,10 +390,10 @@ namespace RingSport.Level.Spawning
         /// Tries to find a clear lane for obstacle spawning
         /// Returns true if a clear lane was found, false otherwise
         /// </summary>
-        private bool TryFindClearLane(ref int lane)
+        private bool TryFindClearLane(string poolTag, ref int lane)
         {
             // Check if current lane has clearance
-            if (!LaneBlockedAt(lane, nextObstacleSpawnZ))
+            if (!LaneBlockedAt(lane, nextObstacleSpawnZ, poolTag))
             {
                 return true; // Current lane is clear
             }
@@ -377,7 +402,7 @@ namespace RingSport.Level.Spawning
             int[] lanes = { -1, 0, 1 };
             foreach (int testLane in lanes)
             {
-                if (!LaneBlockedAt(testLane, nextObstacleSpawnZ))
+                if (!LaneBlockedAt(testLane, nextObstacleSpawnZ, poolTag))
                 {
                     lane = testLane;
                     return true;
@@ -489,16 +514,17 @@ namespace RingSport.Level.Spawning
             if (firstForcingOffset >= 0f)
                 startZ = Mathf.Max(startZ, lastObstacleZ + ForcingRowGap - firstForcingOffset);
 
-            // FAIRNESS: a palisade already standing in one of the pattern's lanes
-            // has reserved the run behind it. Shift the whole pattern clear of
-            // that instead of throwing it away over a lane it only touches deep
-            // in - the reservation is long, so rejecting here would starve the
-            // pattern mix for the rest of the palisade's shadow.
+            // FAIRNESS: an obstacle already standing in one of the pattern's
+            // lanes may have reserved the run behind it - a palisade against
+            // anything, a hurdle against instant death. Shift the whole pattern
+            // clear of that instead of throwing it away over a lane it only
+            // touches deep in - the reservations are long, so rejecting here
+            // would starve the pattern mix for the rest of the shadow.
             foreach (var row in rows)
             {
                 foreach (var obstacleDef in row.Obstacles)
                 {
-                    float laneFloor = PalisadeLaneFloor(obstacleDef.lane);
+                    float laneFloor = LaneFloorFor(obstacleDef.obstacleType, obstacleDef.lane);
                     if (laneFloor > float.MinValue)
                         startZ = Mathf.Max(startZ, laneFloor - row.Offset);
                 }
@@ -510,7 +536,7 @@ namespace RingSport.Level.Spawning
                 foreach (var obstacleDef in row.Obstacles)
                 {
                     // Check if this position has clearance issues
-                    if (LaneBlockedAt(obstacleDef.lane, startZ + row.Offset))
+                    if (LaneBlockedAt(obstacleDef.lane, startZ + row.Offset, obstacleDef.obstacleType))
                     {
                         GameLog.Info($"Pattern '{pattern.patternName}' failed clearance check at lane {obstacleDef.lane}, Z offset {row.Offset}");
                         return false;
@@ -576,6 +602,16 @@ namespace RingSport.Level.Spawning
             // Palisade row still owing recovery room to the rows behind it
             float palisadeOffset = float.MinValue;
             int palisadeLanes = 0;
+            // Per lane (-1/0/1 -> 0/1/2): offset of the last obstacle the
+            // pattern put there, and of the last JUMPABLE one. The row-to-row
+            // lead cannot see either - it prices the cheapest way to MEET a
+            // row, which says nothing about a lane the player is already
+            // standing in - so a pattern is free to stack its own lane as
+            // tightly as it was authored. Easy Straight Line's 10u re-jumps
+            // are fine; Medium Double Jump's barrel 8u behind its second
+            // hurdle is not.
+            var laneLastOffset = new[] { float.MinValue, float.MinValue, float.MinValue };
+            var laneLastJumpable = new[] { float.MinValue, float.MinValue, float.MinValue };
 
             foreach (var kv in byOffset)
             {
@@ -596,7 +632,27 @@ namespace RingSport.Level.Spawning
                         offset = Mathf.Max(offset, palisadeOffset + PalisadeLaneGap);
                 }
 
+                // Same-lane debts owed by the pattern's own earlier rows
+                foreach (var def in kv.Value)
+                {
+                    int slot = def.lane + 1;
+                    if (laneLastOffset[slot] > float.MinValue)
+                        offset = Mathf.Max(offset, laneLastOffset[slot] + SameLaneClearance);
+                    if (!IsObstaclePassable(def.obstacleType) && laneLastJumpable[slot] > float.MinValue)
+                        offset = Mathf.Max(offset, laneLastJumpable[slot] + DodgeAfterJumpGap);
+                }
+
                 rows.Add(new PatternRow { Offset = offset, Obstacles = kv.Value });
+
+                foreach (var def in kv.Value)
+                {
+                    int slot = def.lane + 1;
+                    laneLastOffset[slot] = offset;
+                    // A lethal obstacle CLEARS the debt rather than inheriting
+                    // it: the player it drove out of this lane is not standing
+                    // in it any more, so whatever follows starts fresh here.
+                    laneLastJumpable[slot] = IsObstaclePassable(def.obstacleType) ? offset : float.MinValue;
+                }
 
                 // From here on, this row's palisades own the recovery clock
                 int lanesHere = PalisadeLaneMask(kv.Value);
@@ -857,8 +913,8 @@ namespace RingSport.Level.Spawning
             }
 
             // Check clearance for both lanes
-            if (LaneBlockedAt(lane1, nextObstacleSpawnZ) ||
-                LaneBlockedAt(lane2, nextObstacleSpawnZ))
+            if (LaneBlockedAt(lane1, nextObstacleSpawnZ, obstacleType) ||
+                LaneBlockedAt(lane2, nextObstacleSpawnZ, obstacleType))
             {
                 // Clearance failed for row - try spawning a single obstacle instead
                 GameLog.Info("Two-lane row clearance failed, retrying with single obstacle");
@@ -894,17 +950,6 @@ namespace RingSport.Level.Spawning
             // FAIRNESS: a full row always forces an action - require
             // reposition-and-act room after whatever came before
             nextObstacleSpawnZ = Mathf.Max(nextObstacleSpawnZ, lastObstacleZ + ForcingRowGap, SpawnFloor);
-
-            // Check clearance for all 3 lanes
-            if (LaneBlockedAt(-1, nextObstacleSpawnZ) ||
-                LaneBlockedAt(0, nextObstacleSpawnZ) ||
-                LaneBlockedAt(1, nextObstacleSpawnZ))
-            {
-                // Clearance failed for 3-lane row - try a simpler two-lane row instead
-                GameLog.Info("Three-lane row clearance failed, retrying with two-lane row");
-                SpawnTwoLaneRow();
-                return;
-            }
 
             // Generate 3 obstacles with at least 2 being the same type
             string type1 = GetRandomObstacleType();
@@ -957,6 +1002,21 @@ namespace RingSport.Level.Spawning
                     int targetIndex = RandomLaneNearPin() + 1; // lane -1/0/1 -> index 0/1/2
                     (types[passableIndex], types[targetIndex]) = (types[targetIndex], types[passableIndex]);
                 }
+            }
+
+            // Check clearance for all 3 lanes. This waits until the types are
+            // settled because the reservations are type-dependent: dropping a
+            // barrel into the lane of a hurdle just behind costs more room than
+            // dropping another hurdle there.
+            for (int i = 0; i < 3; i++)
+            {
+                if (!LaneBlockedAt(lanes[i], nextObstacleSpawnZ, types[i]))
+                    continue;
+
+                // Clearance failed for 3-lane row - try a simpler two-lane row instead
+                GameLog.Info("Three-lane row clearance failed, retrying with two-lane row");
+                SpawnTwoLaneRow();
+                return;
             }
 
             // FAIRNESS: buy the time it takes to reach the passable lane
@@ -1025,14 +1085,14 @@ namespace RingSport.Level.Spawning
             int lane = Random.Range(-1, 2);
 
             // Try to find a clear lane
-            if (LaneBlockedAt(lane, nextObstacleSpawnZ))
+            if (LaneBlockedAt(lane, nextObstacleSpawnZ, poolTag))
             {
                 int[] lanes = { -1, 0, 1 };
                 bool foundClearLane = false;
 
                 foreach (int testLane in lanes)
                 {
-                    if (!LaneBlockedAt(testLane, nextObstacleSpawnZ))
+                    if (!LaneBlockedAt(testLane, nextObstacleSpawnZ, poolTag))
                     {
                         lane = testLane;
                         foundClearLane = true;

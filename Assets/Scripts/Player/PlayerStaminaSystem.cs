@@ -17,6 +17,7 @@ namespace RingSport.Player
 
         // UI update throttling
         private float lastStaminaUIValue = 1f;
+        private bool lastStaminaUIExhausted = false;
         private const float StaminaUIUpdateThreshold = 0.01f;
 
         private UIManager uiManager;
@@ -70,12 +71,18 @@ namespace RingSport.Player
                 }
             }
 
-            // Update UI only if stamina changed significantly (throttling)
+            // Update UI only if stamina changed significantly (throttling). The
+            // exhausted flag has to bypass the threshold: it clears on the frame
+            // stamina clamps to max, and that last step is usually smaller than
+            // the threshold - otherwise the bar sits full but stays red.
             float fillAmount = StaminaPercent;
-            if (uiManager != null && Mathf.Abs(fillAmount - lastStaminaUIValue) > StaminaUIUpdateThreshold)
+            if (uiManager != null &&
+                (isSprintExhausted != lastStaminaUIExhausted ||
+                 Mathf.Abs(fillAmount - lastStaminaUIValue) > StaminaUIUpdateThreshold))
             {
                 uiManager.UpdateSprintBar(fillAmount, isSprintExhausted);
                 lastStaminaUIValue = fillAmount;
+                lastStaminaUIExhausted = isSprintExhausted;
             }
         }
 
@@ -85,6 +92,7 @@ namespace RingSport.Player
             isSprintExhausted = false;
             IsSprinting = false;
             lastStaminaUIValue = 1f;
+            lastStaminaUIExhausted = false;
         }
 
         public bool CanSprint()

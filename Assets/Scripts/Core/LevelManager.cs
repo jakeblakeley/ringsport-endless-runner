@@ -12,6 +12,16 @@ namespace RingSport.Core
     {
         public static LevelManager Instance { get; private set; }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        /// <summary>
+        /// Perf harness only: makes the NEXT run begin at this level instead of 1,
+        /// so a sample can target a specific world (Hawaii is level 4) without
+        /// going through the debug intro panel, which needs a tap the probe can't
+        /// give. Consumed on use.
+        /// </summary>
+        public static int PerfPendingStartLevel;
+#endif
+
         [Header("Level Settings")]
         [SerializeField] private int maxLevels = 8;
 
@@ -583,6 +593,14 @@ namespace RingSport.Core
             LoveNoteManager.ResetRunCounter();
 
             currentLevel = 1;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (PerfPendingStartLevel > 1)
+            {
+                currentLevel = Mathf.Clamp(PerfPendingStartLevel, 1, maxLevels);
+                PerfPendingStartLevel = 0;
+                GameLog.Info($"[LevelManager] Perf harness override: run starts at level {currentLevel}");
+            }
+#endif
             levelTimer = 0f;
             distanceTraveled = 0f;
             currentLevelConfig = null;

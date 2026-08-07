@@ -122,6 +122,8 @@ namespace RingSport.Player
 
         public float ForwardSpeed => staminaSystem.IsSprinting ? forwardSpeed * sprintMultiplier : forwardSpeed;
         public bool IsGrounded => isGrounded;
+        /// <summary>Current vertical velocity (m/s); the face attack reads this to freeze at the true jump apex.</summary>
+        public float VerticalVelocity => velocity.y;
         /// <summary>World position at the bottom of the capsule (dust bursts land here).</summary>
         public Vector3 FeetPosition => transform.position + characterController.center
             - Vector3.up * (characterController.height * 0.5f - 0.05f);
@@ -389,7 +391,7 @@ namespace RingSport.Player
             // Debug ground state occasionally
             if (Time.frameCount % 60 == 0)
             {
-                GameLog.Info($"Ground check - isGrounded: {isGrounded}, position.y: {transform.position.y}, velocity.y: {velocity.y}");
+                GameLog.Verbose($"Ground check - isGrounded: {isGrounded}, position.y: {transform.position.y}, velocity.y: {velocity.y}");
             }
         }
 
@@ -734,7 +736,7 @@ namespace RingSport.Player
             isGrounded = false;
 
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
-            GameLog.Info($"Jumping! New velocity.y: {velocity.y}");
+            GameLog.Verbose($"Jumping! New velocity.y: {velocity.y}");
 
             playerAnimator?.TriggerJump();
 
@@ -761,7 +763,7 @@ namespace RingSport.Player
 
         private void OnMobileSprint()
         {
-            GameLog.Info("Mobile sprint started!");
+            GameLog.Verbose("Mobile sprint started!");
             TryStartSprint();
         }
 
@@ -784,7 +786,7 @@ namespace RingSport.Player
 
         private void OnMobileSprintEnded()
         {
-            GameLog.Info("Mobile sprint ended!");
+            GameLog.Verbose("Mobile sprint ended!");
 
             // Delegate to stamina system
             staminaSystem.IsSprinting = false;
@@ -936,7 +938,7 @@ namespace RingSport.Player
                 0f,
                 Mathf.Clamp(contactPoint.z - idealFaceZ, -MaxClamberAlignZ, MaxClamberAlignZ));
 
-            GameLog.Info($"Clamber alignment: wall face {contactPoint.z:F2}, ideal {idealFaceZ:F2}, correction {alignment}");
+            GameLog.Verbose($"Clamber alignment: wall face {contactPoint.z:F2}, ideal {idealFaceZ:F2}, correction {alignment}");
 
             playerAnimator?.SetClamberAlignment(alignment);
             playerAnimator?.SetClambering(true);
@@ -984,7 +986,7 @@ namespace RingSport.Player
                 startPosition.z  // Stay at same Z (world scrolls, not player)
             );
 
-            GameLog.Info($"Animating over obstacle - Start Y: {startPosition.y}, Obstacle Top: {obstacleTop}, Arc Height: {arcHeight}");
+            GameLog.Verbose($"Animating over obstacle - Start Y: {startPosition.y}, Obstacle Top: {obstacleTop}, Arc Height: {arcHeight}");
 
             while (elapsed < duration)
             {

@@ -271,16 +271,24 @@ namespace RingSport.EditorTools
                 // wasm stays small enough to actually upload to itch.
                 PlayerSettings.WebGL.debugSymbolMode = WebGLDebugSymbolMode.External;
                 PlayerSettings.WebGL.showDiagnostics = true;
-                // On so the build loads off any plain static server as well as
-                // itch - one less variable when the question is "does it render".
-                PlayerSettings.WebGL.decompressionFallback = true;
+                // Off, matching the shipping build: Brotli then actually applies,
+                // which is the difference between a ~35 MB and a ~157 MB download.
+                // The template ships a _headers file, so Netlify serves the .br
+                // files with the right Content-Encoding. Turn this back on only
+                // for a host that cannot set headers.
+                PlayerSettings.WebGL.decompressionFallback = false;
 
                 var options = new BuildPlayerOptions
                 {
                     scenes = new[] { "Assets/Scenes/SampleScene.unity" },
                     target = BuildTarget.WebGL,
                     locationPathName = WebGpuOutputDir,
-                    options = BuildOptions.Development | BuildOptions.AllowDebugging,
+                    // ConnectWithProfiler lets the editor's Profiler window attach
+                    // when the build is served locally; the in-page Profile button
+                    // (template, DEVELOPMENT_PLAYER) is the one that works from a
+                    // phone - it captures a .raw you open in the Profiler later.
+                    options = BuildOptions.Development | BuildOptions.AllowDebugging
+                              | BuildOptions.ConnectWithProfiler,
                 };
 
                 Debug.Log("[WebBuildSettings] Starting WebGPU DEBUG build (WebGPU -> WebGL2 fallback)...");

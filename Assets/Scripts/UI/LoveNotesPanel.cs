@@ -25,7 +25,15 @@ namespace RingSport.UI
         private void Awake()
         {
             if (closeButton != null)
+            {
                 closeButton.onClick.AddListener(Close);
+
+                // The scroll view is authored after the header row, so its
+                // invisible drag catcher raycasts on top of the close button
+                // wherever the two ever overlap. Last sibling wins for input, so
+                // the X always takes the tap.
+                closeButton.transform.SetAsLastSibling();
+            }
         }
 
         public void Open()

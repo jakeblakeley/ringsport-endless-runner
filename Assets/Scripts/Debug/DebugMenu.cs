@@ -62,8 +62,14 @@ namespace RingSport.DebugTools
             float screenWidth = Screen.width / scale;
             float screenHeight = Screen.height / scale;
 
+            // Clear the phone's status bar / notch. IMGUI knows nothing about safe
+            // areas, and Screen.safeArea is always 0 on web, so reuse the inset
+            // TopSafeArea reads out of JavaScript - otherwise this button renders
+            // underneath the status bar in fullscreen and looks like it is missing.
+            float topInset = TopSafeArea.AppliedFraction * screenHeight;
+
             const float toggleWidth = 90f;
-            Rect toggleRect = new Rect((screenWidth - toggleWidth) / 2f, 8f, toggleWidth, 26f);
+            Rect toggleRect = new Rect((screenWidth - toggleWidth) / 2f, topInset + 8f, toggleWidth, 26f);
             if (GUI.Button(toggleRect, isOpen ? "DEBUG ▲" : "DEBUG ▼"))
                 isOpen = !isOpen;
 
@@ -71,8 +77,8 @@ namespace RingSport.DebugTools
                 return;
 
             const float panelWidth = 280f;
-            float panelHeight = Mathf.Min(460f, screenHeight - 60f);
-            Rect panelRect = new Rect((screenWidth - panelWidth) / 2f, 40f, panelWidth, panelHeight);
+            float panelHeight = Mathf.Min(460f, screenHeight - topInset - 60f);
+            Rect panelRect = new Rect((screenWidth - panelWidth) / 2f, topInset + 40f, panelWidth, panelHeight);
 
             GUI.Box(panelRect, GUIContent.none);
             GUILayout.BeginArea(new Rect(panelRect.x + 8f, panelRect.y + 8f, panelRect.width - 16f, panelRect.height - 16f));
@@ -156,6 +162,14 @@ namespace RingSport.DebugTools
             if (GUILayout.Button($"Love Note Spawns 100%: {(forceNotes ? "ON" : "OFF")}", GUILayout.Height(28f)))
             {
                 LoveNoteManager.DebugForceSpawnAll = !forceNotes;
+            }
+
+            // Per-event logs (jumps, coin arcs, ground checks) cost real frame
+            // time on web dev builds - the JS console accumulates. Off unless
+            // actively chasing something.
+            if (GUILayout.Button($"Verbose Logs: {(GameLog.VerboseEnabled ? "ON" : "OFF")}", GUILayout.Height(28f)))
+            {
+                GameLog.VerboseEnabled = !GameLog.VerboseEnabled;
             }
 
             if (GUILayout.Button($"Unlock Love Note ({LoveNoteManager.UnlockedCount}/{LoveNoteManager.TotalCount})", GUILayout.Height(28f)))

@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -73,11 +72,9 @@ namespace RingSport.Level
 
         [Header("Carry Clearance")]
         [Tooltip("Sideways acceleration held for the whole carry (m/s^2), out from under the dog. The side is picked from where the bite lands - see ResolveCarrySide.")]
-        [SerializeField] private float carrySideAcceleration = 7f;
-        [Tooltip("Downward acceleration on the carried body, ON TOP of gravity's 9.8 (m/s^2). Sinks the body onto the floor so it drags rather than hanging clear of it - a leg grab needs this most, since the torso sits at the far end of the longest chain. Tuned WITH the sideways figure: the two make one vector, so the body hangs atan(side / (9.8 + this)) off vertical - raising this alone flattens the lean.")]
-        [SerializeField] private float carryDownAcceleration = 8f;
-        [Tooltip("One-off kick along that same out-and-down direction at the bite (m/s), so the body clears the dog and drops immediately instead of waiting for the pull to build.")]
-        [SerializeField] private float carryKickImpulse = 2.5f;
+        [SerializeField] private float carrySideAcceleration = 4f;
+        [Tooltip("Downward acceleration on top of gravity (m/s^2), pressing the body onto the floor so it drags flat instead of streaming out behind the mouth at speed. Keep small - the body falls under real gravity on its own.")]
+        [SerializeField] private float carryDownAcceleration = 2f;
 
         [Header("Ragdoll Weight")]
         [Tooltip("Mass multiplier on the pelvis/spine bodies. The Malbers ragdoll gives the torso less mass than the legs, so whichever limb is in the dog's mouth whips the body around. Loading up the middle makes the torso the thing that drags and the limbs the things that follow.")]
@@ -118,7 +115,6 @@ namespace RingSport.Level
         private bool HasVelocityCapture => captureCount >= 2;
 
         private GameObject ragdollInstance;
-        private Transform mouthAnchor;
         private PhysicsMaterial bounceMaterial;
         private float modelScale = 1f;
         private bool limbChosen;
@@ -132,6 +128,17 @@ namespace RingSport.Level
         private Transform carryRoot;
         private Vector3 carryLateral = Vector3.right;
         private float carrySide;
+
+        // The mouth pin. The grabbed bone is kinematic and DRIVEN, never
+        // parented: each physics step it MovePositions onto a target held in
+        // mouth-bone-local space (so it rides the head animation), easing from
+        // where the bite landed into the mouth offset over grabBlendSeconds.
+        private Rigidbody pinBody;
+        private Transform mouthBone;
+        private Vector3 pinLocalStart;
+        private Vector3 pinLocalTarget;
+        private Quaternion pinLocalRotation = Quaternion.identity;
+        private float pinBlendElapsed;
 
         public bool IsCarried { get; private set; }
 
@@ -348,9 +355,9 @@ namespace RingSport.Level
         }
 
         /// <summary>
-        /// The catch: swaps the animated model for the ragdoll mid-pose, snaps
-        /// the targeted limb to the mouth bone (kinematic, parented under it -
-        /// no force path back into the dog), and lets every other joint
+        /// The catch: swaps the animated model for the ragdoll mid-pose, pins
+        /// the targeted limb to the mouth bone (kinematic, driven onto it each
+        /// physics step - no force path back into the dog), and lets every other joint
         /// continue the fall with its animated velocity so the body dangles
         /// and bounces off the ground during the carry. The body is also
         /// leaned out to whichever side of the mouth it landed on so it hangs
@@ -437,92 +444,69 @@ namespace RingSport.Level
 
             ConfigureBodies(bodies, colliders, joints, grabBody);
 
-            // Anchor under the mouth bone; the kinematic grabbed bone is
-            // parented to it so it rigidly follows the head animation.
-            // Kinematic = infinite mass, so nothing the body does can push the
-            // dog around. The anchor starts at the limb's CURRENT position -
-            // the body stays exactly where the bite visually lands - and is
-            // then yanked into the mouth over grabBlendSeconds (an instant
-            // snap teleports the whole body by up to a limb's length).
-            mouthAnchor = new GameObject("DecoyMouthAnchor").transform;
-            mouthAnchor.position = grabBody.transform.position;
-            mouthAnchor.rotation = grabBody.transform.rotation;
-            mouthAnchor.SetParent(mouth, true);
+            // The pin: the grabbed bone stays kinematic and is DRIVEN onto the
+            // mouth every physics step (see DriveMouthPin) - NOTHING physical
+            // is ever parented into the animated rig. Parenting was what made
+            // the carry erratic: transform motion on a physics body is synced
+            // into the engine as a teleport with no velocity attached, so
+            // every head bob and all of the dog's forward travel hit the
+            // joint chain as instantaneous jumps of an infinite-mass anchor,
+            // and the solver answered each with an impulse spike down the
+            // chain. MovePosition moves the same pin with a real velocity, so
+            // the chain is pulled, never snapped. Kinematic = infinite mass,
+            // so there is still no force path back into the dog. The target
+            // starts where the bite visually lands and eases into the mouth
+            // offset over grabBlendSeconds (an instant snap would teleport
+            // the whole body by up to a limb's length).
+            mouthBone = mouth;
+            pinBody = grabBody;
+            pinLocalStart = mouth.InverseTransformPoint(grabBody.transform.position);
+            pinLocalTarget = mouth.InverseTransformPoint(grabTarget);
+            pinLocalRotation = Quaternion.Inverse(mouth.rotation) * grabBody.transform.rotation;
+            pinBlendElapsed = 0f;
 
-            // Reparenting out of the inactive holder ACTIVATES the ragdoll -
-            // physics wakes here, with final scale, pose and kinematic flags.
-            //
-            // ONLY the kinematic pin goes under the anchor. The body itself
-            // wakes at the scene root, because a DYNAMIC rigidbody parented
-            // under an animated transform stops being simulated in any useful
-            // sense: moving a parent moves its children's transforms, and
-            // Unity syncs those moved transforms back into the physics engine
-            // as teleports every step. Under the jaw that meant the dog's own
-            // 10 m/s of travel, plus every head bob, was being written onto
-            // each bone before the solver ever ran - the body rode along at
-            // mouth height like it was welded there, and gravity never got a
-            // say. Off the hierarchy, the only thing connecting it to the dog
-            // is the joint chain up to the pin, which is what makes it hang,
-            // fall and drag.
+            // Unparenting from the inactive holder ACTIVATES the ragdoll -
+            // physics wakes here at the scene root, with final scale, pose and
+            // kinematic flags. The skeleton stays one intact hierarchy.
             ragdollInstance.transform.SetParent(null, true);
-
-            // ONLY the grabbed bone rides the jaw, not its subtree - a thigh
-            // bite still has a calf and a foot hanging below it, and they would
-            // be transform-driven by the jaw for exactly the same reason. The
-            // joints are what hold the chain together (they connect by
-            // rigidbody, not by parenting), and the skinning reads each bone's
-            // world pose rather than its place in the hierarchy, so the rest of
-            // the limb can hang off the ragdoll root and stay simulated.
-            for (int i = grabBody.transform.childCount - 1; i >= 0; i--)
-                grabBody.transform.GetChild(i).SetParent(ragdollInstance.transform, true);
-
-            grabBody.transform.SetParent(mouthAnchor, true);
             Destroy(spawnHolder);
 
             ReleaseBodies(bodies, colliders, grabBody, playerRoot);
-
-            StartCoroutine(BlendGrabToMouth(mouth.InverseTransformPoint(grabTarget)));
 
             // The animated model's job is done
             model.gameObject.SetActive(false);
         }
 
         /// <summary>
-        /// Pulls the mouth anchor (and the kinematic limb pinned to it) from
-        /// where the bite landed into the mouth, in jaw-local space so it
-        /// keeps riding the head animation while it blends. The joints drag
-        /// the rest of the body along, so the whole snatch reads as motion.
+        /// Drives the kinematic pin onto the mouth: target held in jaw-local
+        /// space so it rides the head animation, eased from where the bite
+        /// landed into the mouth offset over grabBlendSeconds. MovePosition /
+        /// MoveRotation give the solver the pin's velocity, so the joints drag
+        /// the rest of the body along and the snatch reads as motion.
         /// </summary>
-        private IEnumerator BlendGrabToMouth(Vector3 targetLocalPosition)
+        private void DriveMouthPin()
         {
-            Vector3 startLocalPosition = mouthAnchor.localPosition;
-            float elapsed = 0f;
-            while (elapsed < grabBlendSeconds && mouthAnchor != null)
-            {
-                elapsed += Time.deltaTime;
-                float k = Mathf.Clamp01(elapsed / grabBlendSeconds);
-                k = k * k * (3f - 2f * k);
-                mouthAnchor.localPosition = Vector3.Lerp(startLocalPosition, targetLocalPosition, k);
-                yield return null;
-            }
-            if (mouthAnchor != null)
-                mouthAnchor.localPosition = targetLocalPosition;
+            if (pinBody == null || mouthBone == null)
+                return;
+
+            pinBlendElapsed += Time.fixedDeltaTime;
+            float k = grabBlendSeconds > 0f ? Mathf.Clamp01(pinBlendElapsed / grabBlendSeconds) : 1f;
+            k = k * k * (3f - 2f * k);
+
+            pinBody.MovePosition(mouthBone.TransformPoint(Vector3.Lerp(pinLocalStart, pinLocalTarget, k)));
+            pinBody.MoveRotation(mouthBone.rotation * pinLocalRotation);
         }
 
         // ------------------------------------------------------------------
         // Carry clearance. The ragdoll's colliders ignore the dog's (see
         // ReleaseBodies), so nothing stops the body hanging straight down the
-        // dog's centre line and drawing through the model. Leaning it out to
-        // one side fixes that, and doing it as an acceleration rather than a
-        // one-off shove is what makes it hold: the body is a pendulum swinging
-        // off the jaw, so a kick alone just swings back through the dog.
-        //
-        // The pull goes DOWN as well as out. Leaning the body sideways swings
-        // it up an arc - at 20 degrees off vertical the far end rides about 6%
-        // of its length higher - and the extra gravity pays that back and then
-        // some, so the body still folds down onto the floor and scrubs along
-        // it. The two components are one vector, so the hang angle is
-        // atan(side / (9.8 + down)) and they get tuned together.
+        // dog's centre line and drawing through the model. A small steady pull
+        // - sideways out from under the dog, plus a little extra down to keep
+        // it pressed onto the floor - holds it clear for the whole carry. An
+        // acceleration rather than a one-off shove: the body is a pendulum
+        // off the jaw, so a kick alone swings straight back through the dog,
+        // and ForceMode.Acceleration leans every bone by the same amount
+        // whatever the mass profile did, so the pose stays the pose.
         // ------------------------------------------------------------------
 
         /// <summary>
@@ -575,15 +559,19 @@ namespace RingSport.Level
                    + Vector3.down * carryDownAcceleration;
         }
 
-        /// <summary>
-        /// Holds the carry pose for the length of the carry. Applied as an
-        /// acceleration so it reads as a heavier gravity tilted a few degrees
-        /// sideways - every bone leans and sinks by the same amount whatever
-        /// the mass profile did, and the pose stays the pose.
-        /// </summary>
         private void FixedUpdate()
         {
-            if (!IsCarried || carrySide == 0f)
+            if (!IsCarried)
+                return;
+
+            DriveMouthPin();
+            ApplyCarryPull();
+        }
+
+        /// <summary>Holds the clearance lean for the length of the carry.</summary>
+        private void ApplyCarryPull()
+        {
+            if (carrySide == 0f)
                 return;
 
             Vector3 pull = CarryPullWorld();
@@ -605,9 +593,15 @@ namespace RingSport.Level
                 bounceMaterial = new PhysicsMaterial("DecoyBounce")
                 {
                     bounciness = groundBounciness,
-                    bounceCombine = PhysicsMaterialCombine.Maximum,
-                    dynamicFriction = 0.5f,
-                    staticFriction = 0.5f
+                    // Average, not Maximum: the carry drags the body along the
+                    // ground at running speed, and taking the max of the two
+                    // materials turned every scrape into a bounce
+                    bounceCombine = PhysicsMaterialCombine.Average,
+                    // Low friction so the drag is a slide, not a series of
+                    // snags - at 10 m/s a grippy limb catches on the ground
+                    // and whips the chain
+                    dynamicFriction = 0.15f,
+                    staticFriction = 0.1f
                 };
             }
 
@@ -873,12 +867,6 @@ namespace RingSport.Level
                     Physics.IgnoreCollision(ragdollCollider, playerCollider, true);
             }
 
-            // Kick out from under the dog and down toward the floor, on top of
-            // (not clamped with) the carried-over animation velocity - the
-            // sustained pull in FixedUpdate is what holds it there, this just
-            // gets it clear now
-            Vector3 kick = CarryPullWorld().normalized * carryKickImpulse;
-
             var boneLookup = BuildTrackedBoneLookup();
             foreach (var body in bodies)
             {
@@ -886,8 +874,10 @@ namespace RingSport.Level
                     continue;
 
                 // Gradual handover: each limb keeps the velocity it had in the
-                // fall animation instead of popping to a dead stop
-                body.linearVelocity = EstimateBoneVelocity(body.name, boneLookup) + kick;
+                // fall animation instead of popping to a dead stop. No extra
+                // clearance kick here - the sustained pull in ApplyCarryPull
+                // eases the body out to the side instead of launching it.
+                body.linearVelocity = EstimateBoneVelocity(body.name, boneLookup);
                 // Most of the tumble goes to the limbs; a torso that spins on
                 // its own axis undoes the weight the mass profile just gave it
                 float tumble = IsTorsoBone(body.name) ? randomTumble * 0.25f : randomTumble;
@@ -1011,12 +1001,9 @@ namespace RingSport.Level
 
         private void OnDestroy()
         {
-            // Once caught the ragdoll lives at the scene root and its pin under
-            // the dog's jaw, so neither goes away with the decoy on its own -
-            // tear both down here or a chase cleanup orphans them. The anchor
-            // owns the pinned limb's subtree; the instance owns the rest.
-            if (mouthAnchor != null)
-                Destroy(mouthAnchor.gameObject);
+            // Once caught the ragdoll lives at the scene root (pin included -
+            // it is driven, not parented), so it doesn't go away with the
+            // decoy on its own and a chase cleanup would orphan it mid-carry
             if (ragdollInstance != null)
                 Destroy(ragdollInstance);
         }

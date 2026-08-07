@@ -106,7 +106,11 @@ namespace RingSport.UI
         private const float FailEscapeMinSeconds = 1.1f; // ...and the failure lands only after this beat has read
         private const float FailEscapeMaxSeconds = 1.8f;
         private const float ChargeSeconds = 0.6f; // decoy wheels around while the gap collapses
-        private const float PounceFreezeDelaySeconds = 0.22f; // leap runtime before the freeze (~apex)
+        private const float PounceFreezeDelaySeconds = 0.22f; // nominal leap runtime to the apex (drives the gap lerp; the freeze itself gates on the real jump state)
+        private const float PounceMinAirSeconds = 0.05f;      // the freeze never lands the same instant as the takeoff
+        private const float PounceApexFreezeVelocity = 2.5f;  // rising slower than this reads as the apex (~97% of full jump height)
+        private const float PounceRelaunchDeadlineSeconds = 0.66f; // grounded this long after the leap fired = the jump was lost, fire it again
+        private const int MaxPounceRelaunches = 2;
         private const float FreezeRampSeconds = 0.12f; // world scroll snaps (almost) instantly to the halt
         private const float RevealSeconds = 0.9f; // targets readable before the X's stamp
         private const float DodgeResolveSeconds = 1.6f;
@@ -240,6 +244,7 @@ namespace RingSport.UI
         private bool animatorFrozenByQte;
         private Transform pounceMouth;
         private Vector3 pounceModelOffset;
+        private int pounceRelaunches;
 
         // Spawned chase objects (self-managed; deliberately NOT registered
         // with DespawnManager so end-of-level sweeps can't eat them)
@@ -691,6 +696,7 @@ namespace RingSport.UI
         {
             phase = FacePhase.Pounce;
             phaseTimer = 0f;
+            pounceRelaunches = 0;
 
             // The leap. (If a last-second manual jump left the dog already
             // airborne, that reads as the pounce too - the freeze catches it
@@ -703,13 +709,42 @@ namespace RingSport.UI
 
         private void UpdatePounce(float dt)
         {
-            // Airborne at full speed for a beat - the freeze lands near the
-            // apex of the jump, right in the decoy's face
+            // Airborne at full speed for a beat - the freeze lands at the
+            // apex of the jump, right in the decoy's face. Gated on the dog's
+            // REAL jump state, not just the wall clock: a hitchy frame here
+            // (floor spawn, GC) used to lap the physics and freeze the dog
+            // still on the ground.
             float t = Mathf.Clamp01(phaseTimer / PounceFreezeDelaySeconds);
             gap = Mathf.Lerp(PounceGap, FreezeGap, t);
 
-            if (phaseTimer >= PounceFreezeDelaySeconds)
+            bool airborne = playerController != null && !playerController.IsGrounded;
+
+            if (airborne && phaseTimer >= PounceMinAirSeconds &&
+                playerController.VerticalVelocity <= PounceApexFreezeVelocity)
+            {
+                gap = FreezeGap;
                 EnterReveal();
+                return;
+            }
+
+            if (phaseTimer < PounceRelaunchDeadlineSeconds)
+                return;
+
+            // Still grounded this far in: a single oversized gravity step can
+            // wipe the whole takeoff velocity before the first Move applies
+            // it. Fire the leap again and wait for the apex once more.
+            if (!airborne && pounceRelaunches < MaxPounceRelaunches)
+            {
+                pounceRelaunches++;
+                phaseTimer = 0f;
+                playerController?.ForceJump();
+                GameLog.Info("[MiniLevelFaceAttack] Pounce leap was lost to a frame hitch - relaunching");
+                return;
+            }
+
+            // Last resort so the beat can never stall: freeze wherever the dog is
+            gap = FreezeGap;
+            EnterReveal();
         }
 
         /// <summary>
