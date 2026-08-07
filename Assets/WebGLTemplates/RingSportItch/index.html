@@ -48,6 +48,44 @@
       var canvas = document.querySelector("#unity-canvas");
       var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
+      // --- iOS ring/silent switch vs Web Audio --------------------------------
+      // iOS Safari keeps a page that only produces Web Audio (all our SFX -
+      // DecompressOnLoad clips are WebAudio buffers) in the "ambient" audio
+      // session, which the hardware silent switch MUTES. An HTML <audio>
+      // element is exempt, and while one is playing it promotes the whole
+      // page's session, un-muting Web Audio too. Our music/ambience play
+      // through <audio> elements (CompressedInMemory), so runs sound fine even
+      // with the switch on - but the mini games stop the music by design
+      // (GameManager.HandleMiniLevelState), the session demotes, and every
+      // stinger goes silent until the next run's music starts. (2026-08-06)
+      //
+      // Two layers, belt and braces:
+      //   1. Audio Session API (iOS 16.4+): declare playback intent outright.
+      //   2. A silent looping <audio> keepalive, started on the first touch
+      //      (autoplay rules), holds the session promoted on older iOS and
+      //      inside the itch.io iframe if (1) doesn't stick there.
+      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPadOS reports as Mac
+      if (navigator.audioSession) {
+        try { navigator.audioSession.type = "playback"; } catch (e) {}
+      }
+      if (isIOS) {
+        var audioKeepAlive = null;
+        var startAudioKeepAlive = function () {
+          if (audioKeepAlive) return;
+          var el = document.createElement("audio");
+          el.setAttribute("playsinline", "");
+          el.loop = true;
+          el.preload = "auto";
+          el.src = "TemplateData/silence.wav"; // 0.5s of 8-bit silence
+          audioKeepAlive = el;
+          var p = el.play();
+          if (p && p.catch) p.catch(function () { audioKeepAlive = null; }); // blocked - retry on next touch
+        };
+        window.addEventListener("touchstart", startAudioKeepAlive, { passive: true });
+        window.addEventListener("mousedown", startAudioKeepAlive);
+      }
+
       // Stop arrows/space/page keys from scrolling the itch.io page underneath
       // the embed while the player is driving the dog.
       var swallowKeys = [" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown"];

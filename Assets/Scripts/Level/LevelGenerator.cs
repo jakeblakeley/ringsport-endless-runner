@@ -392,6 +392,13 @@ namespace RingSport.Level
             var pool = new MiniLevelType[count];
             System.Array.Copy(miniLevelOrder, pool, count);
 
+            // The shuffle only ever REORDERS this pool, so "each mini level
+            // appears exactly once in the opening" is inherited from the level
+            // assets, not enforced here. Say so loudly if someone points two of
+            // the shuffled levels at the same mini level - it would repeat in
+            // every run, shuffled or not.
+            WarnOnRepeatedMiniLevels(pool);
+
             // Reject orders a level can't host - an in-run chase eats the end
             // of its level, so a short level would be left with no running
             // section in front of it - and fall back to the authored order
@@ -428,6 +435,26 @@ namespace RingSport.Level
                 miniLevelOrder[i] = levelConfigs[i] != null
                     ? levelConfigs[i].MiniLevelType
                     : MiniLevelType.PositionsSimonSays;
+            }
+        }
+
+        /// <summary>
+        /// Warns if the shuffled window holds the same mini level twice - the
+        /// opening is meant to be one of each, and a repeat there would survive
+        /// every shuffle.
+        /// </summary>
+        private static void WarnOnRepeatedMiniLevels(MiniLevelType[] window)
+        {
+            for (int i = 0; i < window.Length; i++)
+            {
+                for (int j = i + 1; j < window.Length; j++)
+                {
+                    if (window[i] == window[j])
+                    {
+                        GameLog.Warn($"[LevelGenerator] Levels {i + 1} and {j + 1} both run {window[i]} - the opening is meant to be one of each, so it will repeat however it shuffles. Fix the level assets.");
+                        return;
+                    }
+                }
             }
         }
 

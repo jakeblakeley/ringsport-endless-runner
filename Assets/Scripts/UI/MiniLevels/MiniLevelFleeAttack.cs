@@ -13,8 +13,8 @@ namespace RingSport.UI
     /// <summary>
     /// Flee Attack mini level. Unlike the arena mini levels this one plays
     /// IN-RUN, during the Playing state, over the last stretch of its level:
-    /// a decoy appears fleeing ahead of the dog, dodging barrels (at most
-    /// one barrel across the 3 lanes per row) and dropping coins behind it
+    /// a decoy appears fleeing ahead of the dog, dodging barrels (one or two
+    /// barrels across the 3 lanes per row) and dropping coins behind it
     /// while the gap slowly closes. For the final step the decoy commits to
     /// one lane and tall un-jumpable walls seal the other two - manual
     /// jumping locks, the dog auto-pounces at the decoy (animation sequence
@@ -47,8 +47,9 @@ namespace RingSport.UI
         // ---- longer, denser and twitchier but every row still fits the
         // ---- validated ~400ms mobile swipe budget (see fairness notes below).
         private static readonly float[] ChaseDurationSeconds = { 14f, 17f, 20f };
-        private static readonly float[] ObstacleIntervalSeconds = { 2.1f, 1.7f, 1.35f };
-        private static readonly float[] VoluntaryHopIntervalSeconds = { 3.0f, 2.2f, 1.7f };
+        private static readonly float[] ObstacleIntervalSeconds = { 1.8f, 1.5f, 1.25f };
+        private static readonly float[] VoluntaryHopIntervalSeconds = { 2.4f, 1.9f, 1.5f };
+        private static readonly float[] DoubleRowChance = { 0.55f, 0.7f, 0.85f };
         private static readonly float[] WallLeadSeconds = { 2.1f, 1.95f, 1.8f };
 
         // ---- Fairness model (mirrors ObstacleSpawner's action model):
@@ -58,7 +59,10 @@ namespace RingSport.UI
         // keeps ~0.2s of slack at the tightest cadence; chase rows spawn
         // ReactionAheadSeconds ahead of the player, and the finale walls
         // telegraph for WallLeadSeconds >= 1.8s because the worst case there
-        // is TWO lane changes (~1.55s).
+        // is TWO lane changes (~1.55s). Double rows (two barrels, one open
+        // lane) keep their open lane within one hop of the decoy's lane, so
+        // consecutive rows never demand more than one change per 1.1s window
+        // from a player on the decoy's tail.
         private const float ReactionAheadSeconds = 2.4f;   // row spawn distance, in time
         private const float DodgeLeadSeconds = 1.1f;       // decoy dodges this far ahead of a row
         private const float CalmTailSeconds = 2.5f;        // no voluntary hops at the end of approach
@@ -79,6 +83,7 @@ namespace RingSport.UI
         private const float PounceSteerRecoverSpeed = 3.5f; // m/s the model recenters at during the carry
         private const float CatchToEndBuffer = 3f; // catch lands this long before the level timer ends (short carry to the line)
         private const float CoinIntervalSeconds = 0.5f;
+        private const float CoinLaneChangeHoldSeconds = 0.5f; // no coins right after a decoy hop - the first new-lane coin must land where the player can still react
         private const float DespawnBehind = 12f;
         private const int CatchBonusPoints = 150;
 
@@ -129,6 +134,7 @@ namespace RingSport.UI
         private float obstacleTimer;
         private float voluntaryHopTimer;
         private float coinTimer;
+        private float coinDropHold; // counts down after a decoy lane change
 
         // Finale
         private bool wallsCrossed;
@@ -290,6 +296,7 @@ namespace RingSport.UI
             obstacleTimer = 0f;
             voluntaryHopTimer = 0f;
             coinTimer = 0f;
+            coinDropHold = 0f;
             lastDodgeTime = -10f;
 
             // The standard spawners were already wound down by LevelManager a
@@ -425,7 +432,7 @@ namespace RingSport.UI
 
             float remaining = chaseDuration - phaseTimer;
 
-            // Obstacle rows: at most ONE obstacle across the 3 lanes per row
+            // Obstacle rows: one barrel, or two with a single open lane
             obstacleTimer += dt;
             if (remaining > ObstacleStopTailSeconds && obstacleTimer >= ObstacleIntervalSeconds[difficulty])
             {
@@ -766,19 +773,50 @@ namespace RingSport.UI
                     return; // too soon - skip this tick, the interval timer will retry
             }
 
-            // ~45% of rows target the decoy's lane so it visibly dodges and
-            // leads the player; the rest threaten the side lanes
-            int lane;
+            // Double rows: two lanes barreled, one left open. The open lane
+            // is always the decoy's lane or adjacent to it (see the fairness
+            // notes above), so threading the row is at most one hop
+            if (Random.value < DoubleRowChance[difficulty])
+            {
+                int openLane = PickDoubleRowOpenLane();
+                foreach (int lane in new[] { -1, 0, 1 })
+                {
+                    if (lane != openLane)
+                        SpawnBarrel(lane, spawnZ);
+                }
+                return;
+            }
+
+            // Single rows: ~45% target the decoy's lane so it visibly dodges
+            // and leads the player; the rest threaten the side lanes
+            int singleLane;
             if (Random.value < 0.45f)
             {
-                lane = decoyLane;
+                singleLane = decoyLane;
             }
             else
             {
                 int[] others = OtherLanes(decoyLane);
-                lane = others[Random.Range(0, others.Length)];
+                singleLane = others[Random.Range(0, others.Length)];
             }
+            SpawnBarrel(singleLane, spawnZ);
+        }
 
+        /// <summary>
+        /// Half the time the open lane IS the decoy's lane (the barrels flank
+        /// it); otherwise it's adjacent, and the decoy's dodge logic leads the
+        /// player through it.
+        /// </summary>
+        private int PickDoubleRowOpenLane()
+        {
+            if (Random.value < 0.5f)
+                return decoyLane;
+            int[] adjacent = decoyLane == 0 ? new[] { -1, 1 } : new[] { 0 };
+            return adjacent[Random.Range(0, adjacent.Length)];
+        }
+
+        private void SpawnBarrel(int lane, float spawnZ)
+        {
             // Chase obstacles are always barrels (the ObstacleAvoid pool's
             // prefab) - dodge-only, so following the decoy is the whole game
             GameObject go = ObjectPooler.Instance?.SpawnFromPool(
@@ -809,6 +847,7 @@ namespace RingSport.UI
                     {
                         decoyLane = target;
                         lastDodgeTime = Time.time;
+                        coinDropHold = CoinLaneChangeHoldSeconds;
                     }
                 }
             }
@@ -852,12 +891,26 @@ namespace RingSport.UI
             int[] candidates = decoyLane == 0 ? new[] { -1, 1 } : new[] { 0 };
             int target = candidates[Random.Range(0, candidates.Length)];
             if (IsLaneClearAheadOfDecoy(target))
+            {
                 decoyLane = target;
+                coinDropHold = CoinLaneChangeHoldSeconds;
+            }
         }
 
         private void DropCoins(float dt)
         {
             coinTimer += dt;
+
+            // Right after a lane change the trail pauses: a coin dropped at
+            // the hop point arrives before the player can follow the decoy
+            // over, so the first new-lane coin waits until it can land with
+            // reaction room to spare
+            if (coinDropHold > 0f)
+            {
+                coinDropHold -= dt;
+                return;
+            }
+
             if (coinTimer < CoinIntervalSeconds)
                 return;
             coinTimer = 0f;

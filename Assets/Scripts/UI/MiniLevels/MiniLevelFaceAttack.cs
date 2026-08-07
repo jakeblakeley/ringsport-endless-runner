@@ -33,7 +33,7 @@ namespace RingSport.UI
     /// not the whole run (GameManager's in-run reroute plus a resume index
     /// kept across the retry).
     ///
-    /// Levels: 5 "Ring 2 - 2" (ordinal 0, easy - 2s tap window) and
+    /// Levels: 5 "Ring 2 - 2" (ordinal 0, easy - 1.6s tap window) and
     /// 8 "Ring 3 Finale" (ordinal 1, hard - shorter window, denser barrels).
     /// LevelManager drives entry (BeginChase near the end of the level);
     /// assets are wired by Tools > RingSport > Setup Face Attack.
@@ -72,14 +72,16 @@ namespace RingSport.UI
             new[] { 7f, 6f, 6f },
             new[] { 8f, 7f, 7f },
         };
-        private static readonly float[] ObstacleIntervalSeconds = { 2.1f, 1.6f };
-        private static readonly float[] VoluntaryHopIntervalSeconds = { 3.0f, 2.0f };
+        private static readonly float[] ObstacleIntervalSeconds = { 1.8f, 1.3f };
+        private static readonly float[] VoluntaryHopIntervalSeconds = { 2.4f, 1.7f };
+        private static readonly float[] DoubleRowChance = { 0.55f, 0.85f };
         private static readonly float[] AlignSeconds = { 2.5f, 2.2f };
-        private static readonly float[] TapWindowSeconds = { 2f, 1.4f };
+        private static readonly float[] TapWindowSeconds = { 1.6f, 1.1f };
 
         // ---- Fairness model (same action model as the flee/stop chases):
-        // barrels are dodge-only, at most one per row, rows spawn 2.4s ahead
-        // with a hard 1.1s spacing floor. The align beat runs on a clean
+        // barrels are dodge-only, one or two per row (a double row's open
+        // lane stays within one hop of the decoy's lane), rows spawn 2.4s
+        // ahead with a hard 1.1s spacing floor. The align beat runs on a clean
         // track (rows stop 3s before the segment ends and arrive 2.4s after
         // spawn) and its 2.2-2.5s comfortably covers the worst case of two
         // lane changes (~1.55s at 400ms mobile latency). The tap windows are
@@ -123,6 +125,7 @@ namespace RingSport.UI
         private const float CatchToEndBuffer = 3f;   // catch lands this long before the level timer ends
         private const float DecoyChestHeight = 1.55f; // camera aim point above the decoy's feet
         private const float CoinIntervalSeconds = 0.5f;
+        private const float CoinLaneChangeHoldSeconds = 0.5f; // no coins right after a decoy hop - the first new-lane coin must land where the player can still react
         private const float DespawnBehind = 12f;
         private const int TapBonusPoints = 100;
         private const int CatchBonusPoints = 250;
@@ -164,7 +167,7 @@ namespace RingSport.UI
         [Tooltip("Aim point between the two: 0 = the dog, 1 = the decoy's chest.")]
         [Range(0f, 1f)]
         [SerializeField] private float pounceAimBias = 0.5f;
-        [Tooltip("Slow dolly-in (m/s) that keeps creeping toward the decoy through the frozen QTE until it resolves or fails. The beat is short - 2s on the easy pass, 1.4s on the finale - so this is most of what decides how far the shot pushes in: roughly this many meters per second out of a ~3m starting distance.")]
+        [Tooltip("Slow dolly-in (m/s) that keeps creeping toward the decoy through the frozen QTE until it resolves or fails. The beat is short - 1.6s on the easy pass, 1.1s on the finale - so this is most of what decides how far the shot pushes in: roughly this many meters per second out of a ~3m starting distance.")]
         [SerializeField] private float pounceCamCreepSpeed = 0.45f;
         [Tooltip("The creep stops this far from the decoy's chest.")]
         [SerializeField] private float pounceCamMinDecoyDistance = 1.2f;
@@ -260,6 +263,7 @@ namespace RingSport.UI
         private float obstacleTimer;
         private float voluntaryHopTimer;
         private float coinTimer;
+        private float coinDropHold; // counts down after a decoy lane change
 
         // Retry scoring (same pattern as the flee/stop attacks)
         private int preChaseScore = -1;
@@ -406,6 +410,7 @@ namespace RingSport.UI
             obstacleTimer = 0f;
             voluntaryHopTimer = 0f;
             coinTimer = 0f;
+            coinDropHold = 0f;
             lastDodgeTime = -10f;
 
             // Idempotent safety - LevelManager already wound spawning down
@@ -557,7 +562,7 @@ namespace RingSport.UI
             // the first segment this is a no-op (the intro already opened it)
             gap = Mathf.SmoothStep(segmentStartGap, FarGap, Mathf.Clamp01(phaseTimer / EscapeGapRecoverSeconds));
 
-            // Obstacle rows: at most ONE barrel across the 3 lanes per row
+            // Obstacle rows: one barrel, or two with a single open lane
             obstacleTimer += dt;
             if (remaining > ObstacleStopTailSeconds && obstacleTimer >= ObstacleIntervalSeconds[difficulty])
             {
@@ -1169,7 +1174,7 @@ namespace RingSport.UI
         // ------------------------------------------------------------------
         // Freeze riser audio
         //
-        // The riser clip outlives the beat it scores (~4.3s against a 2.9s
+        // The riser clip outlives the beat it scores (~4.3s against a 2.5s
         // worst-case frozen window), so it gets its own source rather than a
         // fire-and-forget PlayOneShot: it hits full-volume on the freeze,
         // bleeds down to a bed across the reveal + tap window (leaving room
@@ -1371,19 +1376,50 @@ namespace RingSport.UI
                     return; // too soon - skip this tick, the interval timer will retry
             }
 
-            // ~45% of rows target the decoy's lane so it visibly dodges and
-            // leads the player; the rest threaten the side lanes
-            int lane;
+            // Double rows: two lanes barreled, one left open. The open lane
+            // is always the decoy's lane or adjacent to it (see the fairness
+            // notes above), so threading the row is at most one hop
+            if (Random.value < DoubleRowChance[difficulty])
+            {
+                int openLane = PickDoubleRowOpenLane();
+                foreach (int lane in new[] { -1, 0, 1 })
+                {
+                    if (lane != openLane)
+                        SpawnBarrel(lane, spawnZ);
+                }
+                return;
+            }
+
+            // Single rows: ~45% target the decoy's lane so it visibly dodges
+            // and leads the player; the rest threaten the side lanes
+            int singleLane;
             if (Random.value < 0.45f)
             {
-                lane = decoyLane;
+                singleLane = decoyLane;
             }
             else
             {
                 int[] others = OtherLanes(decoyLane);
-                lane = others[Random.Range(0, others.Length)];
+                singleLane = others[Random.Range(0, others.Length)];
             }
+            SpawnBarrel(singleLane, spawnZ);
+        }
 
+        /// <summary>
+        /// Half the time the open lane IS the decoy's lane (the barrels flank
+        /// it); otherwise it's adjacent, and the decoy's dodge logic leads the
+        /// player through it.
+        /// </summary>
+        private int PickDoubleRowOpenLane()
+        {
+            if (Random.value < 0.5f)
+                return decoyLane;
+            int[] adjacent = decoyLane == 0 ? new[] { -1, 1 } : new[] { 0 };
+            return adjacent[Random.Range(0, adjacent.Length)];
+        }
+
+        private void SpawnBarrel(int lane, float spawnZ)
+        {
             GameObject go = ObjectPooler.Instance?.SpawnFromPool(
                 PoolTags.ObstacleAvoid,
                 new Vector3(lane * LaneDistance, 0f, spawnZ),
@@ -1412,6 +1448,7 @@ namespace RingSport.UI
                     {
                         decoyLane = target;
                         lastDodgeTime = Time.time;
+                        coinDropHold = CoinLaneChangeHoldSeconds;
                     }
                 }
             }
@@ -1463,6 +1500,7 @@ namespace RingSport.UI
                 if (IsLaneClearAheadOfDecoy(lane))
                 {
                     decoyLane = lane;
+                    coinDropHold = CoinLaneChangeHoldSeconds;
                     return;
                 }
             }
@@ -1471,6 +1509,17 @@ namespace RingSport.UI
         private void DropCoins(float dt)
         {
             coinTimer += dt;
+
+            // Right after a lane change the trail pauses: a coin dropped at
+            // the hop point arrives before the player can follow the decoy
+            // over, so the first new-lane coin waits until it can land with
+            // reaction room to spare
+            if (coinDropHold > 0f)
+            {
+                coinDropHold -= dt;
+                return;
+            }
+
             if (coinTimer < CoinIntervalSeconds)
                 return;
             coinTimer = 0f;
