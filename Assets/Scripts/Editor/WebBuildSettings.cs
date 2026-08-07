@@ -19,7 +19,7 @@ namespace RingSport.EditorTools
     [InitializeOnLoad]
     public static class WebBuildSettings
     {
-        private const int SettingsVersion = 1;
+        private const int SettingsVersion = 2;
         private const string VersionKey = "RingSport.WebBuildSettings.Version";
         private const string TemplateName = "PROJECT:RingSportItch";
         private const string ReleaseOutputDir = "Builds/Web-itch";
@@ -128,6 +128,10 @@ namespace RingSport.EditorTools
             PlayerSettings.WebGL.linkerTarget = WebGLLinkerTarget.Wasm;
             PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
             PlayerSettings.WebGL.debugSymbolMode = WebGLDebugSymbolMode.Off;
+            // Pinned here because the debug build toggles it under a try/finally:
+            // an editor crash mid-build (seen 2026-08-06) skips the finally, and
+            // the next debug build then "restores" the poisoned value forever.
+            PlayerSettings.WebGL.showDiagnostics = false;
             PlayerSettings.WebGL.threadsSupport = false; // no SharedArrayBuffer on itch
             PlayerSettings.WebGL.powerPreference = WebGLPowerPreference.HighPerformance;
 

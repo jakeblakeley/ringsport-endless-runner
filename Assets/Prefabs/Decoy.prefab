@@ -57,6 +57,8 @@ MonoBehaviour:
   boneVelocityClamp: 8
   groundBounciness: 0.35
   randomTumble: 1.5
+  carrySideAcceleration: 4
+  carryDownAcceleration: 2
   torsoMassMultiplier: 4
   limbMassMultiplier: 0.6
   limbAngularDamping: 4
