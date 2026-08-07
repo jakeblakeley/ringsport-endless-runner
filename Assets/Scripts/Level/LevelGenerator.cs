@@ -1,6 +1,7 @@
 using UnityEngine;
 using RingSport.Core;
 using RingSport.Level.Spawning;
+using RingSport.UI;
 
 namespace RingSport.Level
 {
@@ -14,6 +15,14 @@ namespace RingSport.Level
 
         [Header("Level Configuration")]
         [SerializeField] private LevelConfig[] levelConfigs;
+
+        [Header("Mini Level Order")]
+        [Tooltip("Re-roll which mini level the opening levels end in at the start of every run, so a run doesn't always go food refusal -> positions -> flee attack.")]
+        [SerializeField] private bool randomizeEarlyMiniLevels = true;
+        [Tooltip("Levels 1..this swap mini levels among themselves. The set is unchanged - each of those mini levels still plays exactly once, just not always on the same level.")]
+        [SerializeField] private int randomizedMiniLevelCount = 3;
+        [Tooltip("Shortest running section a level may be left with when it hosts an in-run mini level (flee/stop attack), which eats the end of its run. Levels too short for the chase are skipped when shuffling.")]
+        [SerializeField] private float minRunSecondsBeforeChase = 12f;
 
         [Header("Pattern Library")]
         [Tooltip("Hand-crafted obstacle patterns for more memorable gameplay")]
@@ -37,9 +46,17 @@ namespace RingSport.Level
 
         // Core systems
         private LevelConfig currentConfig;
+        private int currentLevelNumber = 1;
         private float virtualDistance = 0f; // Tracks how far the level has scrolled
         private bool isLevelEnding = false; // Tracks if we're in the end game phase
         private bool isRunnerSpawningSuppressed = false; // Flee attack owns spawning while true
+
+        // Which mini level each level ends in THIS run (index = level - 1).
+        // Seeded from the LevelConfig assets, then shuffled per run - the
+        // assets themselves are never written to (a runtime write to a
+        // ScriptableObject sticks in the editor and would rewrite the level
+        // data on disk).
+        private MiniLevelType[] miniLevelOrder;
 
         // Spawning and management systems
         private SpawnContext spawnContext;
@@ -150,6 +167,7 @@ namespace RingSport.Level
             // Get config for this level (1-9)
             int configIndex = Mathf.Clamp(levelNumber - 1, 0, levelConfigs.Length - 1);
             currentConfig = levelConfigs[configIndex];
+            currentLevelNumber = configIndex + 1;
 
             if (currentConfig == null)
             {
@@ -314,21 +332,170 @@ namespace RingSport.Level
         }
 
         /// <summary>
-        /// First level number whose config uses the given mini level type,
-        /// or -1 if none does. Used to pick a host level for in-run mini
-        /// levels launched from the debug menu.
+        /// First level number that runs the given mini level THIS run, or -1
+        /// if none does. Used to pick a host level for in-run mini levels
+        /// launched from the debug menu.
         /// </summary>
         public int FindFirstLevelWithMiniLevel(MiniLevelType type)
         {
-            if (levelConfigs == null)
+            EnsureMiniLevelOrder();
+            if (miniLevelOrder == null)
                 return -1;
 
-            for (int i = 0; i < levelConfigs.Length; i++)
+            for (int i = 0; i < miniLevelOrder.Length; i++)
             {
-                if (levelConfigs[i] != null && levelConfigs[i].MiniLevelType == type)
+                if (miniLevelOrder[i] == type)
                     return i + 1;
             }
             return -1;
+        }
+
+        /// <summary>
+        /// The mini level a given level ends in this run. Always go through
+        /// this rather than LevelConfig.MiniLevelType - the config holds the
+        /// authored order, this holds the shuffled one actually being played.
+        /// </summary>
+        public MiniLevelType GetMiniLevelType(int levelNumber)
+        {
+            EnsureMiniLevelOrder();
+            if (miniLevelOrder == null || miniLevelOrder.Length == 0)
+                return MiniLevelType.PositionsSimonSays;
+
+            int index = Mathf.Clamp(levelNumber - 1, 0, miniLevelOrder.Length - 1);
+            return miniLevelOrder[index];
+        }
+
+        /// <summary>Mini level the level currently loaded ends in.</summary>
+        public MiniLevelType CurrentMiniLevelType => GetMiniLevelType(currentLevelNumber);
+
+        /// <summary>
+        /// Re-rolls the opening mini levels for a new run. The first
+        /// randomizedMiniLevelCount levels keep the same SET of mini levels the
+        /// configs authored - only which level ends in which changes - so a run
+        /// still plays one of each, just not always in the same order.
+        /// Everything past that window keeps its authored mini level.
+        /// Called once per run from LevelManager.ResetProgress, so retries and
+        /// level-to-level progression all see the same order.
+        /// </summary>
+        public void ShuffleMiniLevelOrder()
+        {
+            miniLevelOrder = null;
+            EnsureMiniLevelOrder();
+
+            if (!randomizeEarlyMiniLevels || miniLevelOrder == null)
+                return;
+
+            int count = Mathf.Min(randomizedMiniLevelCount, miniLevelOrder.Length);
+            if (count < 2)
+                return;
+
+            var pool = new MiniLevelType[count];
+            System.Array.Copy(miniLevelOrder, pool, count);
+
+            // Reject orders a level can't host - an in-run chase eats the end
+            // of its level, so a short level would be left with no running
+            // section in front of it - and fall back to the authored order
+            // rather than shipping an unfair one.
+            for (int attempt = 0; attempt < 32; attempt++)
+            {
+                ShuffleInPlace(pool);
+                if (!IsHostableMiniLevelOrder(pool))
+                    continue;
+
+                System.Array.Copy(pool, miniLevelOrder, count);
+                LogMiniLevelOrder(count);
+                return;
+            }
+
+            GameLog.Warn("[LevelGenerator] No hostable shuffle of the opening mini levels found - keeping the authored order");
+        }
+
+        /// <summary>
+        /// Builds the per-level mini level order from the configs if it hasn't
+        /// been built (or the config array changed) since the last shuffle.
+        /// </summary>
+        private void EnsureMiniLevelOrder()
+        {
+            if (levelConfigs == null || levelConfigs.Length == 0)
+                return;
+
+            if (miniLevelOrder != null && miniLevelOrder.Length == levelConfigs.Length)
+                return;
+
+            miniLevelOrder = new MiniLevelType[levelConfigs.Length];
+            for (int i = 0; i < levelConfigs.Length; i++)
+            {
+                miniLevelOrder[i] = levelConfigs[i] != null
+                    ? levelConfigs[i].MiniLevelType
+                    : MiniLevelType.PositionsSimonSays;
+            }
+        }
+
+        private static void ShuffleInPlace(MiniLevelType[] items)
+        {
+            for (int i = items.Length - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                MiniLevelType swap = items[i];
+                items[i] = items[j];
+                items[j] = swap;
+            }
+        }
+
+        private bool IsHostableMiniLevelOrder(MiniLevelType[] candidate)
+        {
+            for (int i = 0; i < candidate.Length; i++)
+            {
+                if (!CanHostMiniLevel(i + 1, candidate, i))
+                    return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Whether a level is long enough to run the mini level the candidate
+        /// order gave it. Arena mini levels play after the run, so any level
+        /// hosts those; an in-run chase begins GetLeadSeconds before the level
+        /// timer ends with spawning suppressed for a wind-down before that, so
+        /// the level must still leave minRunSecondsBeforeChase of real running
+        /// in front of it. Level 1 is short enough that the flee attack fails
+        /// this and stays on a later level.
+        /// </summary>
+        private bool CanHostMiniLevel(int levelNumber, MiniLevelType[] candidate, int index)
+        {
+            InRunMiniLevel controller = InRunMiniLevel.GetController(candidate[index]);
+            if (controller == null)
+                return true;
+
+            LevelConfig config = GetLevelConfig(levelNumber);
+            if (config == null)
+                return true;
+
+            // Difficulty ordinal within the shuffled window, matching
+            // LevelManager.ComputeInRunDifficulty (later repeats run harder,
+            // and harder rows need a longer lead)
+            int difficultyIndex = 0;
+            for (int i = 0; i < index; i++)
+            {
+                if (candidate[i] == candidate[index])
+                    difficultyIndex++;
+            }
+
+            float windDown = LevelManager.Instance != null ? LevelManager.Instance.InRunWindDownSeconds : 7.5f;
+            float runSeconds = config.LevelDuration - controller.GetLeadSeconds(difficultyIndex) - windDown;
+            return runSeconds >= minRunSecondsBeforeChase;
+        }
+
+        private void LogMiniLevelOrder(int count)
+        {
+            var order = new System.Text.StringBuilder();
+            for (int i = 0; i < count; i++)
+            {
+                if (i > 0)
+                    order.Append(", ");
+                order.Append($"L{i + 1}={miniLevelOrder[i]}");
+            }
+            GameLog.Info($"[LevelGenerator] Mini level order this run: {order}");
         }
 
         /// <summary>
@@ -367,6 +534,7 @@ namespace RingSport.Level
             }
 
             currentConfig = GetLevelConfig(levelNumber);
+            currentLevelNumber = Mathf.Clamp(levelNumber, 1, levelConfigs.Length);
 
             if (currentConfig == null)
             {

@@ -18463,6 +18463,9 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 95988e54a6f9c4cc99bc149af74212bf, type: 2}
   - {fileID: 11400000, guid: 40f2edd57bdc64a28959f768f2850420, type: 2}
   - {fileID: 11400000, guid: 74ef4478373834191b516fa0c55b0de6, type: 2}
+  randomizeEarlyMiniLevels: 1
+  randomizedMiniLevelCount: 3
+  minRunSecondsBeforeChase: 12
   obstaclePatterns:
   - {fileID: 11400000, guid: 88349c566fe504bbeb1677343fa2aeb5, type: 2}
   - {fileID: 11400000, guid: d8d90a5a4a73f4f7d8c62d7384f2792c, type: 2}
@@ -18500,7 +18503,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RingSport.Core.LevelManager
   maxLevels: 8
   endGameWarningTime: 5
-  maxRetries: 3
   fleeAttackRetryPreRoll: 4
   fleeAttackWindDownSeconds: 7.5
   levelCompleteSounds:

@@ -482,7 +482,7 @@ namespace RingSport.UI
                     : $"Level {LevelManager.Instance?.CurrentLevel ?? 1}";
                 UpdateLevel(levelName);
 
-                SnapLives(LevelManager.Instance?.TotalRetries ?? 3f);
+                SnapLives(LevelManager.Instance?.TotalRetries ?? 4f);
                 SnapSprintBar();
                 UpdateLoveNoteCounter(LoveNoteManager.CollectedThisRun);
 

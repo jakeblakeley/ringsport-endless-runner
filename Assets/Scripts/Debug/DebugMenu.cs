@@ -106,10 +106,11 @@ namespace RingSport.DebugTools
                     ? $"{level}. {config.LevelName} ({config.Location})"
                     : $"Level {level}";
 
-                // Mark which mini level the run ends in
+                // Mark which mini level the run ends in (this run's order - the
+                // opening levels shuffle theirs)
                 if (config != null)
                 {
-                    switch (config.MiniLevelType)
+                    switch (LevelGenerator.Instance.GetMiniLevelType(level))
                     {
                         case MiniLevelType.FleeAttack: label += " (flee)"; break;
                         case MiniLevelType.StopAttack: label += " (stop)"; break;

@@ -365,11 +365,12 @@ namespace RingSport.Core
             }
 #endif
 
-            // Get current level config to determine mini level type
+            // Mini level for this level comes from LevelGenerator's per-run
+            // order (the opening levels shuffle theirs), not the config
             LevelConfig currentConfig = LevelGenerator.Instance?.GetCurrentConfig();
             if (currentConfig != null)
             {
-                MiniLevelManager.Instance?.StartMiniLevel(currentConfig.MiniLevelType, isRetry);
+                MiniLevelManager.Instance?.StartMiniLevel(LevelGenerator.Instance.CurrentMiniLevelType, isRetry);
             }
             else
             {
@@ -391,7 +392,9 @@ namespace RingSport.Core
                 return false;
 
             LevelConfig config = LevelGenerator.Instance?.GetCurrentConfig();
-            MiniLevelType effectiveType = config != null ? config.MiniLevelType : MiniLevelType.PositionsSimonSays;
+            MiniLevelType effectiveType = config != null
+                ? LevelGenerator.Instance.CurrentMiniLevelType
+                : MiniLevelType.PositionsSimonSays;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (debugMiniLevelOverride.HasValue)
                 effectiveType = debugMiniLevelOverride.Value;
@@ -407,7 +410,7 @@ namespace RingSport.Core
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             isDebugJump = debugMiniLevelOverride.HasValue;
 #endif
-            int targetLevel = (!isDebugJump && config != null && config.MiniLevelType == effectiveType)
+            int targetLevel = (!isDebugJump && config != null && LevelGenerator.Instance.CurrentMiniLevelType == effectiveType)
                 ? LevelManager.Instance.CurrentLevel
                 : LevelGenerator.Instance?.FindFirstLevelWithMiniLevel(effectiveType) ?? -1;
 

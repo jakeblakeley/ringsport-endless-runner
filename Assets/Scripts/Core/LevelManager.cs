@@ -29,8 +29,9 @@ namespace RingSport.Core
         [Tooltip("Time before level end to trigger end game behavior (despawn distant obstacles)")]
         [SerializeField] private float endGameWarningTime = 5f;
 
-        [Header("Retry Settings")]
-        [SerializeField] private int maxRetries = 3;
+        // Lives a run starts with. Code-owned on purpose - as a [SerializeField]
+        // the scene's stale serialized copy silently won over the source default.
+        private const int MaxRetries = 4;
 
         [Header("In-Run Mini Level Settings (flee attack, stop attack)")]
         [Tooltip("Seconds of normal running before the chase begins when retrying a failed in-run mini level (the retry skips the rest of the run)")]
@@ -76,7 +77,7 @@ namespace RingSport.Core
         private LevelConfig currentLevelConfig;
         private bool hasCalledLevelEnding = false; // Track if we've already called OnLevelEnding
         private bool hasReachedFinishLine = false; // Track if player has reached finish line
-        private int retriesRemaining = 3;
+        private int retriesRemaining;
         private float partialRetries = 0f; // Track partial lives (0.5 increments)
 
         // In-run mini level state (flee attack chase, stop attack). The
@@ -90,6 +91,8 @@ namespace RingSport.Core
 
         public int CurrentLevel => currentLevel;
         public int MaxLevels => maxLevels;
+        /// <summary>Wind-down before an in-run chase, so LevelGenerator can tell which levels are long enough to host one.</summary>
+        public float InRunWindDownSeconds => fleeAttackWindDownSeconds;
         public float LevelProgress => currentLevelConfig != null ? Mathf.Clamp01(levelTimer / currentLevelConfig.LevelDuration) : 0f;
         public float DistanceTraveled => distanceTraveled;
         public int RetriesRemaining => retriesRemaining;
@@ -104,6 +107,7 @@ namespace RingSport.Core
             }
 
             Instance = this;
+            retriesRemaining = MaxRetries;
             GameLog.Info($"[LevelManager] Initialized. Initial retries: {retriesRemaining}");
 
             // Setup audio source
@@ -187,11 +191,14 @@ namespace RingSport.Core
             // plays in-run at the end of the level. A pending in-run entry
             // (chase retry or debug jump) fast-forwards the timer so only a
             // short pre-roll runs first.
-            inRunMiniLevel = InRunMiniLevel.GetController(currentLevelConfig.MiniLevelType);
+            // The mini level comes from LevelGenerator's per-run order, not the
+            // config - the opening levels shuffle theirs every run
+            MiniLevelType levelMiniLevel = LevelGenerator.Instance.GetMiniLevelType(currentLevel);
+            inRunMiniLevel = InRunMiniLevel.GetController(levelMiniLevel);
             inRunTriggered = false;
             inRunWindDownStarted = false;
             inRunDifficultyIndex = inRunMiniLevel != null
-                ? ComputeInRunDifficulty(currentLevel, currentLevelConfig.MiniLevelType)
+                ? ComputeInRunDifficulty(currentLevel, levelMiniLevel)
                 : 0;
 
             bool inRunRetryEntry = pendingInRunEntry && inRunMiniLevel != null;
@@ -534,16 +541,17 @@ namespace RingSport.Core
 
         /// <summary>
         /// Difficulty ordinal of an in-run mini level on the given level: how
-        /// many earlier levels run the same type (flee attack: level 3 = 0,
-        /// level 5 = 1, level 7 = 2; stop attack: level 4 = 0, level 6 = 1).
+        /// many earlier levels run the same type (the first flee attack of a
+        /// run is 0, the second 1, and so on; likewise the stop attack). Reads
+        /// the per-run order, so a shuffled opening still ramps in play order
+        /// rather than by the authored level number.
         /// </summary>
         private int ComputeInRunDifficulty(int level, MiniLevelType type)
         {
             int index = 0;
             for (int i = 1; i < level; i++)
             {
-                var config = LevelGenerator.Instance?.GetLevelConfig(i);
-                if (config != null && config.MiniLevelType == type)
+                if (LevelGenerator.Instance != null && LevelGenerator.Instance.GetMiniLevelType(i) == type)
                     index++;
             }
             return index;
@@ -592,6 +600,10 @@ namespace RingSport.Core
             // Love note unlocks persist across runs; only the HUD counter resets
             LoveNoteManager.ResetRunCounter();
 
+            // Re-roll the opening mini levels. Once per run, here, so retries
+            // and level-to-level progression all see the same order.
+            LevelGenerator.Instance?.ShuffleMiniLevelOrder();
+
             currentLevel = 1;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (PerfPendingStartLevel > 1)
@@ -604,7 +616,7 @@ namespace RingSport.Core
             levelTimer = 0f;
             distanceTraveled = 0f;
             currentLevelConfig = null;
-            retriesRemaining = maxRetries;
+            retriesRemaining = MaxRetries;
             partialRetries = 0f;
             GameLog.Info($"[LevelManager] Progress reset. Retries reset to {retriesRemaining}");
         }
