@@ -13,10 +13,18 @@ namespace RingSport.EditorTools
     ///
     /// Rules:
     ///   Ambient/ and Music/  -> CompressedInMemory, stereo kept
-    ///   everything else      -> forceToMono, and
-    ///                             under 3s -> DecompressOnLoad (no per-play cost)
-    ///                             3s+      -> CompressedInMemory (stays compressed)
+    ///   everything else      -> forceToMono + DecompressOnLoad, whatever the length
     ///   all                  -> Vorbis, quality 0.60, 44.1 kHz, preloadAudioData
+    ///
+    /// SFX must NEVER be CompressedInMemory on web: Unity's web runtime plays
+    /// compressed clips through cached HTML Audio elements
+    /// (Audio.js: audioCache.pop() : new Audio() -> createMediaElementSource),
+    /// and iOS Safari rejects an Audio element created outside a user gesture -
+    /// the cache refills only on touchstart, so mid-run one-shots go SILENT on
+    /// iPhone while desktop plays fine (mini-game stingers, 2026-08-06).
+    /// DecompressOnLoad clips are WebAudio buffers and immune. Music/ambience
+    /// stay compressed because their decoded PCM is tens of MB; they start
+    /// under the START tap, where the element cache is freshly filled.
     ///
     /// Decompressed PCM is what costs memory: a 5s stereo clip on
     /// DecompressOnLoad is ~2.6 MB resident, the same clip mono and compressed
@@ -26,8 +34,7 @@ namespace RingSport.EditorTools
     public static class AudioImportRules
     {
         private const float Quality = 0.60f;
-        private const float ShortClipSeconds = 3f;
-        private const int RulesVersion = 2;
+        private const int RulesVersion = 3;
         private const string VersionKey = "RingSport.AudioImportRules.Version";
 
         static AudioImportRules()
@@ -95,9 +102,7 @@ namespace RingSport.EditorTools
                     else
                     {
                         importer.forceToMono = true;
-                        s.loadType = clip.length < ShortClipSeconds
-                            ? AudioClipLoadType.DecompressOnLoad
-                            : AudioClipLoadType.CompressedInMemory;
+                        s.loadType = AudioClipLoadType.DecompressOnLoad;
                     }
 
                     // Without this the clip is loaded on FIRST PLAY, which on web
