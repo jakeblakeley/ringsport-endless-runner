@@ -28,7 +28,28 @@ namespace RingSport.Editor
     public static class WorldSceneryBuilder
     {
         // Bump to force the auto-run to re-apply the build
-        private const int BuildVersion = 27;
+        private const int BuildVersion = 28;
+
+        /// <summary>
+        /// Tighter-than-1024 caps for textures sampled ONLY by small vegetation
+        /// and props - anything shared with a tree stays at the blanket 1024
+        /// (the TEM atlas serves grass patches AND the big tree; the Toon
+        /// Series/Desert atlases serve ferns AND pines/cacti; palm and
+        /// pohutukawa leaves are canopies). Keyed by file name.
+        /// </summary>
+        private static readonly Dictionary<string, int> SmallVegetationCaps = new Dictionary<string, int>
+        {
+            // Sub-metre ground clutter -> 256
+            ["Grass_Mid_01.tga"] = 256,           // Hawaii grass clump (0.9u)
+            ["Grass_Short_01.tga"] = 256,         // Hawaii short grass (0.5u)
+            ["TEM_Terrain_Stone_02D.png"] = 256,  // France small rock (0.5u)
+            // 1-2u bushes and beach props -> 512
+            ["Leaf_Fern_01.tga"] = 512,           // Hawaii bush palm 01 (1.5u)
+            ["Leaf_Banana_01.tga"] = 512,         // Hawaii bush palm 02 (1.6u)
+            ["Leaf_Fan_01.tga"] = 512,            // Hawaii bush palm 04 (1.2u)
+            ["leafPatch_03.tga"] = 512,           // Hawaii tropical bush (1.3u)
+            ["PolygonNatureBiomes_Tropical_Texture_01.png"] = 512, // driftwood + starfish
+        };
         private const string VersionPrefKey = "RingSport.WorldSceneryBuilder.Version";
 
         private const string ArcShaderName = "Custom/Mobile/ArcEffect";
@@ -1366,6 +1387,17 @@ namespace RingSport.Editor
             // texture an arc material actually sampled this run is covered, so a
             // new pack (the tropical set ships 2048 leaf sheets) is capped the
             // moment it is used rather than needing a hand-written path here.
+            //
+            // SmallVegetationCaps tightens that further for textures sampled ONLY
+            // by small props. This mapping is per-TEXTURE, not per-prefab, and was
+            // derived by mapping every arc material's texture to its users
+            // (2026-08-06): a texture shared with a tree must stay at 1024 - the
+            // TEM vegetation atlas serves the grass patches AND the 6.7K-tri tree,
+            // Toon Series/Desert atlases serve ferns AND pines/tall cacti, and
+            // Leaf_Palm_01/pohutukawaLeaf are tree canopies. Only Hawaii's
+            // per-plant textures and two singletons are safely small-only. The
+            // win is largest on iPhone, where the DXT build decompresses every
+            // texture to RGBA at load (1024 = ~5.3 MB, 256 = ~0.34 MB).
             var atlasPaths = new HashSet<string>(ArcTexturePaths)
             {
                 "Assets/Toon Enchanted Meadow/Textures/TEM_Atlas_Vegetation_1A.tga",
