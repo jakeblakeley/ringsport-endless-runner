@@ -31,7 +31,7 @@ namespace RingSport.Core
 
         // Lives a run starts with. Code-owned on purpose - as a [SerializeField]
         // the scene's stale serialized copy silently won over the source default.
-        private const int MaxRetries = 4;
+        private const int MaxRetries = 5;
 
         [Header("In-Run Mini Level Settings (flee attack, stop attack)")]
         [Tooltip("Seconds of normal running before the chase begins when retrying a failed in-run mini level (the retry skips the rest of the run)")]
