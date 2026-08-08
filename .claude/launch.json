@@ -2,24 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "web-dev-build",
-      "url": "http://localhost:8765",
-      "port": 8765
-    },
-    {
-      "name": "web-webgpu-build",
+      "name": "web-release",
       "runtimeExecutable": "python3",
-      "runtimeArgs": [
-        ".claude/serve_web.py",
-        "Builds/Web-webgpu",
-        "8766"
-      ],
-      "port": 8766
-    },
-    {
-      "name": "web-release-build",
-      "url": "http://localhost:8767",
-      "port": 8767
+      "runtimeArgs": ["/private/tmp/claude-501/-Users-jakeblakeley-Documents-ringsport-endless-runner/f792b81c-b6e4-4ddc-ba5e-3251fde8c357/scratchpad/serve_br.py", "8765"],
+      "port": 8765
     }
   ]
 }

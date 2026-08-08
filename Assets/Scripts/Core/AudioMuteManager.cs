@@ -10,10 +10,12 @@ namespace RingSport.Core
     /// AudioListener.volume rather than AudioListener.pause - the pause
     /// screen owns pause, and the two must not fight over it.
     ///
-    /// On web the mute additionally suspends the WebAudio context
-    /// (Plugins/WebGL/AudioMute.jslib): on iOS Safari a running context
-    /// claims the audio session and silences whatever the player was
-    /// listening to, so a muted game must actually let go of it.
+    /// On web the mute additionally releases every iOS audio-session claim
+    /// (Plugins/WebGL/AudioMute.jslib): it suspends the WebAudio context AND
+    /// tells the template to pause its silent keepalive element and drop the
+    /// session type to "ambient". Any remaining claim - a running context or
+    /// a playing keepalive - silences whatever the player was listening to,
+    /// again on every return to the tab, so a muted game must hold none.
     /// </summary>
     public static class AudioMuteManager
     {
@@ -48,6 +50,12 @@ namespace RingSport.Core
         {
             Muted = muted;
             AudioListener.volume = muted ? 0f : 1f;
+            // Volume alone leaves <audio>-element music (CompressedInMemory
+            // clips) PLAYING silently, and on iOS a playing media element
+            // claims the audio session all by itself. Pausing the listener
+            // actually stops those elements. Safe alongside PauseScreen: its
+            // audioPausedHere guard skips unpausing what it didn't pause.
+            AudioListener.pause = muted;
 #if UNITY_WEBGL && !UNITY_EDITOR
             RingSportSetWebAudioMuted(muted ? 1 : 0);
 #endif

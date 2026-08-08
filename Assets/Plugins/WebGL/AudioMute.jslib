@@ -1,12 +1,25 @@
 mergeInto(LibraryManager.library, {
-    // Suspends / resumes Unity's WebAudio context. Dropping AudioListener
-    // volume alone leaves the AudioContext "running", and on iOS Safari a
-    // running context owns the audio session - which is what kills the
-    // player's Music/Spotify the moment the game makes its first sound.
-    // Suspending the context hands the session back, so a muted game and
-    // the player's own media can play at the same time.
+    // Releases every iOS audio-session claim while muted, so the player's own
+    // media (music, audiobook) keeps playing under a muted game:
+    //
+    //  1. The template's layer (window.__ringsportApplyMuteToSession, see
+    //     WebGLTemplates/RingSportWeb/index.html): the silent <audio>
+    //     keepalive and navigator.audioSession.type. A PLAYING keepalive
+    //     element re-claims the session every time the tab foregrounds -
+    //     suspending WebAudio alone does nothing about it, which is exactly
+    //     the "audiobook dies when I switch back to the muted game" bug.
+    //
+    //  2. Unity's WebAudio context: suspended while muted. Unity re-resumes
+    //     it on every user gesture (autoplay gate) and via a 400ms boot
+    //     interval, all through ctx.resume() - so resume is stubbed to a
+    //     no-op while muted. A statechange watchdog re-suspends in case
+    //     WebKit itself revives the context on returning to the tab.
     RingSportSetWebAudioMuted: function(muted) {
         window.__ringsportAudioMuted = !!muted;
+
+        if (window.__ringsportApplyMuteToSession) {
+            try { window.__ringsportApplyMuteToSession(!!muted); } catch (e) {}
+        }
 
         var apply = function() {
             if (typeof WEBAudio === 'undefined' || !WEBAudio.audioContext) {
@@ -15,12 +28,14 @@ mergeInto(LibraryManager.library, {
             var ctx = WEBAudio.audioContext;
             if (!ctx.__ringsportRealResume) {
                 ctx.__ringsportRealResume = ctx.resume.bind(ctx);
+                // addEventListener so Unity's own onstatechange= stays intact
+                ctx.addEventListener('statechange', function() {
+                    if (window.__ringsportAudioMuted && ctx.state === 'running') {
+                        ctx.suspend();
+                    }
+                });
             }
             if (window.__ringsportAudioMuted) {
-                // Unity re-resumes the context on every user gesture to get
-                // past the browser autoplay gate, which would silently re-grab
-                // the iOS audio session on the next tap - stub resume out
-                // while muted so the suspend sticks.
                 ctx.resume = function() { return Promise.resolve(); };
                 if (ctx.state === 'running') {
                     ctx.suspend();

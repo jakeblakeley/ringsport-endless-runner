@@ -94,27 +94,47 @@
       //   2. A silent looping <audio> keepalive, started on the first touch
       //      (autoplay rules), holds the session promoted on older iOS and
       //      inside the itch.io iframe if (1) doesn't stick there.
+      // BOTH layers are claims on the iOS audio session, and a claimed session
+      // pauses whatever the player was listening to (music, audiobook) - and
+      // re-pauses it every time the tab returns to the foreground. So the
+      // in-game mute toggle (AudioMuteManager -> AudioMute.jslib) drives them
+      // through window.__ringsportApplyMuteToSession: muted = "ambient"
+      // session + keepalive paused (no claim at all - the player's own media
+      // coexists with the muted game), unmuted = "playback" + keepalive (the
+      // silent-switch fix above). (2026-08-08)
       var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
                   (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPadOS reports as Mac
-      if (navigator.audioSession) {
-        try { navigator.audioSession.type = "playback"; } catch (e) {}
-      }
-      if (isIOS) {
-        var audioKeepAlive = null;
-        var startAudioKeepAlive = function () {
-          if (audioKeepAlive) return;
-          var el = document.createElement("audio");
-          el.setAttribute("playsinline", "");
-          el.loop = true;
-          el.preload = "auto";
-          el.src = "TemplateData/silence.wav"; // 0.5s of 8-bit silence
-          audioKeepAlive = el;
-          var p = el.play();
-          if (p && p.catch) p.catch(function () { audioKeepAlive = null; }); // blocked - retry on next touch
-        };
-        window.addEventListener("touchstart", startAudioKeepAlive, { passive: true });
-        window.addEventListener("mousedown", startAudioKeepAlive);
-      }
+      var audioKeepAlive = null;
+      var startAudioKeepAlive = function () {
+        if (!isIOS || audioKeepAlive || window.__ringsportAudioMuted) return;
+        var el = document.createElement("audio");
+        el.setAttribute("playsinline", "");
+        el.loop = true;
+        el.preload = "auto";
+        el.src = "TemplateData/silence.wav"; // 0.5s of 8-bit silence
+        audioKeepAlive = el;
+        var p = el.play();
+        if (p && p.catch) p.catch(function () { audioKeepAlive = null; }); // blocked - retry on next touch
+      };
+      var applyAudioSessionType = function () {
+        if (navigator.audioSession) {
+          try { navigator.audioSession.type = window.__ringsportAudioMuted ? "ambient" : "playback"; } catch (e) {}
+        }
+      };
+      applyAudioSessionType();
+      window.addEventListener("touchstart", startAudioKeepAlive, { passive: true });
+      window.addEventListener("mousedown", startAudioKeepAlive);
+      window.__ringsportApplyMuteToSession = function (muted) {
+        applyAudioSessionType();
+        if (muted) {
+          if (audioKeepAlive) { try { audioKeepAlive.pause(); } catch (e) {} }
+        } else if (audioKeepAlive) {
+          var p = audioKeepAlive.play();
+          if (p && p.catch) p.catch(function () {});
+        } else {
+          startAudioKeepAlive(); // no-op off iOS; otherwise the unmute tap is our user gesture
+        }
+      };
 
       // Stop arrows/space/page keys from scrolling the itch.io page underneath
       // the embed while the player is driving the dog.
