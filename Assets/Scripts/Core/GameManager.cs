@@ -332,6 +332,10 @@ namespace RingSport.Core
             // asset references)
             Resources.UnloadUnusedAssets();
 
+            // A quick retry beats the dropped hat's own 6s cleanup - don't
+            // leave the last death's hat lying on the track
+            Object.FindAnyObjectByType<RingSport.Player.HatEquipper>()?.ClearDroppedHat();
+
             // Start level first (resets score) before showing HUD
             LevelManager.Instance?.StartLevel();
             CameraStateMachine.Instance?.SetState(CameraStateType.Gameplay);

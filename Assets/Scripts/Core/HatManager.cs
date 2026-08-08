@@ -417,9 +417,8 @@ namespace RingSport.Core
         }
 
         /// <summary>
-        /// True when this hat was unlocked after the selector last marked
-        /// things seen (drives the NEW badge, like the love notes grid). The
-        /// selector must evaluate this BEFORE calling MarkAllSeen.
+        /// True when this hat was unlocked after the player last browsed the
+        /// selector (drives the NEW badge, like the love notes grid).
         /// </summary>
         public static bool IsHatUnseen(string hatId)
         {
@@ -442,7 +441,7 @@ namespace RingSport.Core
             }
         }
 
-        /// <summary>Clears the NEW badges - call after the selector has surfaced the fresh unlocks.</summary>
+        /// <summary>Clears the NEW badges - the selector calls this when the player browses the carousel.</summary>
         public static void MarkAllSeen()
         {
             PlayerPrefs.SetInt(SeenCountPrefKey, UnlockedCount);

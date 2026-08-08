@@ -16,9 +16,11 @@ namespace RingSport.UI
     /// wears and saves it immediately; a locked hat previews as a black
     /// silhouette under a "?" and leaves the worn hat alone.
     ///
-    /// Hats unlocked since the selector was last seen front the carousel
-    /// (worn) and carry a red NEW badge for that visit - the same
-    /// seen-tracking flow as the love notes grid.
+    /// Freshly unlocked hats front the carousel (worn) and carry a red NEW
+    /// badge until the player actually browses the carousel - merely passing
+    /// through the home screen doesn't consume it (a post-death bounce home
+    /// used to eat the badge before anyone saw it). Mirrors the love notes
+    /// grid, whose badge lives until the panel is opened.
     /// </summary>
     public class HatSelectorUI : MonoBehaviour
     {
@@ -42,11 +44,6 @@ namespace RingSport.UI
         [SerializeField] private TextMeshProUGUI countText;
         [SerializeField] private RectTransform centerBox;
 
-        // Unseen-at-open snapshot: badges show for this whole home visit even
-        // though MarkAllSeen runs immediately (mirrors LoveNotesPanel.Rebuild
-        // running before MarkAllSeen)
-        private readonly HashSet<string> unseenSnapshot = new HashSet<string>();
-
         private int browseIndex;
         private int seenStateVersion = -1;
 
@@ -60,18 +57,13 @@ namespace RingSport.UI
 
         private void OnEnable()
         {
-            unseenSnapshot.Clear();
-            foreach (string id in HatManager.HatIds)
-            {
-                if (HatManager.IsHatUnseen(id))
-                    unseenSnapshot.Add(id);
-            }
-
             string newest = HatManager.NewestUnseenId;
             if (newest != null)
             {
-                // A hat unlocked since the last visit fronts the carousel,
-                // already worn, under its NEW badge
+                // A hat unlocked since the player last browsed fronts the
+                // carousel, already worn, under its NEW badge. Seen-marking
+                // waits for an actual browse (Step) - not this enable - so
+                // the badge survives home visits the player taps through.
                 browseIndex = EntryIndexOf(newest);
                 HatManager.SelectedId = newest;
                 FindAnyObjectByType<HatEquipper>()?.ApplySelected();
@@ -80,8 +72,6 @@ namespace RingSport.UI
             {
                 browseIndex = EntryIndexOf(HatManager.SelectedId);
             }
-
-            HatManager.MarkAllSeen();
 
             // Visual refresh waits for the first Update: thumbnails render on
             // demand, and a render request during scene-load OnEnable would
@@ -117,6 +107,10 @@ namespace RingSport.UI
 
         private void Step(int direction)
         {
+            // Browsing is the "I've seen it" signal that clears NEW badges -
+            // the refresh below drops them this same tap
+            HatManager.MarkAllSeen();
+
             browseIndex = (browseIndex + direction + EntryCount) % EntryCount;
 
             // Landing on something wearable selects it right away; a locked
@@ -178,7 +172,7 @@ namespace RingSport.UI
             }
 
             if (badge != null)
-                badge.SetActive(!locked && id.Length > 0 && unseenSnapshot.Contains(id));
+                badge.SetActive(!locked && id.Length > 0 && HatManager.IsHatUnseen(id));
         }
     }
 }

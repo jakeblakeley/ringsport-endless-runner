@@ -21,6 +21,7 @@ namespace RingSport.Player
 
         private Transform anchor;
         private GameObject currentHat;
+        private GameObject droppedHat; // last death's physics prop, cleared early on run (re)start
         private string currentId = "";
         private bool anchorAligned;
 
@@ -144,8 +145,24 @@ namespace RingSport.Player
             foreach (var playerCollider in GetComponentsInChildren<Collider>(true))
                 Physics.IgnoreCollision(box, playerCollider, true);
 
-            // The fade into the game-over screen covers the cleanup
+            // The fade into the game-over screen covers the cleanup; a quick
+            // retry clears it sooner via ClearDroppedHat
             Destroy(dropped, 6f);
+            droppedHat = dropped;
+        }
+
+        /// <summary>
+        /// Immediately removes the last death's dropped hat. Runs when a run
+        /// (re)starts - a fast retry beats the drop's own 6s cleanup, and the
+        /// resumed run would drive right past the corpse hat otherwise.
+        /// </summary>
+        public void ClearDroppedHat()
+        {
+            if (droppedHat != null)
+            {
+                Destroy(droppedHat);
+                droppedHat = null;
+            }
         }
 
         /// <summary>Hat prefabs carry no colliders - box up their combined mesh bounds.</summary>
