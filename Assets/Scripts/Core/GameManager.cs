@@ -25,6 +25,12 @@ namespace RingSport.Core
         private bool isInMiniLevelContext = false;
         private GameState previousState;
 
+        // Armed by StartGame so every run's first countdown carries the "how
+        // to play" line. An explicit flag rather than previousState == Home:
+        // the state on the way into Playing is easy to lose to whatever
+        // transitions between the button press and the countdown.
+        private bool showInstructionsNextCountdown;
+
         [Header("Countdown Settings")]
         [SerializeField] private float countdownDuration = 3f;
         [Tooltip("Quiet beat between the level becoming visible and \"3\" appearing, so the run doesn't start the instant the fade lifts.")]
@@ -345,8 +351,13 @@ namespace RingSport.Core
 
             GameLog.Info($"[GameManager] HandlePlayingState - About to start countdown. UIManager exists: {UIManager.Instance != null}");
             // Fresh runs from the home screen get the "how to play" reminder
-            // under the countdown - the home screen itself no longer shows it
-            bool showInstructions = previousState == GameState.Home;
+            // beside the countdown - the home screen itself no longer shows
+            // it. NOT cleared here: a double-tapped START queues two fades, so
+            // this runs twice and the second countdown replaces the first's
+            // coroutine. Clearing on read would hand the flag to the countdown
+            // that gets killed. OnCountdownComplete disarms it instead, once a
+            // countdown has actually reached GO.
+            bool showInstructions = showInstructionsNextCountdown;
             UIManager.Instance?.StartCountdown(countdownDuration, CountdownStartDelay, OnCountdownComplete, showInstructions);
 
             // Note: Location audio is started by LevelManager.StartLevel() after level is generated
@@ -364,6 +375,9 @@ namespace RingSport.Core
         private void OnCountdownComplete()
         {
             Time.timeScale = 1f;
+            // The run is genuinely under way - the "how to play" line has had
+            // its countdown, so the rest of the run's countdowns come up clean
+            showInstructionsNextCountdown = false;
         }
 
         private void HandleMiniLevelState()
@@ -576,6 +590,7 @@ namespace RingSport.Core
             StopHomeMusic(homeMusicFadeOutSeconds);
 
             LevelManager.Instance?.ResetProgress();
+            showInstructionsNextCountdown = true;
             TransitionToState(GameState.Playing);
         }
 

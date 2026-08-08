@@ -22,7 +22,7 @@ namespace RingSport.Core
     /// resets and future keys' owners calling PlayerPrefs directly.
     ///
     /// Restore is strictly explicit: nothing is ever downloaded onto a device
-    /// unless a code is typed into the hidden sync panel (triple-tap the title)
+    /// unless a code is typed into the hidden sync panel (tap the title five times)
     /// and confirmed - so the cloud can never clobber local progress on its
     /// own. After a restore the page reloads so every manager re-reads its
     /// prefs from scratch.

@@ -10,8 +10,8 @@ using UnityEngine.Rendering;
 namespace RingSport.EditorTools
 {
     /// <summary>
-    /// Applies the Web player settings this project wants for an itch.io upload,
-    /// and builds a release (non-development) player into Builds/Web-itch.
+    /// Applies the Web player settings this project wants for the Netlify deploy,
+    /// and builds a release (non-development) player into Builds/Web-release.
     ///
     /// Idempotent and version-gated: bump SettingsVersion to make it re-apply.
     /// Everything here is also reachable from Tools/RingSport/.
@@ -19,10 +19,10 @@ namespace RingSport.EditorTools
     [InitializeOnLoad]
     public static class WebBuildSettings
     {
-        private const int SettingsVersion = 2;
+        private const int SettingsVersion = 3;
         private const string VersionKey = "RingSport.WebBuildSettings.Version";
-        private const string TemplateName = "PROJECT:RingSportItch";
-        private const string ReleaseOutputDir = "Builds/Web-itch";
+        private const string TemplateName = "PROJECT:RingSportWeb";
+        private const string ReleaseOutputDir = "Builds/Web-release";
         private const string WebGpuOutputDir = "Builds/Web-webgpu";
         private const string WebGpuMarkerPath = "PerfReports/build_webgpu_request.txt";
         private const string ReleaseMarkerPath = "PerfReports/build_release_request.txt";
@@ -203,7 +203,7 @@ namespace RingSport.EditorTools
             Debug.Log("[WebBuildSettings] Wrote Assets/link.xml");
         }
 
-        [MenuItem("Tools/RingSport/Build Web (Release for itch)")]
+        [MenuItem("Tools/RingSport/Build Web (Release)")]
         public static void BuildRelease()
         {
             Apply();
@@ -236,8 +236,8 @@ namespace RingSport.EditorTools
             }
 
             Debug.Log($"[WebBuildSettings] Release build OK in {report.summary.totalTime.TotalSeconds:F0}s. " +
-                      $"Build/ payload = {bytes / (1024f * 1024f):F1} MB (this is the itch download). " +
-                      $"Zip the CONTENTS of {ReleaseOutputDir} (index.html at the zip root) and upload.");
+                      $"Build/ payload = {bytes / (1024f * 1024f):F1} MB. " +
+                      $"Deploy the CONTENTS of {ReleaseOutputDir} (index.html at the root) to Netlify.");
         }
 
         /// <summary>

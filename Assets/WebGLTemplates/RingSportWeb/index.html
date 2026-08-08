@@ -16,7 +16,28 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="TemplateData/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="192x192" href="TemplateData/icon-192.png">
-    <title>{{{ PRODUCT_NAME }}}</title>
+
+    <!-- Titles here are hardcoded rather than {{{ PRODUCT_NAME }}} on purpose:
+         PlayerSettings.productName is still the repo slug, and changing it
+         would move the IndexedDB save path and wipe existing progress. -->
+    <title>Caicos Gets Her Ring 3</title>
+    <meta name="description" content="Endless runner mobile game depicting Caicos, a Belgium Malinois, getting her French Ring 3 title">
+
+    <!-- Social sharing cards. og:image is RELATIVE, which iMessage, Discord,
+         Slack and WhatsApp resolve fine; Facebook and X require an absolute
+         URL - once the final domain is settled, prefix these two image URLs
+         with it (e.g. https://caicos.example.com/TemplateData/og-image.png). -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Caicos Gets Her Ring 3">
+    <meta property="og:description" content="Endless runner mobile game depicting Caicos, a Belgium Malinois, getting her French Ring 3 title">
+    <meta property="og:image" content="TemplateData/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Caicos Gets Her Ring 3 logo">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Caicos Gets Her Ring 3">
+    <meta name="twitter:description" content="Endless runner mobile game depicting Caicos, a Belgium Malinois, getting her French Ring 3 title">
+    <meta name="twitter:image" content="TemplateData/og-image.png">
 #if SHOW_DIAGNOSTICS
     <link rel="stylesheet" href="<<<TemplateData/diagnostics.css>>>">
     <script src="<<<TemplateData/diagnostics.js>>>"></script>

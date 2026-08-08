@@ -23,7 +23,7 @@ namespace RingSport.Editor
     public static class TitleImageSetup
     {
         // Bump to force the auto-run to re-apply the setup
-        private const int SetupVersion = 6;
+        private const int SetupVersion = 7;
         private const string VersionPrefKey = "RingSport.TitleImageSetup.Version";
 
         private const string TitleSpritePath = "Assets/Textures/title_cutout.png";
@@ -39,9 +39,10 @@ namespace RingSport.Editor
         private const float TitleWidthScale = 0.68f;
 
         // Height up the viewport the title is centred on (0 = bottom, 1 = top).
-        // 0.78: the 50mm portrait camera fills the middle of the frame with
-        // the dog, so the title rides higher to stay clear of her ears.
-        private const float TitleViewportY = 0.78f;
+        // 0.74: the 50mm portrait camera fills the middle of the frame with
+        // the dog, so the title rides high to stay clear of her ears - nudged
+        // down from 0.78 so it sits off the very top of the screen.
+        private const float TitleViewportY = 0.74f;
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()

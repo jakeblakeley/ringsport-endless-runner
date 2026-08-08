@@ -78,8 +78,12 @@ namespace RingSport.UI
         [SerializeField] private TextMeshProUGUI countdownText;
         [SerializeField] private string[] countdownNumbers = { "3", "2", "1" };
         [SerializeField] private AnimationCurve countdownScaleAnimation = AnimationCurve.EaseInOut(0f, 1.5f, 1f, 1f);
-        [Tooltip("\"Tap to sprint / Swipe to move\" helper under the first countdown of a run - the home screen no longer shows it (wired by Tools/RingSport/Setup Hats).")]
+        [Tooltip("\"Tap to sprint / Swipe to move\" helper shown above the sprint bar during the first countdown of every run - the home screen no longer shows it. Lives on the HUD canvas beside the sprint bar, so this script (not the countdown panel) owns its lifetime (wired by Tools/RingSport/Setup Hats).")]
         [SerializeField] private GameObject countdownInstructions;
+        // How long the instructions take to ease away, starting on the "1".
+        // Code-owned rather than a [SerializeField]: the scene's stale
+        // serialized copy would silently win over the value here.
+        private const float InstructionsFadeSeconds = 1.2f;
 
         [Header("Juice")]
         [Tooltip("Tick per countdown digit (temporary clip - see SOUND_EFFECTS.md).")]
@@ -122,6 +126,11 @@ namespace RingSport.UI
         private Vector2 sprintBarBasePos;
         private bool sprintBarBaseCaptured;
         private float sprintJitterTimer = float.MaxValue;
+
+        // "Tap to sprint / Swipe to move" line: shown for a run's first
+        // countdown, then faded out over the opening seconds of the run
+        private CanvasGroup instructionsGroup;
+        private Coroutine instructionsFadeRoutine;
 
         // Lives flash + home-screen idle life
         private float lastLivesShown = float.NaN;
@@ -472,6 +481,9 @@ namespace RingSport.UI
         {
             GameLog.Info("[UIManager] ShowGameHUD called");
             HideAllScreens();
+            // The instructions live under the HUD now, so a run that ended
+            // mid-fade would otherwise bring its leftover alpha back with it
+            HideInstructions();
             if (gameHUD != null)
             {
                 gameHUD.SetActive(true);
@@ -1138,8 +1150,69 @@ namespace RingSport.UI
             if (countdownPanel != null)
                 countdownPanel.SetActive(false);
 
+            HideInstructions();
+        }
+
+        /// <summary>
+        /// Show or hide the "how to play" line instantly. It sits on the HUD
+        /// canvas next to the sprint bar rather than inside the countdown
+        /// panel, so nothing hides it on the panel's way out - every path that
+        /// takes the countdown down has to come through here.
+        /// </summary>
+        private void HideInstructions()
+        {
+            if (instructionsFadeRoutine != null)
+            {
+                StopCoroutine(instructionsFadeRoutine);
+                instructionsFadeRoutine = null;
+            }
+
             if (countdownInstructions != null)
                 countdownInstructions.SetActive(false);
+        }
+
+        private void ShowInstructions()
+        {
+            if (countdownInstructions == null)
+                return;
+
+            if (instructionsFadeRoutine != null)
+            {
+                StopCoroutine(instructionsFadeRoutine);
+                instructionsFadeRoutine = null;
+            }
+
+            if (instructionsGroup == null)
+            {
+                instructionsGroup = countdownInstructions.GetComponent<CanvasGroup>();
+                if (instructionsGroup == null)
+                    instructionsGroup = countdownInstructions.AddComponent<CanvasGroup>();
+            }
+
+            // A run cut short mid-fade must not leave the next one faded
+            instructionsGroup.alpha = 1f;
+            countdownInstructions.SetActive(true);
+        }
+
+        /// <summary>
+        /// Eases the line away from the moment the countdown hits its last
+        /// number - the player has had it in front of them since the level
+        /// faded in, so it clears out as the run begins rather than sitting
+        /// over the opening seconds of it. Unscaled, like the countdown.
+        /// </summary>
+        private IEnumerator FadeOutInstructions()
+        {
+            float elapsed = 0f;
+            while (elapsed < InstructionsFadeSeconds)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                if (instructionsGroup != null)
+                    instructionsGroup.alpha = 1f - Juice.OutQuad(Mathf.Clamp01(elapsed / InstructionsFadeSeconds));
+                yield return null;
+            }
+
+            instructionsFadeRoutine = null;
+            HideInstructions();
         }
 
         private IEnumerator CountdownRoutine(float totalDuration, float startDelay, Action onComplete, bool showInstructions)
@@ -1155,8 +1228,10 @@ namespace RingSport.UI
             }
 
             countdownPanel.SetActive(true);
-            if (countdownInstructions != null)
-                countdownInstructions.SetActive(showInstructions);
+            if (showInstructions)
+                ShowInstructions();
+            else
+                HideInstructions();
             countdownText.alpha = 1f; // a stopped GO fade may have left it faded
             countdownText.transform.localScale = Vector3.one;
 
@@ -1166,6 +1241,12 @@ namespace RingSport.UI
             {
                 countdownText.text = countdownNumbers[i];
                 PlayUiSound(countdownTickSound, 1f + 0.06f * i); // ticks climb slightly
+
+                // The line starts easing away on the last number, so it clears
+                // out just as the run begins
+                if (i == countdownNumbers.Length - 1 && showInstructions
+                    && countdownInstructions != null && countdownInstructions.activeSelf)
+                    instructionsFadeRoutine = StartCoroutine(FadeOutInstructions());
 
                 float elapsed = 0f;
                 while (elapsed < timePerNumber)

@@ -33,7 +33,7 @@ namespace RingSport.Editor
     public static class HatSetup
     {
         // Bump to force the auto-run to re-apply the setup
-        private const int SetupVersion = 10;
+        private const int SetupVersion = 12;
         private const string VersionPrefKey = "RingSport.HatSetup.Version";
 
         private const string PickupPrefabPath = "Assets/Prefabs/Collectibles/HatPickup.prefab";
@@ -644,10 +644,10 @@ namespace RingSport.Editor
         private static void BuildCountdownInstructions(UIManager manager)
         {
             var serialized = new SerializedObject(manager);
-            var panel = serialized.FindProperty("countdownPanel")?.objectReferenceValue as GameObject;
-            if (panel == null)
+            var hud = serialized.FindProperty("gameHUD")?.objectReferenceValue as GameObject;
+            if (hud == null)
             {
-                Debug.LogWarning("[HatSetup] UIManager.countdownPanel not wired - countdown instructions skipped.");
+                Debug.LogWarning("[HatSetup] UIManager.gameHUD not wired - countdown instructions skipped.");
                 return;
             }
 
@@ -655,11 +655,24 @@ namespace RingSport.Editor
             var countdownText = serialized.FindProperty("countdownText")?.objectReferenceValue as TextMeshProUGUI;
             TMP_FontAsset font = countdownText != null ? countdownText.font : null;
 
-            RemoveExisting(panel.transform, "Instructions");
-            var line = CreateRect("Instructions", panel.transform);
-            SetRect(line, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(800f, 160f), new Vector2(0f, -64f));
+            // Lives on the HUD canvas, NOT the countdown one: it's anchored off
+            // the sprint bar, so it has to share that canvas's scaler rather
+            // than trust two scalers to stay in step. UIManager owns its
+            // lifetime now that the countdown panel no longer hides it.
+            var stale = serialized.FindProperty("countdownPanel")?.objectReferenceValue as GameObject;
+            if (stale != null)
+                RemoveExisting(stale.transform, "Instructions");
+            RemoveExisting(hud.transform, "Instructions");
+            var line = CreateRect("Instructions", hud.transform);
+            // Bottom-anchored just above the sprint bar (PhoneUILayoutSetup
+            // puts its 40-tall background at y 160, so its top edge is 200) -
+            // it reads next to the controls it describes instead of crowding
+            // the countdown number in the middle of the screen.
+            SetRect(line, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(800f, 160f), new Vector2(0f, 240f));
             AddText(line, "Tap to sprint\nSwipe to move", font, 48f, Color.white, TextAlignmentOptions.Center);
+            // UIManager fades it out through this group after GO
+            line.AddComponent<CanvasGroup>();
             line.SetActive(false); // CountdownRoutine turns it on for a run's first countdown
 
             serialized.FindProperty("countdownInstructions").objectReferenceValue = line;

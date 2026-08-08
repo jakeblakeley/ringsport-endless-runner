@@ -7,7 +7,7 @@ using RingSport.Core;
 namespace RingSport.UI
 {
     /// <summary>
-    /// Hidden cloud-sync modal, opened by triple-tapping the title art on the
+    /// Hidden cloud-sync modal, opened by tapping the title art five times on the
     /// home screen. Shows this device's sync code (the key the progress backs
     /// up under - see SyncManager) and lets a code be typed in to pull that
     /// cloud save onto this device, behind a tap-again confirm.
@@ -281,14 +281,14 @@ namespace RingSport.UI
     }
 
     /// <summary>
-    /// Counts quick successive taps on the title art; three within half a
-    /// second of each other opens the sync panel. Lives on TitleImage,
+    /// Counts quick successive taps on the title art; five of them, each
+    /// within 0.8s of the last, opens the sync panel. Lives on TitleImage,
     /// installed at runtime by SyncPanel so the scene stays untouched.
     /// </summary>
     public class TitleTapDetector : MonoBehaviour, IPointerClickHandler
     {
-        private const int TapsRequired = 3;
-        private const float MaxGapSeconds = 0.5f;
+        private const int TapsRequired = 5;
+        private const float MaxGapSeconds = 0.8f;
 
         private float lastTapTime = -10f;
         private int tapCount;

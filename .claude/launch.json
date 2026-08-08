@@ -9,13 +9,21 @@
     {
       "name": "web-webgpu-build",
       "runtimeExecutable": "python3",
-      "runtimeArgs": [".claude/serve_web.py", "Builds/Web-webgpu", "8766"],
+      "runtimeArgs": [
+        ".claude/serve_web.py",
+        "Builds/Web-webgpu",
+        "8766"
+      ],
       "port": 8766
     },
     {
-      "name": "web-itch-build",
+      "name": "web-release-build",
       "runtimeExecutable": "python3",
-      "runtimeArgs": [".claude/serve_web.py", "Builds/Web-itch", "8767"],
+      "runtimeArgs": [
+        ".claude/serve_web.py",
+        "Builds/Web-release",
+        "8767"
+      ],
       "port": 8767
     }
   ]
