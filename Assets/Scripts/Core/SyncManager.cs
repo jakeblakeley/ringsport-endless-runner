@@ -115,6 +115,16 @@ namespace RingSport.Core
                 yield return wait;
                 if (uploading || restoring)
                     continue;
+
+                // Perf audit fix #2: no snapshot/JSON work or uploads mid-run.
+                // A poll allocates a few KB every 4s and a successful upload
+                // ends in PlayerPrefs.Save() - a synchronous IndexedDB flush.
+                // Anything unlocked mid-run is picked up by the first poll
+                // after the run ends.
+                var gm = GameManager.Instance;
+                if (gm != null && gm.CurrentState == GameState.Playing)
+                    continue;
+
                 string json = JsonUtility.ToJson(Capture());
                 if (json != lastUploaded)
                     yield return Upload(json);

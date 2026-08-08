@@ -81,8 +81,11 @@ namespace RingSport.Effects
 
         private class PunchState
         {
+            public Transform target;
             public Vector3 restScale;
-            public Coroutine routine;
+            public float punch;
+            public float duration;
+            public float elapsed;
         }
 
         private class RotationState
@@ -92,6 +95,7 @@ namespace RingSport.Effects
         }
 
         private readonly Dictionary<Transform, PunchState> punches = new Dictionary<Transform, PunchState>();
+        private readonly List<PunchState> activePunches = new List<PunchState>();
         private readonly Dictionary<Transform, RotationState> rotations = new Dictionary<Transform, RotationState>();
 
         private void Awake()
@@ -106,51 +110,61 @@ namespace RingSport.Effects
 
         public void PunchScale(Transform target, float punch, float duration)
         {
-            // Inactive hierarchies can't run coroutines from here either when
-            // the target dies mid-pop - the routine self-heals on null.
             if (!isActiveAndEnabled)
                 return;
 
-            if (punches.TryGetValue(target, out var state))
+            // Punches run from the single Update below rather than one
+            // coroutine per call - coin trains fire 3-6 of these a second and
+            // each StartCoroutine allocated an enumerator + handle (perf
+            // audit fix #5). Semantics preserved: a re-punch mid-pop restarts
+            // from the ORIGINAL rest scale (recapturing would bake the punch
+            // in), and a finished punch leaves no state behind.
+            if (!punches.TryGetValue(target, out var state))
             {
-                // Restart from the ORIGINAL rest scale - the transform is
-                // currently mid-pop, so recapturing would bake the punch in.
-                if (state.routine != null)
-                    StopCoroutine(state.routine);
-            }
-            else
-            {
-                state = new PunchState { restScale = target.localScale };
+                state = new PunchState { target = target, restScale = target.localScale };
                 punches[target] = state;
+                activePunches.Add(state);
             }
 
-            state.routine = StartCoroutine(PunchRoutine(target, state, punch, duration));
+            state.punch = punch;
+            state.duration = Mathf.Max(duration, 0.0001f);
+            state.elapsed = 0f;
         }
 
-        private IEnumerator PunchRoutine(Transform target, PunchState state, float punch, float duration)
+        private void Update()
         {
-            float elapsed = 0f;
             const float attackPortion = 0.3f; // quick swell, longer settle
-            while (elapsed < duration)
+            for (int i = activePunches.Count - 1; i >= 0; i--)
             {
-                if (target == null)
+                PunchState state = activePunches[i];
+                if (state.target == null)
                 {
-                    punches.Remove(target);
-                    yield break;
+                    punches.Remove(state.target);
+                    RemovePunchAt(i);
+                    continue;
                 }
 
-                elapsed += Time.unscaledDeltaTime;
-                float n = Mathf.Clamp01(elapsed / duration);
+                state.elapsed += Time.unscaledDeltaTime;
+                float n = Mathf.Clamp01(state.elapsed / state.duration);
                 float k = n < attackPortion
                     ? Juice.OutQuad(n / attackPortion)
                     : 1f - Juice.OutQuad((n - attackPortion) / (1f - attackPortion));
-                target.localScale = state.restScale * (1f + punch * k);
-                yield return null;
-            }
+                state.target.localScale = state.restScale * (1f + state.punch * k);
 
-            if (target != null)
-                target.localScale = state.restScale;
-            punches.Remove(target);
+                if (n >= 1f)
+                {
+                    state.target.localScale = state.restScale;
+                    punches.Remove(state.target);
+                    RemovePunchAt(i);
+                }
+            }
+        }
+
+        private void RemovePunchAt(int index)
+        {
+            int last = activePunches.Count - 1;
+            activePunches[index] = activePunches[last];
+            activePunches.RemoveAt(last);
         }
 
         public void PunchRotation(Transform target, float degrees, float duration)

@@ -220,7 +220,9 @@ namespace RingSport.Core
         private static void SaveUnlocked()
         {
             PlayerPrefs.SetString(UnlockedPrefKey, string.Join(",", GetUnlockedOrder()));
-            PlayerPrefs.Save();
+            // Note pickups fire this on the slow-mo frame - defer the
+            // IndexedDB flush to the next state transition (perf audit fix #2).
+            SaveFlush.MarkDirty();
         }
     }
 }

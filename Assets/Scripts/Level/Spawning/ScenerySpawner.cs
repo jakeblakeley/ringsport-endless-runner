@@ -158,10 +158,20 @@ namespace RingSport.Level.Spawning
         /// Generate points using Poisson Disk Sampling for natural distribution
         /// Returns points in normalized [0,1] space
         /// </summary>
+        // Scratch reused across calls - this runs twice per floor row for the
+        // whole run, and a fresh grid + two lists per call was a steady
+        // 1-2.5 KB/s of garbage (perf audit fix #5). Single-threaded use;
+        // the returned list is consumed before the next call.
+        private readonly List<Vector2> poissonPoints = new List<Vector2>();
+        private readonly List<Vector2> poissonActive = new List<Vector2>();
+        private int[,] poissonGrid;
+
         private List<Vector2> GeneratePoissonDiskPoints(int targetCount, float minDist)
         {
-            List<Vector2> points = new List<Vector2>();
-            List<Vector2> activeList = new List<Vector2>();
+            List<Vector2> points = poissonPoints;
+            List<Vector2> activeList = poissonActive;
+            points.Clear();
+            activeList.Clear();
 
             // Normalize min distance to [0,1] space
             float normalizedMinDist = Mathf.Min(minDist / floorWidth, minDist / floorLength);
@@ -171,8 +181,15 @@ namespace RingSport.Level.Spawning
             int gridWidth = Mathf.CeilToInt(1f / cellSize);
             int gridHeight = Mathf.CeilToInt(1f / cellSize);
 
-            // Grid to track which cells have points (-1 = empty)
-            int[,] grid = new int[gridWidth, gridHeight];
+            // Grid to track which cells have points (-1 = empty). Dimensions
+            // are fixed once Configure has run, so the array is reused; the
+            // -1 fill below doubles as the per-call clear.
+            if (poissonGrid == null ||
+                poissonGrid.GetLength(0) != gridWidth || poissonGrid.GetLength(1) != gridHeight)
+            {
+                poissonGrid = new int[gridWidth, gridHeight];
+            }
+            int[,] grid = poissonGrid;
             for (int x = 0; x < gridWidth; x++)
                 for (int y = 0; y < gridHeight; y++)
                     grid[x, y] = -1;

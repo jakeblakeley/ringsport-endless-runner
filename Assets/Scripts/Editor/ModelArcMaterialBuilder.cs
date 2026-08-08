@@ -172,7 +172,10 @@ namespace RingSport.Editor
 
             mat.shader = arcShader;
 
-            Texture baseMap = GetTexture(gltfMat, GltfBaseColorTex);
+            // Route through the compressed standalone twins when the payload
+            // bake has produced them - pointing at the glb's embedded texture
+            // would drag the uncompressed original back into the build.
+            Texture baseMap = TexturePayloadBake.ToExtractedTwin(GetTexture(gltfMat, GltfBaseColorTex));
             mat.SetTexture("_BaseMap", baseMap);
             if (gltfMat.HasProperty(GltfBaseColorTexST))
             {
@@ -185,7 +188,7 @@ namespace RingSport.Editor
             mat.SetFloat("_Metallic", GetFloat(gltfMat, GltfMetallic, 0f));
             mat.SetFloat("_Smoothness", 1f - GetFloat(gltfMat, GltfRoughness, 0.5f));
 
-            Texture metallicRoughness = GetTexture(gltfMat, GltfMetallicRoughnessTex);
+            Texture metallicRoughness = TexturePayloadBake.ToExtractedTwin(GetTexture(gltfMat, GltfMetallicRoughnessTex));
             mat.SetTexture("_MetallicRoughnessMap", metallicRoughness);
             mat.SetFloat("_UseMetallicRoughnessMap", metallicRoughness != null ? 1f : 0f);
             if (metallicRoughness != null)

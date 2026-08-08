@@ -18,12 +18,7 @@
     },
     {
       "name": "web-release-build",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": [
-        ".claude/serve_web.py",
-        "Builds/Web-release",
-        "8767"
-      ],
+      "url": "http://localhost:8767",
       "port": 8767
     }
   ]

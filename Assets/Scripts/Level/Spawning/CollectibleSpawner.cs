@@ -378,20 +378,26 @@ namespace RingSport.Level.Spawning
             coinTrainLane = lane;
         }
 
+        // Three possible answers, so three cached arrays - the old per-call
+        // List+ToArray ran about once a second near obstacles (perf audit
+        // fix #5). Callers only read these (PickSafestLane), never mutate.
+        private static readonly int[] LanesExceptLeft = { 0, 1 };
+        private static readonly int[] LanesExceptCenter = { -1, 1 };
+        private static readonly int[] LanesExceptRight = { -1, 0 };
+        private static readonly int[] AllLanes = { -1, 0, 1 };
+
         /// <summary>
         /// Get array of lanes excluding the specified lane
         /// </summary>
-        private int[] GetLanesExcept(int excludeLane)
+        private static int[] GetLanesExcept(int excludeLane)
         {
-            List<int> lanes = new List<int>();
-            for (int i = -1; i <= 1; i++)
+            switch (excludeLane)
             {
-                if (i != excludeLane)
-                {
-                    lanes.Add(i);
-                }
+                case -1: return LanesExceptLeft;
+                case 0: return LanesExceptCenter;
+                case 1: return LanesExceptRight;
+                default: return AllLanes;
             }
-            return lanes.ToArray();
         }
 
         /// <summary>

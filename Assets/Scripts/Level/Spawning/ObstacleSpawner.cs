@@ -108,6 +108,29 @@ namespace RingSport.Level.Spawning
         // single-threaded, so one reused buffer avoids a per-spawn allocation.
         private readonly List<ObstacleDefinition> scratchRow = new List<ObstacleDefinition>(3);
 
+        // Perf audit fix #5: per-spawn scratch, reused on the same
+        // single-threaded terms as scratchRow above. The StretchRows set is
+        // recycled at the START of the next call - a pattern's rows are always
+        // consumed within the spawn event that requested them.
+        private readonly List<ObstaclePattern> validPatternsScratch = new List<ObstaclePattern>();
+        private readonly string[] threeTypesScratch = new string[3];
+        private readonly List<float> groupKeys = new List<float>();
+        private readonly List<List<ObstacleDefinition>> groupRows = new List<List<ObstacleDefinition>>();
+        private readonly List<List<ObstacleDefinition>> rowListPool = new List<List<ObstacleDefinition>>();
+        private int rowListsUsed;
+        private readonly List<PatternRow> rowsScratch = new List<PatternRow>();
+        private readonly float[] laneLastOffsetScratch = new float[3];
+        private readonly float[] laneLastJumpableScratch = new float[3];
+
+        private List<ObstacleDefinition> AcquireRowList()
+        {
+            if (rowListsUsed == rowListPool.Count)
+                rowListPool.Add(new List<ObstacleDefinition>(3));
+            List<ObstacleDefinition> list = rowListPool[rowListsUsed++];
+            list.Clear();
+            return list;
+        }
+
         private SpawnContext context;
         private ObstacleTracker obstacleTracker;
         private RecoveryZoneManager recoveryZoneManager;
@@ -399,8 +422,7 @@ namespace RingSport.Level.Spawning
             }
 
             // Try to find a clear lane
-            int[] lanes = { -1, 0, 1 };
-            foreach (int testLane in lanes)
+            foreach (int testLane in LaneOrder)
             {
                 if (!LaneBlockedAt(testLane, nextObstacleSpawnZ, poolTag))
                 {
@@ -458,7 +480,8 @@ namespace RingSport.Level.Spawning
             int currentLevelNum = System.Array.IndexOf(levelConfigs, config) + 1;
 
             // Filter patterns valid for this level (by level range AND difficulty range)
-            var validPatterns = new System.Collections.Generic.List<ObstaclePattern>();
+            List<ObstaclePattern> validPatterns = validPatternsScratch;
+            validPatterns.Clear();
             foreach (var pattern in obstaclePatterns)
             {
                 if (pattern != null &&
@@ -585,16 +608,28 @@ namespace RingSport.Level.Spawning
         /// </summary>
         private List<PatternRow> StretchRows(ObstaclePattern pattern, int startLanes, out float stretchedLength, out int endLanes)
         {
-            var byOffset = new SortedDictionary<float, List<ObstacleDefinition>>();
+            // Group by rounded offset into sorted parallel scratch lists - the
+            // old SortedDictionary + fresh per-row lists allocated ~1KB per
+            // pattern spawn. Identical rounding means BinarySearch's exact
+            // float compare is safe.
+            groupKeys.Clear();
+            groupRows.Clear();
+            rowListsUsed = 0;
             foreach (var def in pattern.obstacles)
             {
                 float key = Mathf.Round(def.zOffset * 100f) / 100f;
-                if (!byOffset.TryGetValue(key, out var list))
-                    byOffset[key] = list = new List<ObstacleDefinition>();
-                list.Add(def);
+                int idx = groupKeys.BinarySearch(key);
+                if (idx < 0)
+                {
+                    idx = ~idx;
+                    groupKeys.Insert(idx, key);
+                    groupRows.Insert(idx, AcquireRowList());
+                }
+                groupRows[idx].Add(def);
             }
 
-            var rows = new List<PatternRow>(byOffset.Count);
+            List<PatternRow> rows = rowsScratch;
+            rows.Clear();
             float authoredPrev = 0f;
             float stretchedPrev = 0f;
             bool first = true;
@@ -610,11 +645,14 @@ namespace RingSport.Level.Spawning
             // tightly as it was authored. Easy Straight Line's 10u re-jumps
             // are fine; Medium Double Jump's barrel 8u behind its second
             // hurdle is not.
-            var laneLastOffset = new[] { float.MinValue, float.MinValue, float.MinValue };
-            var laneLastJumpable = new[] { float.MinValue, float.MinValue, float.MinValue };
+            float[] laneLastOffset = laneLastOffsetScratch;
+            float[] laneLastJumpable = laneLastJumpableScratch;
+            for (int i = 0; i < 3; i++)
+                laneLastOffset[i] = laneLastJumpable[i] = float.MinValue;
 
-            foreach (var kv in byOffset)
+            for (int rowIndex = 0; rowIndex < groupKeys.Count; rowIndex++)
             {
+                var kv = (Key: groupKeys[rowIndex], Value: groupRows[rowIndex]);
                 float required = RowLeadTime(reachable, kv.Value, out reachable) * RunSpeed;
 
                 float offset = kv.Key;
@@ -769,6 +807,9 @@ namespace RingSport.Level.Spawning
 
         private static readonly int[] LaneOrder = { -1, 0, 1 };
 
+        private static readonly string[] PassableReplacements =
+            { PoolTags.ObstacleJump, PoolTags.ObstaclePalisade, PoolTags.ObstacleBroadJump };
+
         /// <summary>Nothing occupies this lane in the row.</summary>
         private static bool LaneFree(List<ObstacleDefinition> row, int lane)
         {
@@ -820,14 +861,15 @@ namespace RingSport.Level.Spawning
 
                 lastForcingRowZ = Mathf.Max(lastForcingRowZ, startZ + row.Offset);
 
-                var occupied = new HashSet<int>();
+                // Three lanes -> a bitmask beats a per-row HashSet allocation
+                int occupiedMask = 0;
                 foreach (var def in row.Obstacles)
-                    occupied.Add(def.lane);
+                    occupiedMask |= 1 << (def.lane + 1);
 
                 int newPin = int.MinValue;
-                foreach (int lane in new[] { -1, 0, 1 })
+                foreach (int lane in LaneOrder)
                 {
-                    if (!occupied.Contains(lane))
+                    if ((occupiedMask & (1 << (lane + 1))) == 0)
                     {
                         newPin = lane;
                         break;
@@ -887,12 +929,12 @@ namespace RingSport.Level.Spawning
             // Pick a random obstacle type
             string obstacleType = GetRandomObstacleType();
 
-            // Pick 2 of the 3 lanes
-            List<int> availableLanes = new List<int> { -1, 0, 1 };
+            // Pick 2 of the 3 lanes - same uniform distribution as the old
+            // list-and-remove, without the list: the second index skips the first
             int lane1Index = Random.Range(0, 3);
-            int lane1 = availableLanes[lane1Index];
-            availableLanes.RemoveAt(lane1Index);
-            int lane2 = availableLanes[Random.Range(0, 2)];
+            int lane2Index = (lane1Index + 1 + Random.Range(0, 2)) % 3;
+            int lane1 = LaneOrder[lane1Index];
+            int lane2 = LaneOrder[lane2Index];
             int freeLane = -(lane1 + lane2); // lanes sum to 0
 
             // FAIRNESS: while a pin chain is active, the free lane must stay
@@ -901,7 +943,7 @@ namespace RingSport.Level.Spawning
             {
                 freeLane = RandomLaneNearPin();
                 lane1 = int.MinValue; // reassign below
-                foreach (int l in new[] { -1, 0, 1 })
+                foreach (int l in LaneOrder)
                 {
                     if (l == freeLane)
                         continue;
@@ -970,14 +1012,16 @@ namespace RingSport.Level.Spawning
             }
 
             // Assign types to lanes (can result in AAB, ABA, or BAA patterns across lanes)
-            string[] types = { type1, type2, type3 };
+            string[] types = threeTypesScratch;
+            types[0] = type1;
+            types[1] = type2;
+            types[2] = type3;
 
             // FAIRNESS CHECK: Ensure at least one obstacle is passable (not all instant-death)
             if (!HasAtLeastOnePassableObstacle(types))
             {
                 // Replace one obstacle with a passable type
-                string[] passableTypes = { PoolTags.ObstacleJump, PoolTags.ObstaclePalisade, PoolTags.ObstacleBroadJump };
-                types[Random.Range(0, 3)] = passableTypes[Random.Range(0, passableTypes.Length)];
+                types[Random.Range(0, 3)] = PassableReplacements[Random.Range(0, PassableReplacements.Length)];
                 GameLog.Info($"Prevented impossible 3-lane row! Replaced one instant-death obstacle with passable type.");
             }
 
@@ -1087,10 +1131,9 @@ namespace RingSport.Level.Spawning
             // Try to find a clear lane
             if (LaneBlockedAt(lane, nextObstacleSpawnZ, poolTag))
             {
-                int[] lanes = { -1, 0, 1 };
                 bool foundClearLane = false;
 
-                foreach (int testLane in lanes)
+                foreach (int testLane in LaneOrder)
                 {
                     if (!LaneBlockedAt(testLane, nextObstacleSpawnZ, poolTag))
                     {

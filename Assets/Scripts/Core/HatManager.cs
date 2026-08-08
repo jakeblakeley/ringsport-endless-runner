@@ -462,6 +462,10 @@ namespace RingSport.Core
             GetUnlockedOrder().Add(hatId);
             SaveUnlocked();
             stateVersion++;
+            // The pickup's floating model shows the NEW next drop from the
+            // next spawn on - load it now, under the unlock celebration,
+            // instead of during full-speed scrolling (perf audit fix #2).
+            WarmNextDrop();
             GameLog.Info($"[HatManager] Unlocked hat '{hatId}' ({UnlockedCount}/{TotalCount}).");
             return true;
         }
@@ -486,12 +490,34 @@ namespace RingSport.Core
             }
         }
 
+        // Loaded prefabs cached so the pooled pickup's activation never does
+        // Resources.Load during full-speed scrolling (perf audit fix #2). The
+        // null re-check matters: GameManager runs Resources.UnloadUnusedAssets
+        // behind fades, which can invalidate a cached, currently-unreferenced
+        // prefab (Unity fake-null) - reload on demand in that case.
+        private static readonly Dictionary<string, GameObject> prefabCache = new Dictionary<string, GameObject>();
+
         /// <summary>The hat's prefab, loaded on demand from Resources. Null for "" or a missing asset.</summary>
         public static GameObject LoadHatPrefab(string hatId)
         {
             if (string.IsNullOrEmpty(hatId))
                 return null;
-            return Resources.Load<GameObject>("Hats/" + hatId);
+            if (!prefabCache.TryGetValue(hatId, out GameObject prefab) || prefab == null)
+            {
+                prefab = Resources.Load<GameObject>("Hats/" + hatId);
+                prefabCache[hatId] = prefab;
+            }
+            return prefab;
+        }
+
+        /// <summary>
+        /// Pre-loads the prefab the next hat pickup will display. Called at
+        /// run start (behind the fade) and after each unlock, so the pickup's
+        /// RefreshVisual finds it already cached.
+        /// </summary>
+        public static void WarmNextDrop()
+        {
+            LoadHatPrefab(NextDropId);
         }
 
         /// <summary>Debug: unlocks everything (seasonal included).</summary>
@@ -578,7 +604,9 @@ namespace RingSport.Core
         private static void SaveUnlocked()
         {
             PlayerPrefs.SetString(UnlockedPrefKey, string.Join(",", unlockedOrder));
-            PlayerPrefs.Save();
+            // Unlocks happen on the pickup slow-mo frame - defer the IndexedDB
+            // flush to the next state transition (perf audit fix #2).
+            SaveFlush.MarkDirty();
         }
     }
 }

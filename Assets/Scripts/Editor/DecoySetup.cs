@@ -804,6 +804,11 @@ namespace RingSport.Editor
                 so.FindProperty("ragdollPrefab").objectReferenceValue = ragdollPrefab;
                 so.ApplyModifiedPropertiesWithoutUndo();
 
+                // Perf audit fix #1: unpack the nested glb and use the twin
+                // materials so the uncompressed glTF originals stay out of
+                // the build's reference closure.
+                TexturePayloadBake.CompactGlbSubtree(root);
+
                 EnsureFolder("Assets/Prefabs");
                 var prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath, out bool success);
                 if (!success)

@@ -119,6 +119,10 @@ namespace RingSport.Editor
                 }
 
                 EnsureFolder("Assets/Prefabs");
+                // Perf audit fix #1: unpack from the glb + twin materials, same
+                // as the other model consumers - see TexturePayloadBake.
+                TexturePayloadBake.CompactGlbSubtree(instance);
+
                 var asset = PrefabUtility.SaveAsPrefabAsset(instance, RagdollPrefabPath, out bool success);
                 if (!success)
                 {

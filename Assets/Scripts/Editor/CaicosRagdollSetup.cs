@@ -12,7 +12,8 @@ namespace RingSport.Editor
     /// live skeleton's pose onto it by bone name. That prefab carries the wolf's
     /// own mesh and bind pose, so with a different dog on screen the corpse was the
     /// wrong animal. This builds an equivalent from the caicos model instead: a
-    /// prefab VARIANT of caicos.glb (so a re-export still flows through) with
+    /// prefab built from caicos.glb (unpacked - meshes still reference the glb
+    /// sub-assets, and DogPlayerSetup rebuilds this on model changes) with
     /// rigidbodies, colliders and character joints laid out from the rig's own bone
     /// geometry, mirroring which bones Malbers gave bodies to.
     ///
@@ -106,6 +107,12 @@ namespace RingSport.Editor
                     if (parentBody != null)
                         AddJoint(bone, parentBody, name);
                 }
+
+                // Unpack from the glb and swap to the compressed twin materials
+                // so the ragdoll doesn't drag the glTF materials/textures into
+                // the build (perf audit fix #1). Saving the unpacked instance
+                // also makes this a regular prefab rather than a glb variant.
+                RingSport.Editor.TexturePayloadBake.CompactGlbSubtree(instance);
 
                 var asset = PrefabUtility.SaveAsPrefabAsset(instance, RagdollPrefabPath, out bool success);
                 if (!success)

@@ -779,11 +779,19 @@ namespace RingSport.UI
             float elapsed = 0f;
 
             rewardTotalScoreText.text = $"{from}";
+            int shownValue = from;
             while (elapsed < duration)
             {
                 elapsed += Time.unscaledDeltaTime;
                 float k = Juice.OutExpo(Mathf.Clamp01(elapsed / duration));
-                rewardTotalScoreText.text = $"{Mathf.RoundToInt(Mathf.Lerp(from, to, k))}";
+                // Write-on-change like the HUD roll: a per-frame string +
+                // TMP re-tessellation for an unchanged number is pure waste
+                int value = Mathf.RoundToInt(Mathf.Lerp(from, to, k));
+                if (value != shownValue)
+                {
+                    shownValue = value;
+                    rewardTotalScoreText.text = value.ToString();
+                }
 
                 // Subtle rising ticks at the quarter marks
                 while (milestone < 4 && k >= (milestone + 1) * 0.25f)

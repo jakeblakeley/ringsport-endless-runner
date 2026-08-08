@@ -214,6 +214,11 @@ namespace RingSport.Core
             previousState = currentState;
             currentState = newState;
 
+            // Progress written mid-run (hat/note unlocks) deferred its
+            // IndexedDB flush to here - every transition is behind a fade or
+            // a panel swap, where one synchronous write can't be felt.
+            SaveFlush.FlushIfDirty();
+
             // The home loop belongs to the home screen only. StartGame fades it
             // early so it rides the screen fade; this catches every other exit
             // (debug jumps, a level intro walking straight into a run).
@@ -235,7 +240,10 @@ namespace RingSport.Core
             playerAnimations?.SetIdleFlourishes(newState == GameState.Home);
 
             // Diagnostic for the standing height: logs where the root sits vs
-            // the ground actually under it (idle paws reach root - 1.105)
+            // the ground actually under it (idle paws reach root - 1.105).
+            // Editor/dev only: the loop body strips in release but the
+            // RaycastAll allocation would not (perf audit fix #5).
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (newState == GameState.Home && playerController != null)
             {
                 Vector3 origin = playerController.transform.position + Vector3.up;
@@ -248,6 +256,7 @@ namespace RingSport.Core
                     break;
                 }
             }
+#endif
 
             switch (newState)
             {
@@ -324,6 +333,10 @@ namespace RingSport.Core
             // Reset any paused states from previous game over (e.g., palisade minigame failure)
             LevelScroller.Instance?.Resume();
             LevelScroller.Instance?.ClearSpeedOverride();
+
+            // Load the hat pickup's display prefab behind this fade rather
+            // than on its first mid-run activation (perf audit fix #2).
+            HatManager.WarmNextDrop();
             var player = Object.FindAnyObjectByType<PlayerController>();
             player?.ResetPosition();
             player?.ResumeMovement();

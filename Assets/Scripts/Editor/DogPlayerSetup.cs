@@ -20,7 +20,7 @@ namespace RingSport.Editor
     public static class DogPlayerSetup
     {
         // Bump to make the auto-run rebuild the controller after changing this script
-        private const int SetupVersion = 21;
+        private const int SetupVersion = 22;
         private const string VersionPrefKey = "RingSport.DogPlayerSetup.Version";
 
         // The retarget math is part of what the generated assets depend on, so a
@@ -650,8 +650,12 @@ namespace RingSport.Editor
 
             // Swap inside the prefab ASSET, not the scene instance: the old wolf
             // skeleton is baked into Player.prefab, and editing the asset is what
-            // pushes the new model out to every instance (and keeps the caicos
-            // model a nested prefab instance, so re-exports propagate).
+            // pushes the new model out to every instance. The dog subtree is
+            // UNPACKED from the glb (perf audit fix #1 - nesting dragged the
+            // uncompressed glTF textures into the build); geometry re-exports
+            // still flow through the mesh sub-asset references, and the
+            // dependency-hash stamp in BuildDogModel forces a rebuild when the
+            // model file itself changes.
             if (!SwapModelInPrefabAsset(modelPrefab, controller, localPosition, modelScale, ragdollPrefab))
                 SwapModelInScene(player, modelPrefab, controller, localPosition, modelScale);
 
@@ -729,7 +733,9 @@ namespace RingSport.Editor
             Vector3 localPosition, float modelScale)
         {
             var existing = parent.Find(DogName);
-            if (existing != null && !IsInstanceOf(existing.gameObject, modelPrefab))
+            if (existing != null &&
+                !IsInstanceOf(existing.gameObject, modelPrefab) &&
+                !IsCompactedModel(existing.gameObject, modelPrefab))
             {
                 Object.DestroyImmediate(existing.gameObject);
                 existing = null;
@@ -764,7 +770,39 @@ namespace RingSport.Editor
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
+            // Unpack the nested glb instance and swap to the compressed twin
+            // materials (perf audit fix #1): nesting kept the glTF materials
+            // and their uncompressed RGBA32 textures (~17 MB for the dog) in
+            // the build's reference closure.
+            TexturePayloadBake.CompactGlbSubtree(dog);
+            EditorPrefs.SetString(ModelHashPrefKey,
+                AssetDatabase.GetAssetDependencyHash(AssetDatabase.GetAssetPath(modelPrefab)).ToString());
+
             return dog;
+        }
+
+        private const string ModelHashPrefKey = "RingSport.DogPlayerSetup.ModelHash";
+
+        /// <summary>
+        /// True when the dog child is the current model in its COMPACTED form:
+        /// unpacked from the glb (TexturePayloadBake) but still rendering the
+        /// glb's mesh sub-assets. Mesh edits in a re-exported glb flow through
+        /// those references on their own; structural re-exports change the
+        /// asset dependency hash, which fails this check and forces a fresh
+        /// rebuild from the new import.
+        /// </summary>
+        private static bool IsCompactedModel(GameObject candidate, GameObject modelPrefab)
+        {
+            string modelPath = AssetDatabase.GetAssetPath(modelPrefab);
+            var smr = candidate.GetComponentInChildren<SkinnedMeshRenderer>(true);
+            if (smr == null || smr.sharedMesh == null ||
+                AssetDatabase.GetAssetPath(smr.sharedMesh) != modelPath)
+            {
+                return false;
+            }
+
+            return EditorPrefs.GetString(ModelHashPrefKey, "") ==
+                   AssetDatabase.GetAssetDependencyHash(modelPath).ToString();
         }
 
         private static bool IsInstanceOf(GameObject candidate, GameObject prefab)

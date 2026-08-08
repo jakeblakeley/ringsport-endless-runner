@@ -19,7 +19,7 @@ namespace RingSport.EditorTools
     [InitializeOnLoad]
     public static class WebBuildSettings
     {
-        private const int SettingsVersion = 3;
+        private const int SettingsVersion = 4;
         private const string VersionKey = "RingSport.WebBuildSettings.Version";
         private const string TemplateName = "PROJECT:RingSportWeb";
         private const string ReleaseOutputDir = "Builds/Web-release";
@@ -142,6 +142,11 @@ namespace RingSport.EditorTools
             PlayerSettings.WebGL.memoryGrowthMode = WebGLMemoryGrowthMode.Geometric;
 
             EditorUserBuildSettings.webGLBuildSubtarget = TextureSubtarget;
+
+            // Unity 6 allows disabling the splash screen on every license
+            // tier; the logo texture alone is 2.7 MB of .data payload.
+            PlayerSettings.SplashScreen.show = false;
+            PlayerSettings.SplashScreen.showUnityLogo = false;
 
             SetStaticBatching();
             WriteLinkXml();
