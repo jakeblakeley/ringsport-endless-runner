@@ -252,6 +252,8 @@ namespace RingSport.Core
             // camera transition instead.
             var player = Object.FindAnyObjectByType<PlayerController>();
             player?.ResetPosition();
+            // Re-wear the saved hat (a death drop leaves the dog bare-headed)
+            player?.GetComponent<HatEquipper>()?.ApplySelected();
             if (previousState == GameState.Home)
             {
                 player?.Animations?.SetFacingImmediate(true, homeDogFacingYaw);
@@ -264,6 +266,11 @@ namespace RingSport.Core
             }
 
             UIManager.Instance?.ShowHomeScreen();
+
+            // Behind the held-black fade: release whatever the run loaded on
+            // demand and no longer references (hat models are the current
+            // case - only the worn hat should stay resident)
+            Resources.UnloadUnusedAssets();
 
             // Stop location audio when returning home
             StopLocationAudio(0.3f);
@@ -289,9 +296,16 @@ namespace RingSport.Core
             var player = Object.FindAnyObjectByType<PlayerController>();
             player?.ResetPosition();
             player?.ResumeMovement();
+            // Retries re-enter here after a death drop - put the hat back on
+            player?.GetComponent<HatEquipper>()?.ApplySelected();
             // Running levels always face forward (facing persists through resets
             // so mini-level retries can keep the dog toward the camera)
             player?.Animations?.SetFacing(false);
+
+            // Behind the held-black fade: release hats the selector browsed
+            // but didn't keep (their thumbnails stay cached - the RTs hold no
+            // asset references)
+            Resources.UnloadUnusedAssets();
 
             // Start level first (resets score) before showing HUD
             LevelManager.Instance?.StartLevel();
@@ -301,7 +315,10 @@ namespace RingSport.Core
             UIManager.Instance?.ShowGameHUD();
 
             GameLog.Info($"[GameManager] HandlePlayingState - About to start countdown. UIManager exists: {UIManager.Instance != null}");
-            UIManager.Instance?.StartCountdown(countdownDuration, CountdownStartDelay, OnCountdownComplete);
+            // Fresh runs from the home screen get the "how to play" reminder
+            // under the countdown - the home screen itself no longer shows it
+            bool showInstructions = previousState == GameState.Home;
+            UIManager.Instance?.StartCountdown(countdownDuration, CountdownStartDelay, OnCountdownComplete, showInstructions);
 
             // Note: Location audio is started by LevelManager.StartLevel() after level is generated
         }

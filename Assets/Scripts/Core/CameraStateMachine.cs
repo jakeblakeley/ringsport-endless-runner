@@ -280,6 +280,27 @@ namespace RingSport.Core
         public float BaseFieldOfView => baseFov;
 
         /// <summary>
+        /// Home-screen drag orbit: swings the camera around a vertical axis
+        /// through <paramref name="pivot"/> (the dog), as if the rig were
+        /// parented there - position and aim both orbit, starting from the
+        /// home state's settled pose. Driven every frame by HomeCameraOrbit
+        /// while a drag or snap-back is live; ignored mid-transition, and
+        /// state changes blend away smoothly because transitions capture
+        /// their start from the live (orbited) transform.
+        /// </summary>
+        public void SetHomeOrbitYaw(float degrees, Vector3 pivot)
+        {
+            if (currentState != CameraStateType.Home || transitionCoroutine != null)
+                return;
+
+            Quaternion yaw = Quaternion.AngleAxis(degrees, Vector3.up);
+            Vector3 basePosition = GetStateWorldPosition(CameraStateType.Home);
+            Quaternion baseRotation = GetStateWorldRotation(CameraStateType.Home);
+            transform.position = pivot + yaw * (basePosition - pivot);
+            transform.rotation = yaw * baseRotation;
+        }
+
+        /// <summary>
         /// Slides the whole rendered image down the frame by <paramref name="halfFrames"/>
         /// (1 = half the screen height), leaving the camera pointed where it was.
         ///

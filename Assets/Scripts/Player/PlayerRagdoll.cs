@@ -98,6 +98,10 @@ namespace RingSport.Player
             stillTimer = 0f;
             isFrozen = false;
 
+            // The worn hat pops off with the corpse - heavy, so it lands
+            // rather than bouncing away
+            GetComponent<HatEquipper>()?.DropHat();
+
             dogModel.SetActive(false);
         }
 

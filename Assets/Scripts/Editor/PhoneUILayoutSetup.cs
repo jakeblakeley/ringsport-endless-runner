@@ -24,7 +24,7 @@ namespace RingSport.Editor
     public static class PhoneUILayoutSetup
     {
         // Bump to force the auto-run to re-apply the layout
-        private const int SetupVersion = 3;
+        private const int SetupVersion = 5;
         private const string VersionPrefKey = "RingSport.PhoneUILayoutSetup.Version";
 
         // Every screen speaks in Barlow Bold. Permanent Marker is the one
@@ -130,15 +130,21 @@ namespace RingSport.Editor
             WireRewardBanner();
             Validate();
 
-            if (!EditorApplication.isPlayingOrWillChangePlaymode)
+            // Only a saved scene earns the version stamp - if play mode crept
+            // in, the in-memory changes evaporate on play-exit, so retry later
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
             {
-                EditorSceneManager.MarkSceneDirty(root.scene);
-                if (!string.IsNullOrEmpty(root.scene.path))
-                    EditorSceneManager.SaveScene(root.scene);
+                Debug.LogWarning("[PhoneUILayoutSetup] Play mode started mid-setup - not saving; will re-run when the editor is idle.");
+                EditorApplication.delayCall += TryAutoRun;
+                return;
             }
 
+            EditorSceneManager.MarkSceneDirty(root.scene);
+            if (!string.IsNullOrEmpty(root.scene.path))
+                EditorSceneManager.SaveScene(root.scene);
+
             EditorPrefs.SetInt(VersionPrefKey, SetupVersion);
-            Debug.Log($"[PhoneUILayoutSetup] Applied {DesignWidth}x{DesignHeight} phone layout to all screens (v{SetupVersion}).");
+            Debug.Log($"[PhoneUILayoutSetup] Applied {DesignWidth}x{DesignHeight} phone layout to all screens (v{SetupVersion}), saved to {root.scene.path}.");
         }
 
         // ------------------------------------------------------------------
@@ -178,7 +184,9 @@ namespace RingSport.Editor
             StretchBottom(Find(c, "Instructions"), 384f, 96f);
             Text(Find(c, "Instructions"), FontSmall, TextAlignmentOptions.Center);
 
-            Place(Find(c, "Button"), BottomCentre, BottomCentre, BottomCentre, new Vector2(ButtonW, ButtonH), new Vector2(0f, 192f));
+            // Home START sits lower than the other screens' 192 rows: the hat
+            // selector stack above it needs the breathing room
+            Place(Find(c, "Button"), BottomCentre, BottomCentre, BottomCentre, new Vector2(ButtonW, ButtonH), new Vector2(0f, 156f));
             Text(Find(c, "Button/Text (TMP)"), FontSmall, TextAlignmentOptions.Center);
         }
 

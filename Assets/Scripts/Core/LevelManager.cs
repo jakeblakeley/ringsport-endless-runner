@@ -71,6 +71,9 @@ namespace RingSport.Core
         /// <summary>True during the finish-line celebration beat (blocks deaths).</summary>
         public bool FinishMomentActive => finishMomentActive;
 
+        /// <summary>Banner font (FINISH!, unlock toasts) for callers outside this class.</summary>
+        public TMP_FontAsset BannerFont => bannerFont;
+
         private int currentLevel = 1;
         private float levelTimer = 0f;
         private float distanceTraveled = 0f;
@@ -599,6 +602,9 @@ namespace RingSport.Core
 
             // Love note unlocks persist across runs; only the HUD counter resets
             LoveNoteManager.ResetRunCounter();
+
+            // A fresh run may roll one hat pickup again
+            HatManager.ResetRunSpawn();
 
             // Re-roll the opening mini levels. Once per run, here, so retries
             // and level-to-level progression all see the same order.

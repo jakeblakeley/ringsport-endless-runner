@@ -185,6 +185,43 @@ namespace RingSport.DebugTools
                 UIManager.Instance?.RefreshHomeLoveNotes();
             }
 
+            if (GUILayout.Button($"Unlock All Hats ({HatManager.UnlockedCount}/{HatManager.TotalCount})", GUILayout.Height(28f)))
+            {
+                HatManager.UnlockAll();
+            }
+
+            if (GUILayout.Button("Reset Hat Unlocks", GUILayout.Height(28f)))
+            {
+                // Starter hats re-seed themselves inside ClearAllProgress
+                HatManager.ClearAllProgress();
+                // Take the (now-invalid) hat off the dog right away
+                Object.FindAnyObjectByType<RingSport.Player.HatEquipper>()?.ApplySelected();
+            }
+
+            // Debug spawn odds so a hat pickup can be found without grinding
+            float? hatChance = HatManager.DebugSpawnChanceOverride;
+            string hatChanceLabel = hatChance == null
+                ? $"{HatManager.MegaCoinReplaceChance * 100f:0}% (default)"
+                : $"{hatChance.Value * 100f:0}%";
+            if (GUILayout.Button($"Hat Spawn Chance: {hatChanceLabel}", GUILayout.Height(28f)))
+            {
+                if (hatChance == null) HatManager.DebugSpawnChanceOverride = 0.25f;
+                else if (hatChance.Value < 0.99f) HatManager.DebugSpawnChanceOverride = 1f;
+                else HatManager.DebugSpawnChanceOverride = null;
+            }
+
+            // Seasonal windows: what's live right now, plus a force-all toggle
+            // so off-season hats can be tested any day of the year
+            string seasonalStatus = HatManager.TryGetActiveSeasonal(out var seasonalDef, out var seasonalEnd)
+                ? $"{seasonalDef.DisplayName} until {HatManager.FormatSeasonEnd(seasonalEnd)}"
+                : "none active";
+            GUILayout.Label($"Seasonal now: {seasonalStatus}");
+            string forceLabel = HatManager.DebugForceAllSeasonalActive ? "ON" : "OFF";
+            if (GUILayout.Button($"Force All Seasonal Windows: {forceLabel}", GUILayout.Height(28f)))
+            {
+                HatManager.DebugForceAllSeasonalActive = !HatManager.DebugForceAllSeasonalActive;
+            }
+
             if (GUILayout.Button("Show Secret Note", GUILayout.Height(28f)))
             {
                 isOpen = false;

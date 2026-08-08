@@ -46,6 +46,7 @@ empty fields, so replacing a temp clip in the Inspector sticks.
 | NEW HIGH SCORE reveal | `Meme/meme-taduh.wav` | Bright fanfare sting | `UIManager.RevealNewHighScore` |
 | Secret-note reveal | `Meme/meme-taduh.wav` | Paper unfold + warm fanfare (this is the emotional payoff — worth a real clip) | `SecretNotePanel.Open` |
 | Love-note pickup | `Reward/reward-squeaker1.wav` (no longer shares the mega coin's squeaker2) | Unique romantic chime | `LoveNoteCollectible.Collect` |
+| Hat pickup | `Reward/reward-bell.wav` (shares the GO! bell for now) | Celebratory unlock sting, distinct from coins | `HatCollectible.Collect` |
 | Button click (all UI) | `Reward/reward-pop.wav` (±3% pitch jitter, low volume) | Soft dry UI tick | `JuicyButton.OnPointerDown` |
 | Simon Says pose tones | `Reward/reward-pop.wav` (Down 0.8 / Sit 1.0 / Stand 1.2) | Three clean melodic tones | `MiniLevelPositionsSimonSays.PlayPoseTone` |
 

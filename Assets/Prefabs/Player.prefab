@@ -4957,6 +4957,7 @@ GameObject:
   - component: {fileID: 1630191108272851214}
   - component: {fileID: 1124317577762238592}
   - component: {fileID: 2853670247353318140}
+  - component: {fileID: 4267494299680084078}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -8480,6 +8481,18 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &4267494299680084078
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1495670350691839861}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c1fdefcb7be84131a0f85ef6365ffec, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RingSport.Player.HatEquipper
 --- !u!1001 &175317620419158022
 PrefabInstance:
   m_ObjectHideFlags: 0

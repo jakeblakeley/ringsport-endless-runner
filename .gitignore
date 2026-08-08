@@ -85,3 +85,6 @@ Assets/PolygonNatureBiomes.meta
 
 # Perf harness reports (Claude measurement workflow)
 /PerfReports/
+
+# Blender auto-backups — byte-for-byte duplicate of the previous save
+*.blend1

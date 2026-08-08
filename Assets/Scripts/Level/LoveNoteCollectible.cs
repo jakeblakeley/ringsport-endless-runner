@@ -69,6 +69,8 @@ namespace RingSport.Level
             if (LoveNoteManager.TryCollectRandomLockedNote(out int noteIndex))
             {
                 GameLog.Info($"[LoveNoteCollectible] Collected love note {noteIndex}!");
+                ScreenBanner.Show("Love Note Unlocked", new Color(0.99f, 0.62f, 0.75f), 1.1f, 72f,
+                    LevelManager.Instance != null ? LevelManager.Instance.BannerFont : null);
             }
 
             UIManager.Instance?.UpdateLoveNoteCounter(LoveNoteManager.CollectedThisRun);

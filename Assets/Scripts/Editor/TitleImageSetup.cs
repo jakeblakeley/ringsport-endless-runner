@@ -23,7 +23,7 @@ namespace RingSport.Editor
     public static class TitleImageSetup
     {
         // Bump to force the auto-run to re-apply the setup
-        private const int SetupVersion = 2;
+        private const int SetupVersion = 4;
         private const string VersionPrefKey = "RingSport.TitleImageSetup.Version";
 
         private const string TitleSpritePath = "Assets/Textures/title_cutout.png";
@@ -33,8 +33,13 @@ namespace RingSport.Editor
         private const float DesignWidth = 1080f;
         private const float Margin = 48f;
 
+        // Well under full width: the hat selector joined the home screen above
+        // START, so the title cedes room to keep the title / dog / selector
+        // stack breathing. 0.68 = 80% of the 0.85 it shipped the selector with.
+        private const float TitleWidthScale = 0.68f;
+
         // Height up the viewport the title is centred on (0 = bottom, 1 = top)
-        private const float TitleViewportY = 2f / 3f;
+        private const float TitleViewportY = 0.73f;
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()
@@ -106,7 +111,7 @@ namespace RingSport.Editor
             // Behind the buttons, the NEW badge and the notes panel
             titleObject.transform.SetSiblingIndex(0);
 
-            float width = DesignWidth - 2f * Margin;
+            float width = (DesignWidth - 2f * Margin) * TitleWidthScale;
             float height = width * sprite.rect.height / sprite.rect.width;
 
             // Anchored to the fraction of the viewport rather than a pixel

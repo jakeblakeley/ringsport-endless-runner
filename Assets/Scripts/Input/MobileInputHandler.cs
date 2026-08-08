@@ -145,10 +145,31 @@ namespace RingSport.Input
         }
 
         /// <summary>
+        /// Gameplay gestures only act during a run. On the home screen the
+        /// same drags belong to the camera orbit (HomeCameraOrbit), and a
+        /// swipe up must not make the idle dog jump. Hold-ended stays ungated
+        /// so a sprint that began in-run always gets its release event.
+        /// </summary>
+        private static bool GameplayGesturesAllowed
+        {
+            get
+            {
+                var gameManager = GameManager.Instance;
+                if (gameManager == null)
+                    return true; // no state machine in the scene - behave as before
+                return gameManager.CurrentState == GameState.Playing
+                    || gameManager.CurrentState == GameState.MiniLevel;
+            }
+        }
+
+        /// <summary>
         /// Handle swipe left gesture - change lane left
         /// </summary>
         private void HandleSwipeLeft()
         {
+            if (!GameplayGesturesAllowed)
+                return;
+
             MoveInput = new Vector2(-1f, 0f);
             moveInputResetTime = Time.time + MOVE_INPUT_DURATION;
             OnLaneChangeLeft?.Invoke();
@@ -161,6 +182,9 @@ namespace RingSport.Input
         /// </summary>
         private void HandleSwipeRight()
         {
+            if (!GameplayGesturesAllowed)
+                return;
+
             MoveInput = new Vector2(1f, 0f);
             moveInputResetTime = Time.time + MOVE_INPUT_DURATION;
             OnLaneChangeRight?.Invoke();
@@ -173,6 +197,9 @@ namespace RingSport.Input
         /// </summary>
         private void HandleSwipeUp()
         {
+            if (!GameplayGesturesAllowed)
+                return;
+
             JumpPressed = true;
             OnJumpTriggered?.Invoke();
 
@@ -184,6 +211,9 @@ namespace RingSport.Input
         /// </summary>
         private void HandlePress()
         {
+            if (!GameplayGesturesAllowed)
+                return;
+
             OnPressTriggered?.Invoke();
 
             if (showDebugLogs)
@@ -195,6 +225,9 @@ namespace RingSport.Input
         /// </summary>
         private void HandleHoldStarted()
         {
+            if (!GameplayGesturesAllowed)
+                return;
+
             OnSprintStarted?.Invoke();
 
             GameLog.Info("Mobile Input: SPRINT STARTED");

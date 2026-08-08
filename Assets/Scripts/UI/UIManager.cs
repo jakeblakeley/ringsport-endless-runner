@@ -78,6 +78,8 @@ namespace RingSport.UI
         [SerializeField] private TextMeshProUGUI countdownText;
         [SerializeField] private string[] countdownNumbers = { "3", "2", "1" };
         [SerializeField] private AnimationCurve countdownScaleAnimation = AnimationCurve.EaseInOut(0f, 1.5f, 1f, 1f);
+        [Tooltip("\"Tap to sprint / Swipe to move\" helper under the first countdown of a run - the home screen no longer shows it (wired by Tools/RingSport/Setup Hats).")]
+        [SerializeField] private GameObject countdownInstructions;
 
         [Header("Juice")]
         [Tooltip("Tick per countdown digit (temporary clip - see SOUND_EFFECTS.md).")]
@@ -1096,7 +1098,7 @@ namespace RingSport.UI
         /// holds the panel hidden first - the run countdown is kicked off while the
         /// level transition is still fading, so it waits for the level to be visible.
         /// </summary>
-        public void StartCountdown(float duration, float startDelay, Action onComplete)
+        public void StartCountdown(float duration, float startDelay, Action onComplete, bool showInstructions = false)
         {
             GameLog.Info($"[UIManager] StartCountdown called. Duration: {duration}, Delay: {startDelay}, Panel: {(countdownPanel != null ? countdownPanel.name : "NULL")}, Text: {(countdownText != null ? countdownText.name : "NULL")}");
 
@@ -1114,7 +1116,7 @@ namespace RingSport.UI
             }
 
             GameLog.Info("[UIManager] Starting countdown coroutine");
-            countdownCoroutine = StartCoroutine(CountdownRoutine(duration, startDelay, onComplete));
+            countdownCoroutine = StartCoroutine(CountdownRoutine(duration, startDelay, onComplete, showInstructions));
         }
 
         /// <summary>Countdown with no lead-in (mini levels, which start from a visible screen).</summary>
@@ -1135,9 +1137,12 @@ namespace RingSport.UI
 
             if (countdownPanel != null)
                 countdownPanel.SetActive(false);
+
+            if (countdownInstructions != null)
+                countdownInstructions.SetActive(false);
         }
 
-        private IEnumerator CountdownRoutine(float totalDuration, float startDelay, Action onComplete)
+        private IEnumerator CountdownRoutine(float totalDuration, float startDelay, Action onComplete, bool showInstructions)
         {
             GameLog.Info($"[UIManager] CountdownRoutine started. Panel active before: {countdownPanel.activeSelf}, Parent active: {countdownPanel.transform.parent?.gameObject.activeInHierarchy ?? true}");
 
@@ -1150,6 +1155,8 @@ namespace RingSport.UI
             }
 
             countdownPanel.SetActive(true);
+            if (countdownInstructions != null)
+                countdownInstructions.SetActive(showInstructions);
             countdownText.alpha = 1f; // a stopped GO fade may have left it faded
             countdownText.transform.localScale = Vector3.one;
 

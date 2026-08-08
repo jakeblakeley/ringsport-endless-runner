@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -12,6 +13,9 @@ namespace RingSport.UI
     /// 2-column grid: unlocked notes first (newest unlock at the top), then
     /// dimmed "?" placeholders for notes still waiting to be found in-game.
     /// Opening the panel marks all notes as seen (clears the NEW badge).
+    /// Tapping an unlocked note expands it to a centered full-screen view
+    /// over a darkened backdrop, with its own X (the grid's X hides while
+    /// a note is focused).
     /// </summary>
     public class LoveNotesPanel : MonoBehaviour
     {
@@ -20,7 +24,19 @@ namespace RingSport.UI
         [SerializeField] private Button closeButton;
         [SerializeField] private ScrollRect scrollRect;
 
+        // Focused-note animation: the backdrop fades ahead of the note
+        // expanding so the grid recedes before the note lands.
+        private const float BackdropAlpha = 0.8f;
+        private const float BackdropFadeDuration = 0.1f;
+        private const float ExpandDuration = 0.28f;
+        private const float CollapseDuration = 0.16f;
+
         private readonly List<GameObject> spawnedCells = new List<GameObject>();
+
+        private GameObject focusedOverlay;
+        private Coroutine focusRoutine;
+        private Vector2 focusReturnPosition;
+        private float focusReturnScale;
 
         private void Awake()
         {
@@ -54,6 +70,24 @@ namespace RingSport.UI
         public void Close()
         {
             gameObject.SetActive(false);
+        }
+
+        private void OnDisable()
+        {
+            // Closing the panel (or leaving the home screen) while a note is
+            // focused: drop the overlay instantly and restore the grid's X.
+            if (focusRoutine != null)
+            {
+                StopCoroutine(focusRoutine);
+                focusRoutine = null;
+            }
+            if (focusedOverlay != null)
+            {
+                Destroy(focusedOverlay);
+                focusedOverlay = null;
+            }
+            if (closeButton != null)
+                closeButton.gameObject.SetActive(true);
         }
 
         private void Rebuild()
@@ -102,11 +136,202 @@ namespace RingSport.UI
                 if (image != null)
                     image.color = new Color(0.35f, 0.35f, 0.35f, 0.6f);
             }
+            else
+            {
+                // Tapping an unlocked note expands it to the focused view.
+                // Button has no drag handling, so scroll drags that start on a
+                // cell still bubble up to the ScrollRect.
+                var button = cell.AddComponent<Button>();
+                button.targetGraphic = cell.GetComponent<Image>();
+                var cellRect = (RectTransform)cell.transform;
+                string noteText = text;
+                button.onClick.AddListener(() => FocusNote(cellRect, noteText));
+            }
 
             if (isNew)
                 AddNewStamp(cell, label != null ? label.font : null);
 
             spawnedCells.Add(cell);
+        }
+
+        // ------------------------------------------------------------------
+        // Focused note view
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Expands the tapped note into a full-screen focused view: a fresh
+        /// clone of the pristine cell template flies from the tapped cell to
+        /// the panel centre while a backdrop fades in underneath it.
+        /// </summary>
+        private void FocusNote(RectTransform sourceCell, string text)
+        {
+            if (focusedOverlay != null)
+                return;
+
+            var overlayObject = new GameObject("FocusedNote", typeof(RectTransform));
+            overlayObject.transform.SetParent(transform, false);
+            overlayObject.transform.SetAsLastSibling();
+            var overlayRect = (RectTransform)overlayObject.transform;
+            overlayRect.anchorMin = Vector2.zero;
+            overlayRect.anchorMax = Vector2.one;
+            overlayRect.pivot = new Vector2(0.5f, 0.5f);
+            overlayRect.offsetMin = Vector2.zero;
+            overlayRect.offsetMax = Vector2.zero;
+
+            // Backdrop also swallows raycasts so the grid underneath is inert
+            var backdropObject = new GameObject("Backdrop", typeof(RectTransform));
+            backdropObject.transform.SetParent(overlayRect, false);
+            var backdropRect = (RectTransform)backdropObject.transform;
+            backdropRect.anchorMin = Vector2.zero;
+            backdropRect.anchorMax = Vector2.one;
+            backdropRect.offsetMin = Vector2.zero;
+            backdropRect.offsetMax = Vector2.zero;
+            var backdrop = backdropObject.AddComponent<Image>();
+            backdrop.color = new Color(0f, 0f, 0f, 0f);
+
+            // The template is pristine (no dim tint, no NEW stamp), so a clone
+            // of it is the clean blown-up note.
+            GameObject note = Instantiate(noteCellTemplate, overlayRect);
+            note.SetActive(true);
+            var noteRect = (RectTransform)note.transform;
+            noteRect.anchorMin = noteRect.anchorMax = new Vector2(0.5f, 0.5f);
+            noteRect.pivot = new Vector2(0.5f, 0.5f);
+            float targetSize = Mathf.Min(overlayRect.rect.width, overlayRect.rect.height) - 96f;
+            noteRect.sizeDelta = new Vector2(targetSize, targetSize);
+
+            var label = note.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (label != null)
+            {
+                label.text = text;
+                // Keep the handwriting margins and size proportional to the
+                // bigger sheet (cell: 112 inset / 52 max on a 452 square)
+                var labelRect = (RectTransform)label.transform;
+                labelRect.sizeDelta = new Vector2(-targetSize * 0.25f, -targetSize * 0.25f);
+                label.fontSizeMin = 36f;
+                label.fontSizeMax = 104f;
+            }
+
+            // Start exactly over the tapped cell, at its on-screen size
+            Vector3 cellWorldCenter = sourceCell.TransformPoint(sourceCell.rect.center);
+            focusReturnPosition = overlayRect.InverseTransformPoint(cellWorldCenter);
+            focusReturnScale = sourceCell.rect.width * sourceCell.lossyScale.x
+                / (targetSize * overlayRect.lossyScale.x);
+            noteRect.anchoredPosition = focusReturnPosition;
+            noteRect.localScale = Vector3.one * focusReturnScale;
+
+            CanvasGroup closeGroup = BuildFocusCloseButton(overlayRect,
+                label != null ? label.font : null, noteRect, backdrop);
+
+            // Swap the grid's X out while the focused view owns closing
+            if (closeButton != null)
+                closeButton.gameObject.SetActive(false);
+
+            focusedOverlay = overlayObject;
+            focusRoutine = StartCoroutine(FocusInRoutine(backdrop, closeGroup, noteRect));
+        }
+
+        /// <summary>
+        /// Marker-drawn X inked into the note's top-right corner. Parented to
+        /// the note so it rides the expand/collapse animation with the card;
+        /// fades in with the backdrop. Returns its CanvasGroup.
+        /// </summary>
+        private CanvasGroup BuildFocusCloseButton(RectTransform overlayRect, TMP_FontAsset font,
+            RectTransform noteRect, Image backdrop)
+        {
+            var closeObject = new GameObject("CloseButton", typeof(RectTransform));
+            closeObject.transform.SetParent(noteRect, false);
+            var closeRect = (RectTransform)closeObject.transform;
+            closeRect.anchorMin = closeRect.anchorMax = new Vector2(1f, 1f);
+            closeRect.pivot = new Vector2(1f, 1f);
+            closeRect.sizeDelta = new Vector2(96f, 96f);
+            closeRect.anchoredPosition = new Vector2(-48f, -48f);
+
+            var tapArea = closeObject.AddComponent<Image>();
+            tapArea.color = new Color(0f, 0f, 0f, 0f);
+            var button = closeObject.AddComponent<Button>();
+            button.targetGraphic = tapArea;
+            var group = closeObject.AddComponent<CanvasGroup>();
+            group.alpha = 0f;
+
+            var textObject = new GameObject("Text", typeof(RectTransform));
+            textObject.transform.SetParent(closeRect, false);
+            var textRect = (RectTransform)textObject.transform;
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+            var tmp = textObject.AddComponent<TextMeshProUGUI>();
+            tmp.text = "X";
+            tmp.fontSize = 72f;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = Color.black;
+            tmp.raycastTarget = false;
+            if (font != null)
+                tmp.font = font;
+
+            button.onClick.AddListener(() =>
+            {
+                button.interactable = false;
+                if (focusRoutine != null)
+                    StopCoroutine(focusRoutine);
+                focusRoutine = StartCoroutine(FocusOutRoutine(backdrop, group, noteRect));
+            });
+
+            return group;
+        }
+
+        private IEnumerator FocusInRoutine(Image backdrop, CanvasGroup closeGroup, RectTransform noteRect)
+        {
+            Vector2 startPosition = noteRect.anchoredPosition;
+            float startScale = noteRect.localScale.x;
+
+            float elapsed = 0f;
+            while (elapsed < ExpandDuration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+
+                float fade = Juice.OutQuad(Mathf.Clamp01(elapsed / BackdropFadeDuration));
+                backdrop.color = new Color(0f, 0f, 0f, BackdropAlpha * fade);
+                closeGroup.alpha = fade;
+
+                // Unclamped lerp: OutBack overshoots past 1 for the settle
+                float k = Juice.OutBack(Mathf.Clamp01(elapsed / ExpandDuration));
+                noteRect.anchoredPosition = Vector2.LerpUnclamped(startPosition, Vector2.zero, k);
+                noteRect.localScale = Vector3.one * Mathf.LerpUnclamped(startScale, 1f, k);
+                yield return null;
+            }
+
+            noteRect.anchoredPosition = Vector2.zero;
+            noteRect.localScale = Vector3.one;
+            focusRoutine = null;
+        }
+
+        private IEnumerator FocusOutRoutine(Image backdrop, CanvasGroup closeGroup, RectTransform noteRect)
+        {
+            Vector2 startPosition = noteRect.anchoredPosition;
+            float startScale = noteRect.localScale.x;
+            float startBackdropAlpha = backdrop.color.a;
+            float startCloseAlpha = closeGroup.alpha;
+
+            float elapsed = 0f;
+            while (elapsed < CollapseDuration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float n = Mathf.Clamp01(elapsed / CollapseDuration);
+                float k = Juice.OutQuad(n);
+
+                backdrop.color = new Color(0f, 0f, 0f, startBackdropAlpha * (1f - k));
+                closeGroup.alpha = startCloseAlpha * (1f - k);
+                noteRect.anchoredPosition = Vector2.LerpUnclamped(startPosition, focusReturnPosition, k);
+                noteRect.localScale = Vector3.one * Mathf.LerpUnclamped(startScale, focusReturnScale, k);
+                yield return null;
+            }
+
+            Destroy(focusedOverlay);
+            focusedOverlay = null;
+            focusRoutine = null;
+            if (closeButton != null)
+                closeButton.gameObject.SetActive(true);
         }
 
         /// <summary>

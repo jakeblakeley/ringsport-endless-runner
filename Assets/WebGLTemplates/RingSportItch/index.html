@@ -48,6 +48,15 @@
       var canvas = document.querySelector("#unity-canvas");
       var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
+      // Ask the browser to exempt this origin's storage - the IndexedDB that
+      // Unity PlayerPrefs (scores, love notes, hats) persist into - from
+      // eviction under disk pressure. Purely a flag on the existing bucket:
+      // nothing is moved, migrated, or cleared, and a denial just leaves the
+      // default eviction policy in place.
+      if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist().catch(function () {});
+      }
+
       // --- iOS ring/silent switch vs Web Audio --------------------------------
       // iOS Safari keeps a page that only produces Web Audio (all our SFX -
       // DecompressOnLoad clips are WebAudio buffers) in the "ambient" audio

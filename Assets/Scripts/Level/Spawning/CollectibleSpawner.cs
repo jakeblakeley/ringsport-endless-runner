@@ -306,10 +306,13 @@ namespace RingSport.Level.Spawning
             // Randomly choose between regular and mega collectible
             bool isMega = Random.value < context.CurrentConfig.MegaCollectibleSpawnRatio;
 
-            // A large coin can spawn as a love note instead while locked notes remain
+            // A large coin can spawn as a love note or an unlockable hat
+            // instead while any remain - the note roll wins ties
             bool isLoveNote = isMega && LoveNoteManager.RollMegaCoinReplace();
+            bool isHat = isMega && !isLoveNote && HatManager.RollMegaCoinReplace();
 
             string poolTag = isLoveNote ? PoolTags.LoveNote
+                : isHat ? PoolTags.Hat
                 : isMega ? PoolTags.MegaCollectible
                 : PoolTags.Collectible;
 
@@ -317,7 +320,7 @@ namespace RingSport.Level.Spawning
 
             if (collectible != null)
             {
-                // Love notes and mega collectibles are worth the same points
+                // Love notes, hats and mega collectibles are worth the same points
                 if (isLoveNote)
                 {
                     var loveNote = collectible.GetComponent<LoveNoteCollectible>();
@@ -325,6 +328,15 @@ namespace RingSport.Level.Spawning
                     {
                         loveNote.SetPointValue(context.CurrentConfig.MegaCollectiblePointValue);
                     }
+                }
+                else if (isHat)
+                {
+                    var hat = collectible.GetComponent<HatCollectible>();
+                    if (hat != null)
+                    {
+                        hat.SetPointValue(context.CurrentConfig.MegaCollectiblePointValue);
+                    }
+                    HatManager.MarkSpawnedThisRun();
                 }
                 else if (isMega)
                 {
@@ -466,10 +478,13 @@ namespace RingSport.Level.Spawning
                 // Randomly choose between regular and mega collectible
                 bool isMega = Random.value < context.CurrentConfig.MegaCollectibleSpawnRatio;
 
-                // A large coin can spawn as a love note instead while locked notes remain
+                // A large coin can spawn as a love note or an unlockable hat
+                // instead while any remain - the note roll wins ties
                 bool isLoveNote = isMega && LoveNoteManager.RollMegaCoinReplace();
+                bool isHat = isMega && !isLoveNote && HatManager.RollMegaCoinReplace();
 
                 string poolTag = isLoveNote ? PoolTags.LoveNote
+                    : isHat ? PoolTags.Hat
                     : isMega ? PoolTags.MegaCollectible
                     : PoolTags.Collectible;
 
@@ -477,7 +492,7 @@ namespace RingSport.Level.Spawning
 
                 if (collectible != null)
                 {
-                    // Love notes and mega collectibles are worth the same points
+                    // Love notes, hats and mega collectibles are worth the same points
                     if (isLoveNote)
                     {
                         var loveNote = collectible.GetComponent<LoveNoteCollectible>();
@@ -485,6 +500,15 @@ namespace RingSport.Level.Spawning
                         {
                             loveNote.SetPointValue(context.CurrentConfig.MegaCollectiblePointValue);
                         }
+                    }
+                    else if (isHat)
+                    {
+                        var hat = collectible.GetComponent<HatCollectible>();
+                        if (hat != null)
+                        {
+                            hat.SetPointValue(context.CurrentConfig.MegaCollectiblePointValue);
+                        }
+                        HatManager.MarkSpawnedThisRun();
                     }
                     else if (isMega)
                     {

@@ -106,6 +106,13 @@ namespace RingSport.Effects
                 Instance.PlayBurst(position, Instance.loveNoteColor, Instance.loveNote);
         }
 
+        /// <summary>Hat pickups share the love note's top-tier burst.</summary>
+        public static void PlayHat(Vector3 position)
+        {
+            if (Instance != null)
+                Instance.PlayBurst(position, Instance.loveNoteColor, Instance.loveNote);
+        }
+
         /// <summary>White burst for life pickups.</summary>
         public static void PlayLife(Vector3 position)
         {

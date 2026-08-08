@@ -20,6 +20,7 @@ namespace RingSport.Core
         public const string Collectible = "Collectible";
         public const string MegaCollectible = "MegaCollectible";
         public const string LoveNote = "LoveNote";
+        public const string Hat = "Hat";
 
         // Floor pool tags
         public const string FloorTile = "FloorTile";

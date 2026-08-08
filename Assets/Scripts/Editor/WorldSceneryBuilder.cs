@@ -1579,7 +1579,8 @@ namespace RingSport.Editor
             }
         }
 
-        private static Material CreateParticleMat(string name, Shader shader, Texture2D tex, Color tint)
+        // internal: HatSetup reuses the note-beacon recipe for the hat pickup
+        internal static Material CreateParticleMat(string name, Shader shader, Texture2D tex, Color tint)
         {
             string path = $"{WorldMatFolder}/{name}.mat";
             Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -1597,14 +1598,14 @@ namespace RingSport.Editor
             return mat;
         }
 
-        private static ParticleSystem CreateChildPs(GameObject parent, string name)
+        internal static ParticleSystem CreateChildPs(GameObject parent, string name)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent.transform, false);
             return go.AddComponent<ParticleSystem>();
         }
 
-        private static void ConfigureBurst(ParticleSystem ps, Material mat)
+        internal static void ConfigureBurst(ParticleSystem ps, Material mat)
         {
             ParticleSystem.MainModule main = ps.main;
             main.loop = true;
@@ -1643,7 +1644,7 @@ namespace RingSport.Editor
             renderer.receiveShadows = false;
         }
 
-        private static void ConfigurePulse(ParticleSystem ps, Material mat)
+        internal static void ConfigurePulse(ParticleSystem ps, Material mat)
         {
             ParticleSystem.MainModule main = ps.main;
             main.loop = true;
