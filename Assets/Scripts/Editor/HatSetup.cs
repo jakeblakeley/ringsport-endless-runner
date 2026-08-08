@@ -33,7 +33,7 @@ namespace RingSport.Editor
     public static class HatSetup
     {
         // Bump to force the auto-run to re-apply the setup
-        private const int SetupVersion = 7;
+        private const int SetupVersion = 8;
         private const string VersionPrefKey = "RingSport.HatSetup.Version";
 
         private const string PickupPrefabPath = "Assets/Prefabs/Collectibles/HatPickup.prefab";
@@ -500,17 +500,18 @@ namespace RingSport.Editor
             noneMark = AddText(noneObject, "None", markerFont, 53f, Color.white, TextAlignmentOptions.Center);
             noneObject.SetActive(false);
 
-            // Seasonal hats wear their holiday as a diagonal sash, corner to
-            // corner - on locked seasonal boxes it replaces the "?", so the
-            // silhouette + holiday name says exactly what to come back for
+            // Locked seasonal hats wear their holiday as a diagonal sash,
+            // corner to corner, in place of the "?" - the silhouette plus the
+            // holiday name says exactly what to come back for. Flush
+            // alignment letter-spaces the word across the whole sash.
             var holidayObject = CreateRect("Holiday", box.transform);
             SetRect(holidayObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(BoxSize * 1.3f, 56f), Vector2.zero);
+                new Vector2(BoxSize * 1.25f, 56f), Vector2.zero);
             holidayObject.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
-            holidayMark = AddText(holidayObject, "", markerFont, 40f, SeasonalGold, TextAlignmentOptions.Center);
+            holidayMark = AddText(holidayObject, "", markerFont, 40f, SeasonalGold, TextAlignmentOptions.Flush);
             holidayMark.enableAutoSizing = true;
             holidayMark.fontSizeMin = 22f;
-            holidayMark.fontSizeMax = 42f;
+            holidayMark.fontSizeMax = 46f;
             holidayObject.SetActive(false);
 
             // NEW badge above the box - the love notes button's red dot with a

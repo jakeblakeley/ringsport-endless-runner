@@ -113,9 +113,13 @@ namespace RingSport.UI
             }
             finally
             {
+                // Immediate, not deferred: several thumbs bake in one frame
+                // (left/centre/right on every Refresh), and a deferred Destroy
+                // leaves the earlier models standing on the shared stage - the
+                // later renders then composite every hat baked that frame
                 if (cameraObject != null)
-                    Object.Destroy(cameraObject);
-                Object.Destroy(model);
+                    Object.DestroyImmediate(cameraObject);
+                Object.DestroyImmediate(model);
             }
         }
 

@@ -160,9 +160,9 @@ namespace RingSport.UI
                 thumb.enabled = texture != null;
             }
 
-            // Seasonal boxes wear their holiday as the diagonal banner - on a
-            // locked one it REPLACES the "?" (the silhouette + holiday name
-            // says exactly what to come back for)
+            // LOCKED seasonal boxes wear their holiday as the diagonal sash in
+            // place of the "?" - silhouette + holiday name says exactly what
+            // to come back for. Once unlocked the hat speaks for itself.
             if (lockMark != null)
                 lockMark.gameObject.SetActive(locked && !seasonal);
 
@@ -171,8 +171,9 @@ namespace RingSport.UI
 
             if (holidayMark != null)
             {
-                holidayMark.gameObject.SetActive(seasonal);
-                if (seasonal)
+                bool showHoliday = seasonal && locked;
+                holidayMark.gameObject.SetActive(showHoliday);
+                if (showHoliday)
                     holidayMark.text = def.HolidayShort;
             }
 

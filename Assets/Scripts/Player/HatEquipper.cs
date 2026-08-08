@@ -22,6 +22,9 @@ namespace RingSport.Player
         private string currentId = "";
         private bool anchorAligned;
 
+        /// <summary>Live worn hat instance (the editor fit tuner edits it in place). Null when bare.</summary>
+        public Transform WornHat => currentHat != null ? currentHat.transform : null;
+
         private void Start()
         {
             ApplySelected();

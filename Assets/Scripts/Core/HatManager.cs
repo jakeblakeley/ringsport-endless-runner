@@ -85,7 +85,7 @@ namespace RingSport.Core
         /// outside it) - boosted enough to realistically land inside one week
         /// of casual play.
         /// </summary>
-        public const float SeasonalChance = 0.05f;
+        public const float SeasonalChance = 0.06f;
 
         /// <summary>
         /// Debug: overrides the spawn chance (0..1) from the debug menu.
