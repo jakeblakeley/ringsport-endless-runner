@@ -35,7 +35,7 @@ namespace RingSport.Editor
     public static class HatPrefabBaker
     {
         // Bump to force the auto-run to re-bake every hat prefab
-        private const int BakeVersion = 2;
+        private const int BakeVersion = 10;
         private const string VersionPrefKey = "RingSport.HatPrefabBaker.Version";
 
         private const string ModelFolder = "Assets/Models/hats";
@@ -82,31 +82,74 @@ namespace RingSport.Editor
         }
 
         /// <summary>
-        /// Per-hat fits that beat the category defaults - the tuning knob for
-        /// the contact-sheet loop. Wide-brim hats want more width than the
-        /// skull; billboard-authored pieces get a pitch to lay them onto it.
+        /// Per-hat fits, set from the orientation sheets (authored axes) plus
+        /// the worn contact sheets. Every catalog hat is explicit; the
+        /// category defaults only catch future additions. Pitch conventions:
+        /// +90 turns a mask-style "+Z opening" downward, -90 stands a
+        /// lying-down "+Z tip" cone upright.
         /// </summary>
         private static readonly Dictionary<string, Fit> FitOverrides = new Dictionary<string, Fit>
         {
-            { "MexicanMusicianHat", new Fit(0.85f, -0.02f, -0.06f) }, // sombrero brim dwarfs the head
-            { "BlackCowboyHat", new Fit(0.72f, -0.04f, -0.09f) },
-            { "MusketeerHat", new Fit(0.75f, -0.04f, -0.09f) },
-            { "PirateHat", new Fit(0.75f, -0.03f, -0.10f) },
-            { "FedoraHat", new Fit(0.62f, -0.04f, -0.09f) },
-            { "WizardHat", new Fit(0.60f, -0.03f, -0.09f) },
-            { "WitchHat", new Fit(0.60f, -0.03f, -0.09f) },
-            { "ChefHat", new Fit(0.50f, -0.04f, -0.09f) },
-            { "JesterHat", new Fit(0.55f, -0.04f, -0.08f) },
-            { "FlowerHat", new Fit(0.55f, -0.06f, -0.08f) },
-            { "SafetyHelmet", new Fit(0.55f, -0.10f, -0.08f) },
-            { "DeerHorn", new Fit(0.60f, -0.06f, -0.12f) },
-            { "AntelopeHorn", new Fit(0.60f, -0.06f, -0.12f) },
-            { "Cake", new Fit(0.34f, -0.02f, -0.10f) },
-            { "PartyHat", new Fit(0.30f, -0.02f, -0.10f) },
-            { "UncleSamHat", new Fit(0.45f, -0.03f, -0.09f) },
-            // Authored flat "facing the camera" - pitch lays them onto the skull
-            { "GoldLaurelCrown", new Fit(0.55f, -0.08f, -0.10f, 0f, -90f) },
-            { "BandannaHeaddress", new Fit(0.58f, -0.08f, -0.10f, 0f, -90f) },
+            // Caps: bills authored drooping down-forward - negative pitch lifts them
+            { "KidCap", new Fit(0.55f, -0.09f, -0.10f, 0f, 50f) },  // authored tipped back, bill up
+            // Deep shells: bounds bottoms are their low back rims, so they
+            // seat far below the anchor to swallow the skull
+            { "HiphopCap", new Fit(0.48f, -0.26f, -0.06f, 0f, -35f) },
+            { "FBICap", new Fit(0.48f, -0.26f, -0.06f, 0f, -50f) },
+            { "DeerStalker", new Fit(0.52f, -0.32f, -0.06f, 0f, -40f) },
+            { "SergeantHat", new Fit(0.52f, -0.10f, -0.10f, 0f, -25f) }, // shallower shell than the other caps
+
+            // Brimmed hats: cowboy family authored lying ~65 degrees back
+            { "BlackCowboyHat", new Fit(0.72f, -0.04f, -0.10f, 0f, 65f) },
+            { "MusketeerHat", new Fit(0.70f, -0.06f, -0.09f, 0f, 55f) },
+            { "PirateHat", new Fit(0.70f, -0.02f, -0.08f, 0f, 65f) },
+            { "FedoraHat", new Fit(0.62f, -0.09f, -0.08f, 0f, 20f) },
+            { "WizardHat", new Fit(0.58f, -0.05f, -0.09f, 0f, 15f) },
+            { "WoolBeretHat", new Fit(0.55f, -0.07f, -0.09f, 0f, 30f) },
+            { "BandanaHat", new Fit(0.55f, -0.30f, -0.04f, 0f, -40f) },
+            { "ChefHat", new Fit(0.50f, -0.10f, -0.10f, 0f, 25f) },
+            { "MexicanMusicianHat", new Fit(0.85f, -0.04f, -0.08f) },
+            { "FrogHat", new Fit(0.55f, -0.10f, -0.12f) },
+            { "JesterHat", new Fit(0.52f, -0.04f, -0.04f) },
+            { "FlowerHat", new Fit(0.58f, -0.02f, -0.08f) },
+            { "Crown", new Fit(0.38f, 0f, -0.12f) },
+            { "Cake", new Fit(0.34f, 0f, -0.06f) },
+            { "ElfHat", new Fit(0.46f, -0.02f, -0.04f) },
+            { "PinkBonnetHat", new Fit(0.50f, -0.24f, 0f, 0f, -15f) },
+
+            // Lying-down cones/cylinders: stand them up
+            { "WitchHat", new Fit(0.60f, -0.08f, -0.02f, 0f, -80f) },   // tip authored +Z
+            { "PartyHat", new Fit(0.28f, -0.02f, -0.02f, 0f, -90f) },   // tip authored +Z
+            { "UncleSamHat", new Fit(0.45f, -0.04f, -0.09f, 0f, 90f) }, // crown authored -Z
+
+            // Mask-style helmets: opening authored toward +Z, pitch it down
+            { "BaseballHelmet", new Fit(0.58f, -0.13f, -0.12f, 0f, 90f) },
+            { "VikingHelmet", new Fit(0.60f, -0.12f, -0.12f, 0f, 90f) },
+            { "WatermelonHelmet", new Fit(0.55f, -0.10f, -0.12f, 0f, 75f) },
+
+            // Upright helmets: small settle-back corrections only
+            { "SafetyHelmet", new Fit(0.55f, 0.04f, -0.16f) },
+            { "MotorcycleHelmet", new Fit(0.60f, -0.10f, -0.14f, 0f, 25f) },
+            { "VintageMotorcycleHelmet", new Fit(0.58f, -0.14f, -0.08f, 0f, 15f) },
+            { "SoldierHelmet", new Fit(0.60f, -0.18f, -0.08f, 0f, 20f) },
+            { "RomanHelmet", new Fit(0.46f, -0.02f, -0.12f) }, // authored correctly; shell on the skull, guards at the ears
+            { "FireFighterHelmet", new Fit(0.60f, -0.16f, -0.02f, 180f) }, // long brim belongs at the back
+
+            // Headbands. Flat circlets just seat; arched ones rotate ear-to-ear
+            { "AlienHeadband", new Fit(0.50f, 0f, -0.08f, 180f) }, // flipped so the antennae lean back, not over the nose
+            { "HeartHeadband", new Fit(0.48f, 0.04f, -0.08f, 0f, -25f) },
+            { "LadyHeadband", new Fit(0.52f, -0.08f, -0.09f, 0f, 60f) },
+            { "CatHeadband", new Fit(0.50f, -0.12f, -0.06f, 90f, 20f) },
+            { "UnicornHeadband", new Fit(0.50f, -0.04f, -0.08f, 90f, 60f) },
+            { "KungfuHeadband", new Fit(0.48f, 0.02f, -0.10f, 0f, -90f) }, // +Z billboard ring laid flat; knot lands at the nape
+            { "BunnyHeadband", new Fit(0.45f, -0.10f, -0.04f, 0f, -75f) }, // ears authored lying forward
+
+            // Horns: authored sweeping back along -Z, pitch lifts them upright
+            { "RamHorn", new Fit(0.50f, -0.06f, -0.10f) }, // authored correctly at the ears
+            { "DeerHorn", new Fit(0.60f, 0f, -0.02f, 0f, 55f) },
+            { "AntelopeHorn", new Fit(0.50f, -0.02f, -0.08f, 0f, 55f) },
+            { "SatanHorn2", new Fit(0.46f, 0f, -0.03f, 0f, 75f) },
+            { "GoldLaurelCrown", new Fit(0.52f, -0.04f, -0.10f, 0f, -90f) }, // authored as a +Z-facing wreath
         };
 
         // The first hat pass shipped primitive placeholders under different
@@ -207,6 +250,7 @@ namespace RingSport.Editor
                       string.Join("\n", manifest));
 
             BakeContactSheets();
+            BakeOrientationSheets();
         }
 
         /// <summary>Catalog id -> .glb path. Seasonal files unwrap seasonal_&lt;Id&gt;_&lt;tag&gt;; strays are reported once.</summary>
@@ -552,7 +596,22 @@ namespace RingSport.Editor
             {
                 dog.name = "HatContactSheetDog";
                 foreach (var behaviour in dog.GetComponentsInChildren<Behaviour>(true))
-                    behaviour.enabled = false;
+                {
+                    if (!(behaviour is Animator))
+                        behaviour.enabled = false;
+                }
+
+                // Pose the dog in its animated idle - the pose HatEquipper now
+                // aligns the anchor against at runtime. The glb bind pose sits
+                // most of a right angle away at the head bone, so rendering it
+                // would tune every fit wrong.
+                var animator = dog.GetComponentInChildren<Animator>(true);
+                if (animator != null)
+                {
+                    animator.Update(0f);
+                    animator.Update(0.25f);
+                    animator.enabled = false; // freeze the pose for every cell
+                }
 
                 // Same trick as the selector thumbnails: stage far below the
                 // track at the world origin's XZ so ArcEffect displacement ~0
@@ -649,6 +708,136 @@ namespace RingSport.Editor
                     Object.DestroyImmediate(cameraObject);
                 Object.DestroyImmediate(dog);
             }
+        }
+
+        /// <summary>
+        /// Every hat isolated at IDENTITY rotation with axis gizmos (magenta
+        /// bar = +Z "toward the nose", green bar = +Y "up"), from the same two
+        /// views - reads each model's authored frame so the per-hat pitch/yaw
+        /// corrections in FitOverrides can be set without guessing.
+        /// </summary>
+        [MenuItem("Tools/RingSport/Bake Hat Orientation Sheet")]
+        public static void BakeOrientationSheets()
+        {
+            string outDir = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", "Temp/HatContactSheets");
+            Directory.CreateDirectory(outDir);
+
+            Vector3 focus = new Vector3(0f, -60f, 0f);
+            GameObject gizmo = null;
+            GameObject cameraObject = null;
+            try
+            {
+                gizmo = BuildAxisGizmo(focus);
+
+                cameraObject = new GameObject("HatOrientCamera");
+                var cam = cameraObject.AddComponent<Camera>();
+                cam.enabled = false;
+                cam.orthographic = true;
+                cam.orthographicSize = 0.46f;
+                cam.nearClipPlane = 0.05f;
+                cam.farClipPlane = 12f;
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = new Color(0.30f, 0.32f, 0.38f, 1f);
+
+                Vector3 threeQuarterPos = focus + new Vector3(0.8f, 0.35f, 1.15f).normalized * 2f;
+                Vector3 sidePos = focus + new Vector3(1f, 0.12f, 0f).normalized * 2f;
+
+                int cellCount = HatManager.Defs.Length;
+                int totalRows = Mathf.CeilToInt((float)cellCount / SheetColumns);
+                int sheetCount = Mathf.CeilToInt((float)totalRows / RowsPerSheet);
+                var sheets = new Texture2D[sheetCount];
+                var sideSheets = new Texture2D[sheetCount];
+                for (int i = 0; i < sheetCount; i++)
+                {
+                    int rows = Mathf.Min(RowsPerSheet, totalRows - i * RowsPerSheet);
+                    sheets[i] = new Texture2D(SheetColumns * CellSize, rows * CellSize, TextureFormat.RGB24, false);
+                    sideSheets[i] = new Texture2D(SheetColumns * CellSize, rows * CellSize, TextureFormat.RGB24, false);
+                }
+
+                var manifest = new List<string> { "orientation sheets: catalog order (NO bare-head cell). sheet/row/col id" };
+                for (int cell = 0; cell < cellCount; cell++)
+                {
+                    string id = HatManager.Defs[cell].Id;
+                    var hatPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{ResourcesHatFolder}/{id}.prefab");
+                    GameObject hat = hatPrefab != null ? Object.Instantiate(hatPrefab) : null;
+                    try
+                    {
+                        if (hat != null)
+                        {
+                            // Identity root rotation exposes the AUTHORED axes;
+                            // normalize size and centre on the gizmo origin
+                            Transform t = hat.transform;
+                            t.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                            Bounds bounds = RenderedBounds(hat);
+                            float k = 0.5f / Mathf.Max(0.001f, Mathf.Max(bounds.size.x, Mathf.Max(bounds.size.y, bounds.size.z)));
+                            t.localScale *= k;
+                            t.position = focus - bounds.center * k;
+                        }
+
+                        cam.transform.SetPositionAndRotation(threeQuarterPos,
+                            Quaternion.LookRotation(focus - threeQuarterPos, Vector3.up));
+                        RenderCell(cam, sheets, cell, manifest, id);
+
+                        cam.transform.SetPositionAndRotation(sidePos,
+                            Quaternion.LookRotation(focus - sidePos, Vector3.up));
+                        RenderCell(cam, sideSheets, cell, null, null);
+                    }
+                    finally
+                    {
+                        if (hat != null)
+                            Object.DestroyImmediate(hat);
+                    }
+                }
+
+                for (int i = 0; i < sheetCount; i++)
+                {
+                    File.WriteAllBytes(Path.Combine(outDir, $"orient{i}.png"), sheets[i].EncodeToPNG());
+                    File.WriteAllBytes(Path.Combine(outDir, $"orientside{i}.png"), sideSheets[i].EncodeToPNG());
+                    Object.DestroyImmediate(sheets[i]);
+                    Object.DestroyImmediate(sideSheets[i]);
+                }
+                File.WriteAllLines(Path.Combine(outDir, "orient_manifest.txt"), manifest);
+                Debug.Log($"[HatPrefabBaker] Orientation sheets written to {outDir}");
+            }
+            finally
+            {
+                if (cameraObject != null)
+                    Object.DestroyImmediate(cameraObject);
+                if (gizmo != null)
+                    Object.DestroyImmediate(gizmo);
+            }
+        }
+
+        /// <summary>Magenta bar = +Z (nose), green bar = +Y (up), both poking out from the cell origin.</summary>
+        private static GameObject BuildAxisGizmo(Vector3 origin)
+        {
+            var root = new GameObject("HatOrientGizmo");
+            root.transform.position = origin;
+
+            var shader = Shader.Find("Universal Render Pipeline/Unlit");
+            Material Bar(Color color)
+            {
+                var mat = new Material(shader);
+                if (mat.HasProperty("_BaseColor"))
+                    mat.SetColor("_BaseColor", color);
+                mat.color = color;
+                return mat;
+            }
+
+            void Axis(string name, Vector3 along, Material mat)
+            {
+                var bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                bar.name = name;
+                Object.DestroyImmediate(bar.GetComponent<Collider>());
+                bar.transform.SetParent(root.transform, false);
+                bar.transform.localPosition = along * 0.38f;
+                bar.transform.localScale = Vector3.one * 0.025f + along * 0.72f;
+                bar.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            }
+
+            Axis("Forward", Vector3.forward, Bar(Color.magenta));
+            Axis("Up", Vector3.up, Bar(Color.green));
+            return root;
         }
 
         private static void RenderCell(Camera cam, Texture2D[] sheets, int cell, List<string> manifest, string label)

@@ -24,7 +24,7 @@ namespace RingSport.Editor
     public static class PhoneUILayoutSetup
     {
         // Bump to force the auto-run to re-apply the layout
-        private const int SetupVersion = 5;
+        private const int SetupVersion = 6;
         private const string VersionPrefKey = "RingSport.PhoneUILayoutSetup.Version";
 
         // Every screen speaks in Barlow Bold. Permanent Marker is the one
@@ -184,10 +184,11 @@ namespace RingSport.Editor
             StretchBottom(Find(c, "Instructions"), 384f, 96f);
             Text(Find(c, "Instructions"), FontSmall, TextAlignmentOptions.Center);
 
-            // Home START sits lower than the other screens' 192 rows: the hat
-            // selector stack above it needs the breathing room
-            Place(Find(c, "Button"), BottomCentre, BottomCentre, BottomCentre, new Vector2(ButtonW, ButtonH), new Vector2(0f, 156f));
-            Text(Find(c, "Button/Text (TMP)"), FontSmall, TextAlignmentOptions.Center);
+            // Home START sits lower than the other screens' 192 rows (the hat
+            // selector stack above it needs the breathing room) and runs 20%
+            // larger than the shared button size - it's the screen's one CTA
+            Place(Find(c, "Button"), BottomCentre, BottomCentre, BottomCentre, new Vector2(ButtonW * 1.2f, ButtonH * 1.2f), new Vector2(0f, 156f));
+            Text(Find(c, "Button/Text (TMP)"), FontSmall * 1.2f, TextAlignmentOptions.Center);
         }
 
         private static void LayoutCountdown()

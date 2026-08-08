@@ -27,6 +27,18 @@ namespace RingSport.Player
             ApplySelected();
         }
 
+        private void LateUpdate()
+        {
+            // Glue the anchor against the pose the player actually sees. At
+            // Start the animator hasn't evaluated yet, so aligning there uses
+            // the glb bind pose - which sits most of a right angle away from
+            // the animated idle at the head bone, tipping every hat with it.
+            // The first LateUpdate runs after the animation pass has posed the
+            // dog, so the alignment (and the worn hat) lands upright.
+            if (!anchorAligned && anchor != null)
+                AlignAnchor();
+        }
+
         /// <summary>Sync the worn hat with HatManager.SelectedId (idempotent).</summary>
         public void ApplySelected()
         {
@@ -156,22 +168,29 @@ namespace RingSport.Player
             {
                 anchor = new GameObject(AnchorName).transform;
                 anchor.SetParent(head, false);
-            }
-
-            if (!anchorAligned)
-            {
-                // The glb head bone's local axes are arbitrary; aligning the
-                // anchor to the model root's frame once (idle pose) makes the
-                // prefab offsets read as plain "up above the head / forward
-                // over the nose" regardless of the rig's bone conventions.
-                Transform modelRoot = FindChildByName(transform, ModelRootName);
-                anchor.rotation = modelRoot != null ? modelRoot.rotation : transform.rotation;
                 anchor.localPosition = Vector3.zero;
+                anchor.localRotation = Quaternion.identity;
                 anchor.localScale = Vector3.one;
-                anchorAligned = true;
             }
 
+            // Alignment waits for LateUpdate (see above) so it samples the
+            // animated pose, not the bind pose
             return anchor;
+        }
+
+        /// <summary>
+        /// The glb head bone's local axes are arbitrary; aligning the anchor
+        /// to the model root's frame once (in the animated idle) makes the
+        /// prefab offsets read as plain "up above the head / forward over the
+        /// nose" regardless of the rig's bone conventions.
+        /// </summary>
+        private void AlignAnchor()
+        {
+            Transform modelRoot = FindChildByName(transform, ModelRootName);
+            anchor.rotation = modelRoot != null ? modelRoot.rotation : transform.rotation;
+            anchor.localPosition = Vector3.zero;
+            anchor.localScale = Vector3.one;
+            anchorAligned = true;
         }
 
         private static Transform FindChildByName(Transform root, string name)

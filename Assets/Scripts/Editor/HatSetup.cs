@@ -33,7 +33,7 @@ namespace RingSport.Editor
     public static class HatSetup
     {
         // Bump to force the auto-run to re-apply the setup
-        private const int SetupVersion = 6;
+        private const int SetupVersion = 7;
         private const string VersionPrefKey = "RingSport.HatSetup.Version";
 
         private const string PickupPrefabPath = "Assets/Prefabs/Collectibles/HatPickup.prefab";
@@ -47,14 +47,17 @@ namespace RingSport.Editor
         private const string EdgeFadeSpritePath = "Assets/Textures/UI/hat_edge_fade.png";
         private const string PickupSoundPath = "Assets/Sounds/Reward/reward-bell.wav";
 
-        // Selector layout (1080x1920 design space, above the 320x128 START
-        // button whose bottom edge sits at y=192)
-        private const float BoxSize = 180f;
-        private const float BoxGap = 6f;
-        private const float SideVisible = 63f; // ~35% of a side box peeks into the viewport
+        // Selector layout (1080x1920 design space, above the enlarged START
+        // button whose bottom edge sits at y=156). Everything here is the
+        // original layout scaled up 20%.
+        private const float BoxSize = 216f;
+        private const float BoxGap = 7f;
+        private const float SideVisible = 76f; // ~35% of a side box peeks into the viewport
         private const float ViewportWidth = BoxSize + 2f * (SideVisible + BoxGap);
         private const float SelectorY = 368f; // leaves room for the count label under the boxes
-        private const float ArrowWidth = 96f;
+        private const float ArrowWidth = 115f;
+        private const float ArrowGap = 29f;
+        private const float SelectorHeight = 288f; // tall enough for the NEW badge peeking above a box
 
         private static readonly Color BadgeColor = new Color(0.91f, 0.30f, 0.24f, 1f);
         // Same gold as the "New Hat Unlocked!" toast - the seasonal voice
@@ -394,10 +397,10 @@ namespace RingSport.Editor
             var boxSprite = AssetDatabase.LoadAssetAtPath<Sprite>(BoxSpritePath);
             var badgeSprite = AssetDatabase.LoadAssetAtPath<Sprite>(RoundedSpritePath);
 
-            float containerWidth = ViewportWidth + 2f * (ArrowWidth + 24f);
+            float containerWidth = ViewportWidth + 2f * (ArrowWidth + ArrowGap);
             var container = CreateRect("HatSelector", home);
             SetRect(container, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(containerWidth, 240f), new Vector2(0f, SelectorY));
+                new Vector2(containerWidth, SelectorHeight), new Vector2(0f, SelectorY));
 
             // The notes panel is a full-screen overlay - keep drawing over the selector
             var notesPanel = home.Find("LoveNotesPanel");
@@ -412,9 +415,9 @@ namespace RingSport.Editor
             // ends 5px shy of the feather zone and stays fully opaque.
             var viewport = CreateRect("Boxes", container.transform);
             SetRect(viewport, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(ViewportWidth, 240f), Vector2.zero);
+                new Vector2(ViewportWidth, SelectorHeight), Vector2.zero);
             var mask = viewport.AddComponent<RectMask2D>();
-            mask.softness = new Vector2Int(64, 0);
+            mask.softness = new Vector2Int(77, 0);
 
             float slotSpacing = BoxSize + BoxGap;
             GameObject leftBox = BuildBox(viewport.transform, "BoxLeft", -slotSpacing, boxSprite, badgeSprite, markerFont,
@@ -430,13 +433,13 @@ namespace RingSport.Editor
             // Unlock tally under the boxes, marker-voiced like the love notes count
             var count = CreateRect("Count", container.transform);
             SetRect(count, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(300f, 44f), new Vector2(0f, -124f));
-            TextMeshProUGUI countText = AddText(count, "0/0", markerFont, 40f, Color.white, TextAlignmentOptions.Center);
+                new Vector2(360f, 53f), new Vector2(0f, -149f));
+            TextMeshProUGUI countText = AddText(count, "0/0", markerFont, 48f, Color.white, TextAlignmentOptions.Center);
 
             Button leftArrow = BuildArrow(container.transform, "ArrowLeft", "<",
-                -(ViewportWidth / 2f + 24f + ArrowWidth / 2f), markerFont, manager);
+                -(ViewportWidth / 2f + ArrowGap + ArrowWidth / 2f), markerFont, manager);
             Button rightArrow = BuildArrow(container.transform, "ArrowRight", ">",
-                ViewportWidth / 2f + 24f + ArrowWidth / 2f, markerFont, manager);
+                ViewportWidth / 2f + ArrowGap + ArrowWidth / 2f, markerFont, manager);
 
             var selector = container.AddComponent<HatSelectorUI>();
             var serialized = new SerializedObject(selector);
@@ -479,7 +482,7 @@ namespace RingSport.Editor
 
             var thumbObject = CreateRect("Thumb", box.transform);
             SetRect(thumbObject, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
-                new Vector2(-32f, -32f), Vector2.zero);
+                new Vector2(-38f, -38f), Vector2.zero);
             thumb = thumbObject.AddComponent<RawImage>();
             thumb.raycastTarget = false;
             thumb.enabled = false; // empty "no hat" slot shows the bare box
@@ -487,42 +490,48 @@ namespace RingSport.Editor
             var lockObject = CreateRect("Lock", box.transform);
             SetRect(lockObject, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
                 Vector2.zero, Vector2.zero);
-            lockMark = AddText(lockObject, "?", markerFont, 92f, Color.white, TextAlignmentOptions.Center);
+            lockMark = AddText(lockObject, "?", markerFont, 110f, Color.white, TextAlignmentOptions.Center);
             lockObject.SetActive(false);
 
             // The "no hat" slot reads as a word, not an empty box
             var noneObject = CreateRect("None", box.transform);
             SetRect(noneObject, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
                 Vector2.zero, Vector2.zero);
-            noneMark = AddText(noneObject, "None", markerFont, 44f, Color.white, TextAlignmentOptions.Center);
+            noneMark = AddText(noneObject, "None", markerFont, 53f, Color.white, TextAlignmentOptions.Center);
             noneObject.SetActive(false);
 
-            // Seasonal hats carry their holiday along the box's bottom edge
+            // Seasonal hats wear their holiday as a diagonal sash, corner to
+            // corner - on locked seasonal boxes it replaces the "?", so the
+            // silhouette + holiday name says exactly what to come back for
             var holidayObject = CreateRect("Holiday", box.transform);
-            SetRect(holidayObject, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 32f), new Vector2(0f, 8f));
-            holidayMark = AddText(holidayObject, "", markerFont, 25f, SeasonalGold, TextAlignmentOptions.Center);
+            SetRect(holidayObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(BoxSize * 1.3f, 56f), Vector2.zero);
+            holidayObject.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            holidayMark = AddText(holidayObject, "", markerFont, 40f, SeasonalGold, TextAlignmentOptions.Center);
+            holidayMark.enableAutoSizing = true;
+            holidayMark.fontSizeMin = 22f;
+            holidayMark.fontSizeMax = 42f;
             holidayObject.SetActive(false);
 
             // NEW badge above the box - the love notes button's red dot with a
             // black stroke (rounded-9 corners at half size render as a circle)
             badge = CreateRect("NewBadge", box.transform);
             SetRect(badge, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(36f, 36f), new Vector2(0f, 10f));
+                new Vector2(43f, 43f), new Vector2(0f, 12f));
             var badgeOutline = badge.AddComponent<Image>();
             badgeOutline.sprite = badgeSprite;
             badgeOutline.type = Image.Type.Sliced;
-            badgeOutline.pixelsPerUnitMultiplier = 80f / 18f;
+            badgeOutline.pixelsPerUnitMultiplier = 80f / 21.6f;
             badgeOutline.color = Color.black;
             badgeOutline.raycastTarget = false;
 
             var badgeFill = CreateRect("Fill", badge.transform);
             SetRect(badgeFill, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(26f, 26f), Vector2.zero);
+                new Vector2(31f, 31f), Vector2.zero);
             var badgeFillImage = badgeFill.AddComponent<Image>();
             badgeFillImage.sprite = badgeSprite;
             badgeFillImage.type = Image.Type.Sliced;
-            badgeFillImage.pixelsPerUnitMultiplier = 80f / 13f;
+            badgeFillImage.pixelsPerUnitMultiplier = 80f / 15.6f;
             badgeFillImage.color = BadgeColor;
             badgeFillImage.raycastTarget = false;
 
@@ -535,7 +544,7 @@ namespace RingSport.Editor
         {
             var arrowObject = CreateRect(name, parent);
             SetRect(arrowObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(ArrowWidth, 150f), new Vector2(x, 0f));
+                new Vector2(ArrowWidth, 180f), new Vector2(x, 0f));
 
             // Invisible image keeps the whole area tappable
             var tapArea = arrowObject.AddComponent<Image>();
@@ -550,7 +559,7 @@ namespace RingSport.Editor
 
             var label = CreateRect("Text", arrowObject.transform);
             SetRect(label, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            AddText(label, glyph, markerFont, 84f, Color.white, TextAlignmentOptions.Center);
+            AddText(label, glyph, markerFont, 101f, Color.white, TextAlignmentOptions.Center);
 
             return button;
         }
@@ -595,11 +604,12 @@ namespace RingSport.Editor
 
             var markerFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(MarkerFontPath);
 
-            // Sits in the gap between the selector's badge row (~y 600) and
-            // the dog; wide enough that the two-line callout never wraps ugly
+            // Sits in the gap between the enlarged selector's badge row
+            // (~y 670) and the dog; wide enough that the two-line callout
+            // never wraps ugly
             var host = CreateRect("SeasonalBanner", home);
             SetRect(host, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(960f, 150f), new Vector2(0f, 628f));
+                new Vector2(960f, 150f), new Vector2(0f, 684f));
 
             // The notes panel is a full-screen overlay - keep drawing over this
             var notesPanel = home.Find("LoveNotesPanel");

@@ -9,7 +9,7 @@ namespace RingSport.UI
     /// Home-screen callout above the hat selector while a seasonal hat's
     /// window is open and it's still locked:
     ///
-    ///     Limited Time: Party Hat for Caicos's Birthday!
+    ///     Party Hat for Caicos's Birthday!
     ///     Until August 10
     ///
     /// The label breathes (scale pulse) so it reads as an event, and vanishes
@@ -76,7 +76,7 @@ namespace RingSport.UI
                 return;
 
             shownHatId = def.Id;
-            label.text = $"Limited Time: {def.DisplayName} for {def.HolidayName}!\n" +
+            label.text = $"{def.DisplayName} for {def.HolidayName}!\n" +
                          $"<size=72%>Until {HatManager.FormatSeasonEnd(windowEnd)}</size>";
         }
     }

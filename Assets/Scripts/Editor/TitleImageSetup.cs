@@ -23,7 +23,7 @@ namespace RingSport.Editor
     public static class TitleImageSetup
     {
         // Bump to force the auto-run to re-apply the setup
-        private const int SetupVersion = 4;
+        private const int SetupVersion = 5;
         private const string VersionPrefKey = "RingSport.TitleImageSetup.Version";
 
         private const string TitleSpritePath = "Assets/Textures/title_cutout.png";
@@ -38,8 +38,10 @@ namespace RingSport.Editor
         // stack breathing. 0.68 = 80% of the 0.85 it shipped the selector with.
         private const float TitleWidthScale = 0.68f;
 
-        // Height up the viewport the title is centred on (0 = bottom, 1 = top)
-        private const float TitleViewportY = 0.73f;
+        // Height up the viewport the title is centred on (0 = bottom, 1 = top).
+        // 0.75: the 20% larger selector + START stack claims more of the lower
+        // screen, so the title cedes a little more air above the dog.
+        private const float TitleViewportY = 0.75f;
 
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()

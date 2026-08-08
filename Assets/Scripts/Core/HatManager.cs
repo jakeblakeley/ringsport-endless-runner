@@ -74,17 +74,18 @@ namespace RingSport.Core
     {
         /// <summary>
         /// Chance that a large (mega) coin spawns as a hat pickup instead,
-        /// while locked hats remain. Rolled after the love-note roll, so notes
-        /// keep priority when both would claim the same coin.
+        /// while locked hats remain. Rides the love-note rate so the two rare
+        /// collectibles stay one family; rolled after the love-note roll, so
+        /// notes keep priority when both would claim the same coin.
         /// </summary>
-        public const float MegaCoinReplaceChance = 0.02f;
+        public const float MegaCoinReplaceChance = LoveNoteManager.MegaCoinReplaceChance;
 
         /// <summary>
-        /// Seasonal hats are this much more common while their holiday window
-        /// is open (and never drop outside it) - a limited run the player can
-        /// realistically land inside one week of play.
+        /// Seasonal hats while their holiday window is open (they never drop
+        /// outside it) - boosted enough to realistically land inside one week
+        /// of casual play.
         /// </summary>
-        public const float SeasonalChanceMultiplier = 20f;
+        public const float SeasonalChance = 0.05f;
 
         /// <summary>
         /// Debug: overrides the spawn chance (0..1) from the debug menu.
@@ -345,12 +346,12 @@ namespace RingSport.Core
             return UnityEngine.Random.value < chance;
         }
 
-        /// <summary>The live spawn chance for a hat id (seasonal windows pay the multiplier).</summary>
+        /// <summary>The live spawn chance for a hat id (seasonal windows get the boosted rate).</summary>
         public static float ChanceFor(string hatId)
         {
             HatDef def = GetDef(hatId);
             bool seasonal = def != null && def.IsSeasonal;
-            return seasonal ? MegaCoinReplaceChance * SeasonalChanceMultiplier : MegaCoinReplaceChance;
+            return seasonal ? SeasonalChance : MegaCoinReplaceChance;
         }
 
         /// <summary>Spawner calls this when a hat pickup actually spawns.</summary>

@@ -150,6 +150,8 @@ namespace RingSport.UI
         {
             string id = EntryId(entryIndex);
             bool locked = id.Length > 0 && !HatManager.IsUnlocked(id);
+            HatDef def = HatManager.GetDef(id);
+            bool seasonal = def != null && def.IsSeasonal;
 
             if (thumb != null)
             {
@@ -158,18 +160,17 @@ namespace RingSport.UI
                 thumb.enabled = texture != null;
             }
 
+            // Seasonal boxes wear their holiday as the diagonal banner - on a
+            // locked one it REPLACES the "?" (the silhouette + holiday name
+            // says exactly what to come back for)
             if (lockMark != null)
-                lockMark.gameObject.SetActive(locked);
+                lockMark.gameObject.SetActive(locked && !seasonal);
 
             if (noneMark != null)
                 noneMark.gameObject.SetActive(id.Length == 0);
 
-            // Seasonal hats wear their holiday on the box - a locked "?" with
-            // "Halloween" under it tells you exactly when to come back
             if (holidayMark != null)
             {
-                HatDef def = HatManager.GetDef(id);
-                bool seasonal = def != null && def.IsSeasonal;
                 holidayMark.gameObject.SetActive(seasonal);
                 if (seasonal)
                     holidayMark.text = def.HolidayShort;
