@@ -33,7 +33,7 @@ namespace RingSport.Editor
     public static class HatSetup
     {
         // Bump to force the auto-run to re-apply the setup
-        private const int SetupVersion = 8;
+        private const int SetupVersion = 10;
         private const string VersionPrefKey = "RingSport.HatSetup.Version";
 
         private const string PickupPrefabPath = "Assets/Prefabs/Collectibles/HatPickup.prefab";
@@ -63,21 +63,26 @@ namespace RingSport.Editor
         // Same gold as the "New Hat Unlocked!" toast - the seasonal voice
         private static readonly Color SeasonalGold = new Color(1f, 0.84f, 0.25f, 1f);
 
+        // Auto-run rides EditorApplication.update, NOT delayCall: this editor
+        // can sit in a state (modal loop) where delayCall never drains while
+        // update delegates keep firing (observed 2026-08-07 - the v9 sash
+        // rebuild starved on delayCall). The handler waits out busy states,
+        // then unsubscribes and runs once at a normal editor moment, which
+        // keeps the scene save legal.
         [InitializeOnLoadMethod]
         private static void AutoRunOnLoad()
         {
-            EditorApplication.delayCall += TryAutoRun;
+            EditorApplication.update += TryAutoRunOnUpdate;
         }
 
-        private static void TryAutoRun()
+        private static void TryAutoRunOnUpdate()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode ||
                 EditorApplication.isCompiling ||
                 EditorApplication.isUpdating)
-            {
-                EditorApplication.delayCall += TryAutoRun;
-                return;
-            }
+                return; // stay subscribed, try again next tick
+
+            EditorApplication.update -= TryAutoRunOnUpdate;
 
             if (EditorPrefs.GetInt(VersionPrefKey, 0) >= SetupVersion)
                 return;
@@ -91,8 +96,8 @@ namespace RingSport.Editor
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[HatSetup] Auto-setup failed (will retry when the editor is idle): {e}");
-                EditorApplication.delayCall += TryAutoRun;
+                Debug.LogError($"[HatSetup] Auto-setup failed (will retry on the next editor tick): {e}");
+                EditorApplication.update += TryAutoRunOnUpdate;
             }
         }
 
@@ -135,7 +140,7 @@ namespace RingSport.Editor
             if (EditorApplication.isPlayingOrWillChangePlaymode)
             {
                 Debug.LogWarning("[HatSetup] Play mode started mid-setup - not saving; will re-run when the editor is idle.");
-                EditorApplication.delayCall += TryAutoRun;
+                EditorApplication.update += TryAutoRunOnUpdate;
                 return;
             }
 
@@ -502,39 +507,38 @@ namespace RingSport.Editor
 
             // Locked seasonal hats wear their holiday as a diagonal sash,
             // corner to corner, in place of the "?" - the silhouette plus the
-            // holiday name says exactly what to come back for. Flush
-            // alignment letter-spaces the word across the whole sash.
+            // holiday name says exactly what to come back for. The sash spans
+            // the box's bottom-left-to-top-right diagonal and auto-sizing
+            // GROWS THE GLYPHS to fill it (centered, not letter-spaced) - the
+            // word is as big as the diagonal allows.
             var holidayObject = CreateRect("Holiday", box.transform);
             SetRect(holidayObject, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(BoxSize * 1.25f, 56f), Vector2.zero);
+                new Vector2(BoxSize * 1.32f, 60f), Vector2.zero);
             holidayObject.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
-            holidayMark = AddText(holidayObject, "", markerFont, 40f, SeasonalGold, TextAlignmentOptions.Flush);
+            holidayMark = AddText(holidayObject, "", markerFont, 40f, SeasonalGold, TextAlignmentOptions.Midline);
             holidayMark.enableAutoSizing = true;
             holidayMark.fontSizeMin = 22f;
-            holidayMark.fontSizeMax = 46f;
+            holidayMark.fontSizeMax = 64f;
             holidayObject.SetActive(false);
 
-            // NEW badge above the box - the love notes button's red dot with a
-            // black stroke (rounded-9 corners at half size render as a circle)
+            // NEW badge - the love notes grid's red NEW stamp (sharp rect,
+            // bold white text, slight tilt), pivot-centred on the box's top
+            // edge so it half-overlaps the white stroke
             badge = CreateRect("NewBadge", box.transform);
             SetRect(badge, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(43f, 43f), new Vector2(0f, 12f));
-            var badgeOutline = badge.AddComponent<Image>();
-            badgeOutline.sprite = badgeSprite;
-            badgeOutline.type = Image.Type.Sliced;
-            badgeOutline.pixelsPerUnitMultiplier = 80f / 21.6f;
-            badgeOutline.color = Color.black;
-            badgeOutline.raycastTarget = false;
+                new Vector2(110f, 50f), Vector2.zero);
+            badge.transform.localRotation = Quaternion.Euler(0f, 0f, 6f);
+            var badgeImage = badge.AddComponent<Image>();
+            badgeImage.color = BadgeColor;
+            badgeImage.raycastTarget = false;
 
-            var badgeFill = CreateRect("Fill", badge.transform);
-            SetRect(badgeFill, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(31f, 31f), Vector2.zero);
-            var badgeFillImage = badgeFill.AddComponent<Image>();
-            badgeFillImage.sprite = badgeSprite;
-            badgeFillImage.type = Image.Type.Sliced;
-            badgeFillImage.pixelsPerUnitMultiplier = 80f / 15.6f;
-            badgeFillImage.color = BadgeColor;
-            badgeFillImage.raycastTarget = false;
+            // Text lives on a child - an Image and a TMP text are both
+            // Graphics and can't share one GameObject
+            var badgeTextObject = CreateRect("Text", badge.transform);
+            SetRect(badgeTextObject, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+            var badgeText = AddText(badgeTextObject, "NEW", markerFont, 34f, Color.white, TextAlignmentOptions.Center);
+            badgeText.fontStyle = FontStyles.Bold;
 
             badge.SetActive(false);
             return box;

@@ -57,6 +57,8 @@ namespace RingSport.UI
 
         private void OnEnable()
         {
+            EnsureEntryOrder();
+
             string newest = HatManager.NewestUnseenId;
             if (newest != null)
             {
@@ -87,15 +89,46 @@ namespace RingSport.UI
                 Refresh();
         }
 
-        // Slot 0 is the always-available "None" entry
-        private static int EntryCount => HatManager.HatIds.Length + 1;
+        // Slot 0 is the always-available "None" entry; hats follow with every
+        // unlocked one first (catalog order within each group), so browsing
+        // the wardrobe never wades through locked silhouettes to reach it
+        private readonly List<string> entryOrder = new List<string>();
+        private int entryOrderVersion = -1;
 
-        private static string EntryId(int index)
+        private int EntryCount => entryOrder.Count + 1;
+
+        private void EnsureEntryOrder()
         {
-            return index <= 0 ? "" : HatManager.HatIds[index - 1];
+            if (entryOrderVersion == HatManager.StateVersion)
+                return;
+
+            // An unlock while the selector is visible reorders the list -
+            // keep the view on the same hat, not the same slot number
+            string centerId = entryOrder.Count > 0 ? EntryId(browseIndex) : null;
+
+            entryOrder.Clear();
+            foreach (string id in HatManager.HatIds)
+            {
+                if (HatManager.IsUnlocked(id))
+                    entryOrder.Add(id);
+            }
+            foreach (string id in HatManager.HatIds)
+            {
+                if (!HatManager.IsUnlocked(id))
+                    entryOrder.Add(id);
+            }
+            entryOrderVersion = HatManager.StateVersion;
+
+            if (centerId != null)
+                browseIndex = EntryIndexOf(centerId);
         }
 
-        private static int EntryIndexOf(string id)
+        private string EntryId(int index)
+        {
+            return index <= 0 || index > entryOrder.Count ? "" : entryOrder[index - 1];
+        }
+
+        private int EntryIndexOf(string id)
         {
             for (int i = 1; i < EntryCount; i++)
             {
@@ -130,6 +163,7 @@ namespace RingSport.UI
 
         private void Refresh()
         {
+            EnsureEntryOrder();
             seenStateVersion = HatManager.StateVersion;
             RefreshSlot(leftThumb, leftLock, leftNone, leftHoliday, leftBadge, (browseIndex - 1 + EntryCount) % EntryCount);
             RefreshSlot(centerThumb, centerLock, centerNone, centerHoliday, centerBadge, browseIndex);
