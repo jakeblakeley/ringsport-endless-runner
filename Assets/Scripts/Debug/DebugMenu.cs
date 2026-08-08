@@ -21,6 +21,7 @@ namespace RingSport.DebugTools
         private bool isOpen;
         private Vector2 scrollPosition;
         private GUIStyle headerStyle;
+        private Animator pausedHomeAnimator;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
@@ -31,6 +32,37 @@ namespace RingSport.DebugTools
             var go = new GameObject("DebugMenu");
             DontDestroyOnLoad(go);
             instance = go.AddComponent<DebugMenu>();
+        }
+
+        private void Update()
+        {
+            // The anim freeze is a home-screen hat-fitting aid - never let it
+            // leak into a run
+            if (pausedHomeAnimator != null &&
+                (GameManager.Instance == null || GameManager.Instance.CurrentState != GameState.Home))
+            {
+                SetHomeAnimsPaused(false);
+            }
+        }
+
+        /// <summary>Freezes/unfreezes the dog's animator so a worn hat holds still for in-situ fitting.</summary>
+        private void SetHomeAnimsPaused(bool paused)
+        {
+            if (!paused)
+            {
+                if (pausedHomeAnimator != null)
+                    pausedHomeAnimator.speed = 1f;
+                pausedHomeAnimator = null;
+                return;
+            }
+
+            var player = Object.FindAnyObjectByType<RingSport.Player.PlayerController>();
+            var animator = player != null ? player.GetComponentInChildren<Animator>(true) : null;
+            if (animator == null)
+                return;
+
+            animator.speed = 0f;
+            pausedHomeAnimator = animator;
         }
 
         private void OnGUI()
@@ -220,6 +252,14 @@ namespace RingSport.DebugTools
             if (GUILayout.Button($"Force All Seasonal Windows: {forceLabel}", GUILayout.Height(28f)))
             {
                 HatManager.DebugForceAllSeasonalActive = !HatManager.DebugForceAllSeasonalActive;
+            }
+
+            // Freezes the idling dog so the Hat Fit Tuner can adjust a worn
+            // hat against a still head (auto-resumes when leaving home)
+            bool animsPaused = pausedHomeAnimator != null;
+            if (GUILayout.Button(animsPaused ? "Resume Start Screen Anims" : "Pause Start Screen Anims", GUILayout.Height(28f)))
+            {
+                SetHomeAnimsPaused(!animsPaused);
             }
 
             if (GUILayout.Button("Show Secret Note", GUILayout.Height(28f)))

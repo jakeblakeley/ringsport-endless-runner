@@ -214,9 +214,34 @@ namespace RingSport.Core
             if (newState != GameState.Home)
                 StopHomeMusic(homeMusicFadeOutSeconds);
 
-            // Idle flourishes (bark, shake...) only ever run on the home screen
-            Object.FindAnyObjectByType<PlayerController>()?.Animations
-                ?.SetIdleFlourishes(newState == GameState.Home);
+            var playerController = Object.FindAnyObjectByType<PlayerController>();
+            var playerAnimations = playerController?.Animations;
+
+            // Home always greets from a standstill. After a death the damped
+            // locomotion blend still holds the run, so the dog gallops in
+            // place on the start screen. Reset BEFORE the flourish toggle -
+            // the reset clears the model offset the toggle applies.
+            if (newState == GameState.Home)
+                playerAnimations?.ResetToLocomotion();
+
+            // Idle flourishes (bark, shake...) only ever run on the home
+            // screen; the toggle also owns the standing ground drop
+            playerAnimations?.SetIdleFlourishes(newState == GameState.Home);
+
+            // Diagnostic for the standing height: logs where the root sits vs
+            // the ground actually under it (idle paws reach root - 1.105)
+            if (newState == GameState.Home && playerController != null)
+            {
+                Vector3 origin = playerController.transform.position + Vector3.up;
+                foreach (var hit in Physics.RaycastAll(origin, Vector3.down, 6f))
+                {
+                    if (hit.collider.transform.IsChildOf(playerController.transform))
+                        continue;
+                    GameLog.Info($"[HomeGround] rootY={playerController.transform.position.y:0.###} " +
+                                 $"groundY={hit.point.y:0.###} idlePawY={playerController.transform.position.y - 1.105f:0.###}");
+                    break;
+                }
+            }
 
             switch (newState)
             {

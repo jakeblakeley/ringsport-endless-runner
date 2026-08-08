@@ -35,7 +35,7 @@ namespace RingSport.Editor
     public static class HatPrefabBaker
     {
         // Bump to force the auto-run to re-bake every hat prefab
-        private const int BakeVersion = 10;
+        private const int BakeVersion = 11;
         private const string VersionPrefKey = "RingSport.HatPrefabBaker.Version";
 
         private const string ModelFolder = "Assets/Models/hats";
@@ -69,8 +69,10 @@ namespace RingSport.Editor
             public float Yaw;      // extra spin in degrees for models not authored facing +Z
             public float Pitch;    // X tilt - several sources are authored "facing the camera" and need laying down
             public float Roll;
+            public float OffsetX;  // sideways nudge off auto-centering - jaunty side-tilt hats only
 
-            public Fit(float width, float baseY, float forwardZ = 0f, float yaw = 0f, float pitch = 0f, float roll = 0f)
+            public Fit(float width, float baseY, float forwardZ = 0f, float yaw = 0f, float pitch = 0f, float roll = 0f,
+                float offsetX = 0f)
             {
                 Width = width;
                 BaseY = baseY;
@@ -78,78 +80,78 @@ namespace RingSport.Editor
                 Yaw = yaw;
                 Pitch = pitch;
                 Roll = roll;
+                OffsetX = offsetX;
             }
         }
 
         /// <summary>
-        /// Per-hat fits, set from the orientation sheets (authored axes) plus
-        /// the worn contact sheets. Every catalog hat is explicit; the
-        /// category defaults only catch future additions. Pitch conventions:
-        /// +90 turns a mask-style "+Z opening" downward, -90 stands a
-        /// lying-down "+Z tip" cone upright.
+        /// Per-hat fits. Ground truth 2026-08-07: Jake hand-tuned 14 hats in
+        /// situ with the Hat Fit Tuner (tagged user-tuned - measured from the
+        /// saved prefabs, do not eyeball-edit), and the rest were extrapolated
+        /// per family from those and verified on contact sheets. The pack is
+        /// mostly Z-up authored - pitch ~90 wears a "+Z opening" model
+        /// correctly - with a few authored upright (pitch 0). Rows are
+        /// inverse-measured from the shipped prefabs, so a rebake reproduces
+        /// them exactly.
         /// </summary>
         private static readonly Dictionary<string, Fit> FitOverrides = new Dictionary<string, Fit>
         {
-            // Caps: bills authored drooping down-forward - negative pitch lifts them
-            { "KidCap", new Fit(0.55f, -0.09f, -0.10f, 0f, 50f) },  // authored tipped back, bill up
-            // Deep shells: bounds bottoms are their low back rims, so they
-            // seat far below the anchor to swallow the skull
-            { "HiphopCap", new Fit(0.48f, -0.26f, -0.06f, 0f, -35f) },
-            { "FBICap", new Fit(0.48f, -0.26f, -0.06f, 0f, -50f) },
-            { "DeerStalker", new Fit(0.52f, -0.32f, -0.06f, 0f, -40f) },
-            { "SergeantHat", new Fit(0.52f, -0.10f, -0.10f, 0f, -25f) }, // shallower shell than the other caps
+            // -- user-tuned 2026-08-07 --
+            { "KidCap", new Fit(0.28f, -0.007f, 0.009f, 0f, 75f) },
+            { "FrogHat", new Fit(0.365f, -0.227f, -0.056f, 0f, 90f) },
+            { "ChefHat", new Fit(0.377f, 0.019f, -0.025f, 0f, 100f) },
+            { "BlackCowboyHat", new Fit(0.628f, -0.098f, -0.038f, 0f, 75f) },
+            { "CatHeadband", new Fit(0.307f, -0.026f, 0.076f, 0f, 90f) },
+            { "Crown", new Fit(0.161f, 0.13f, 0f, 0f, 90f) },
+            { "HiphopCap", new Fit(0.521f, -0.088f, -0.026f, -40f, 100f, 0f, 0.045f) }, // worn askew
+            { "WizardHat", new Fit(0.607f, 0.008f, 0.028f, 0f, 90f) },
+            { "UnicornHeadband", new Fit(0.292f, -0.034f, 0.089f, 0f, 80f) },
+            { "FedoraHat", new Fit(0.183f, 0.09f, 0.085f, 0f, 110f) }, // tiny, perched forward
+            { "BaseballHelmet", new Fit(0.356f, -0.077f, 0.046f, 0f, 90f) },
+            { "DeerStalker", new Fit(0.322f, -0.03f, 0.028f, 0f, 90f) },
+            { "AlienHeadband", new Fit(0.333f, -0.035f, 0.132f, 0f, 110f) },
+            { "ElfHat", new Fit(0.446f, -0.024f, -0.065f, 0f, 70f, -35f, -0.014f) }, // flopped to the side
 
-            // Brimmed hats: cowboy family authored lying ~65 degrees back
-            { "BlackCowboyHat", new Fit(0.72f, -0.04f, -0.10f, 0f, 65f) },
-            { "MusketeerHat", new Fit(0.70f, -0.06f, -0.09f, 0f, 55f) },
-            { "PirateHat", new Fit(0.70f, -0.02f, -0.08f, 0f, 65f) },
-            { "FedoraHat", new Fit(0.62f, -0.09f, -0.08f, 0f, 20f) },
-            { "WizardHat", new Fit(0.58f, -0.05f, -0.09f, 0f, 15f) },
-            { "WoolBeretHat", new Fit(0.55f, -0.07f, -0.09f, 0f, 30f) },
-            { "BandanaHat", new Fit(0.55f, -0.30f, -0.04f, 0f, -40f) },
-            { "ChefHat", new Fit(0.50f, -0.10f, -0.10f, 0f, 25f) },
-            { "MexicanMusicianHat", new Fit(0.85f, -0.04f, -0.08f) },
-            { "FrogHat", new Fit(0.55f, -0.10f, -0.12f) },
-            { "JesterHat", new Fit(0.52f, -0.04f, -0.04f) },
-            { "FlowerHat", new Fit(0.58f, -0.02f, -0.08f) },
-            { "Crown", new Fit(0.38f, 0f, -0.12f) },
-            { "Cake", new Fit(0.34f, 0f, -0.06f) },
-            { "ElfHat", new Fit(0.46f, -0.02f, -0.04f) },
-            { "PinkBonnetHat", new Fit(0.50f, -0.24f, 0f, 0f, -15f) },
-
-            // Lying-down cones/cylinders: stand them up
-            { "WitchHat", new Fit(0.60f, -0.08f, -0.02f, 0f, -80f) },   // tip authored +Z
-            { "PartyHat", new Fit(0.28f, -0.02f, -0.02f, 0f, -90f) },   // tip authored +Z
-            { "UncleSamHat", new Fit(0.45f, -0.04f, -0.09f, 0f, 90f) }, // crown authored -Z
-
-            // Mask-style helmets: opening authored toward +Z, pitch it down
-            { "BaseballHelmet", new Fit(0.58f, -0.13f, -0.12f, 0f, 90f) },
-            { "VikingHelmet", new Fit(0.60f, -0.12f, -0.12f, 0f, 90f) },
-            { "WatermelonHelmet", new Fit(0.55f, -0.10f, -0.12f, 0f, 75f) },
-
-            // Upright helmets: small settle-back corrections only
-            { "SafetyHelmet", new Fit(0.55f, 0.04f, -0.16f) },
-            { "MotorcycleHelmet", new Fit(0.60f, -0.10f, -0.14f, 0f, 25f) },
-            { "VintageMotorcycleHelmet", new Fit(0.58f, -0.14f, -0.08f, 0f, 15f) },
-            { "SoldierHelmet", new Fit(0.60f, -0.18f, -0.08f, 0f, 20f) },
-            { "RomanHelmet", new Fit(0.46f, -0.02f, -0.12f) }, // authored correctly; shell on the skull, guards at the ears
-            { "FireFighterHelmet", new Fit(0.60f, -0.16f, -0.02f, 180f) }, // long brim belongs at the back
-
-            // Headbands. Flat circlets just seat; arched ones rotate ear-to-ear
-            { "AlienHeadband", new Fit(0.50f, 0f, -0.08f, 180f) }, // flipped so the antennae lean back, not over the nose
-            { "HeartHeadband", new Fit(0.48f, 0.04f, -0.08f, 0f, -25f) },
-            { "LadyHeadband", new Fit(0.52f, -0.08f, -0.09f, 0f, 60f) },
-            { "CatHeadband", new Fit(0.50f, -0.12f, -0.06f, 90f, 20f) },
-            { "UnicornHeadband", new Fit(0.50f, -0.04f, -0.08f, 90f, 60f) },
-            { "KungfuHeadband", new Fit(0.48f, 0.02f, -0.10f, 0f, -90f) }, // +Z billboard ring laid flat; knot lands at the nape
-            { "BunnyHeadband", new Fit(0.45f, -0.10f, -0.04f, 0f, -75f) }, // ears authored lying forward
-
-            // Horns: authored sweeping back along -Z, pitch lifts them upright
-            { "RamHorn", new Fit(0.50f, -0.06f, -0.10f) }, // authored correctly at the ears
-            { "DeerHorn", new Fit(0.60f, 0f, -0.02f, 0f, 55f) },
-            { "AntelopeHorn", new Fit(0.50f, -0.02f, -0.08f, 0f, 55f) },
-            { "SatanHorn2", new Fit(0.46f, 0f, -0.03f, 0f, 75f) },
-            { "GoldLaurelCrown", new Fit(0.52f, -0.04f, -0.10f, 0f, -90f) }, // authored as a +Z-facing wreath
+            // -- extrapolated from the rows above, per family --
+            // Caps & wraps
+            { "FBICap", new Fit(0.28f, 0.011f, 0.007f, 0f, 90f) },
+            { "SergeantHat", new Fit(0.31f, 0.083f, -0.008f, 0f, 90f) }, // near-flat disc asset - best effort
+            { "WoolBeretHat", new Fit(0.3f, 0.09f, -0.012f, 0f, 90f) },
+            { "BandanaHat", new Fit(0.3f, -0.145f, -0.026f, 0f, 85f) },
+            { "BandannaHeaddress", new Fit(0.3f, -0.172f, -0.078f) }, // long tail flies at any pitch - worn as a pushed-back wrap
+            { "PinkBonnetHat", new Fit(0.3f, -0.139f, 0.004f, 0f, 90f) },
+            // Brimmed
+            { "MusketeerHat", new Fit(0.61f, -0.175f, 0.034f, 0f, 75f) },
+            { "PirateHat", new Fit(0.61f, -0.05f, -0.057f, 0f, 75f) },
+            { "MexicanMusicianHat", new Fit(0.74f, 0.085f, -0.05f) }, // authored upright
+            { "FlowerHat", new Fit(0.38f, 0.107f, -0.021f) },         // flat daisy, worn flat
+            // Cones & tall hats
+            { "WitchHat", new Fit(0.6f, -0.006f, -0.028f, 0f, 90f) },
+            { "PartyHat", new Fit(0.2f, 0.037f, -0.002f, 0f, -90f) }, // tip authored +Z
+            { "UncleSamHat", new Fit(0.34f, 0.066f, -0.018f, 0f, 100f) },
+            { "JesterHat", new Fit(0.32f, 0.058f, -0.02f, 0f, 90f) },
+            // Perched crown-style
+            { "Cake", new Fit(0.2f, 0.16f, 0f) },                     // slice authored upright
+            { "GoldLaurelCrown", new Fit(0.42f, -0.035f, -0.027f, 0f, 90f) },
+            // Headbands - seated forward, between ears and eyes
+            { "HeartHeadband", new Fit(0.33f, -0.033f, 0.101f, 0f, 90f) },
+            { "LadyHeadband", new Fit(0.33f, 0.03f, 0.1f, 0f, 90f) },
+            { "KungfuHeadband", new Fit(0.33f, -0.052f, 0.114f, 0f, 75f) },
+            { "BunnyHeadband", new Fit(0.33f, -0.135f, 0.12f, 0f, 90f) },
+            // Horns
+            { "RamHorn", new Fit(0.33f, 0.057f, 0.067f, 0f, 90f) },
+            { "DeerHorn", new Fit(0.44f, 0.035f, 0.087f, 0f, 90f) },
+            { "AntelopeHorn", new Fit(0.38f, -0.024f, 0.068f, 0f, 90f) },
+            { "SatanHorn2", new Fit(0.3f, 0.033f, 0.08f, 0f, 90f) },
+            // Helmets
+            { "VikingHelmet", new Fit(0.37f, 0.011f, 0.001f, 0f, 90f) },
+            { "WatermelonHelmet", new Fit(0.35f, -0.086f, -0.008f, 0f, 90f) },
+            { "SafetyHelmet", new Fit(0.34f, -0.018f, 0.015f) },      // authored upright
+            { "MotorcycleHelmet", new Fit(0.37f, -0.112f, -0.041f, 0f, 90f) },
+            { "VintageMotorcycleHelmet", new Fit(0.36f, -0.187f, -0.045f, 0f, 90f) },
+            { "SoldierHelmet", new Fit(0.37f, -0.183f, 0.013f, 0f, 90f) },
+            { "RomanHelmet", new Fit(0.3f, -0.207f, 0.012f) },        // authored upright
+            { "FireFighterHelmet", new Fit(0.4f, -0.073f, -0.007f, 0f, 80f) },
         };
 
         // The first hat pass shipped primitive placeholders under different
@@ -446,7 +448,7 @@ namespace RingSport.Editor
 
             t.localScale = Vector3.one * scale;
             t.position = new Vector3(
-                -bounds.center.x * scale,
+                -bounds.center.x * scale + fit.OffsetX,
                 fit.BaseY - bounds.min.y * scale,
                 -bounds.center.z * scale + fit.ForwardZ);
             return fit;
@@ -454,17 +456,17 @@ namespace RingSport.Editor
 
         private static Fit DefaultFitFor(string id)
         {
-            // Helmets wrap the skull, headbands/horns sit into the fur,
-            // brimmed hats perch on top - all seated back off the forehead
-            // anchor onto the crown
+            // Pack convention (2026-08-07 retune): models are Z-up authored,
+            // so pitch 90 wears them; sizes run snug. Headbands/horns seat
+            // forward between the ears and eyes.
             if (id.Contains("Helmet"))
-                return new Fit(0.62f, -0.14f, -0.12f);
+                return new Fit(0.37f, -0.09f, 0f, 0f, 90f);
             if (id.Contains("Headband") || id.Contains("Horn") || id.Contains("Crown") || id.Contains("Laurel"))
-                return new Fit(0.52f, -0.10f, -0.10f);
-            return new Fit(0.55f, -0.05f, -0.09f);
+                return new Fit(0.33f, -0.03f, 0.09f, 0f, 90f);
+            return new Fit(0.32f, 0f, 0f, 0f, 90f);
         }
 
-        private static Bounds RenderedBounds(GameObject root)
+        internal static Bounds RenderedBounds(GameObject root)
         {
             var renderers = root.GetComponentsInChildren<Renderer>(true);
             if (renderers.Length == 0)
@@ -633,6 +635,13 @@ namespace RingSport.Editor
                 anchor.localPosition = Vector3.zero;
                 anchor.localScale = Vector3.one;
 
+                // HideEars hats collapse the ear bones at runtime - mirror
+                // that per cell so the sheets show the real silhouette
+                Transform leftEar = FindChildByName(dog.transform, "L Ear");
+                Transform rightEar = FindChildByName(dog.transform, "R Ear");
+                Vector3 leftEarScale = leftEar != null ? leftEar.localScale : Vector3.one;
+                Vector3 rightEarScale = rightEar != null ? rightEar.localScale : Vector3.one;
+
                 cameraObject = new GameObject("HatSheetCamera");
                 var cam = cameraObject.AddComponent<Camera>();
                 cam.enabled = false;
@@ -666,20 +675,26 @@ namespace RingSport.Editor
                 var manifest = new List<string> { "cell layout: catalog order, row-major. sheet/row/col id" };
                 for (int cell = 0; cell < cellCount; cell++)
                 {
-                    string id = cell == 0 ? null : HatManager.Defs[cell - 1].Id;
+                    HatDef def = cell == 0 ? null : HatManager.Defs[cell - 1];
                     GameObject hat = null;
-                    if (id != null)
+                    if (def != null)
                     {
-                        var hatPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{ResourcesHatFolder}/{id}.prefab");
+                        var hatPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{ResourcesHatFolder}/{def.Id}.prefab");
                         if (hatPrefab != null)
                             hat = Object.Instantiate(hatPrefab, anchor, false);
                     }
+
+                    bool hideEars = def != null && def.HideEars;
+                    if (leftEar != null)
+                        leftEar.localScale = hideEars ? Vector3.zero : leftEarScale;
+                    if (rightEar != null)
+                        rightEar.localScale = hideEars ? Vector3.zero : rightEarScale;
 
                     try
                     {
                         cam.transform.SetPositionAndRotation(threeQuarterPos,
                             Quaternion.LookRotation(focus - threeQuarterPos, up));
-                        RenderCell(cam, sheets, cell, manifest, id ?? "(bare head)");
+                        RenderCell(cam, sheets, cell, manifest, def != null ? def.Id : "(bare head)");
 
                         cam.transform.SetPositionAndRotation(sidePos,
                             Quaternion.LookRotation(focus - sidePos, up));

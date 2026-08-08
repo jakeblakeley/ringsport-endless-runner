@@ -16,14 +16,31 @@ namespace RingSport.Player
         private const string AnchorName = "HatAnchor";
         private const string HeadBoneName = "Head";
         private const string ModelRootName = "Dog Model";
+        private const string LeftEarBoneName = "L Ear";
+        private const string RightEarBoneName = "R Ear";
 
         private Transform anchor;
         private GameObject currentHat;
         private string currentId = "";
         private bool anchorAligned;
 
+        private Transform leftEar;
+        private Transform rightEar;
+        private Vector3 leftEarScale = Vector3.one;
+        private Vector3 rightEarScale = Vector3.one;
+        private bool earsHidden;
+
         /// <summary>Live worn hat instance (the editor fit tuner edits it in place). Null when bare.</summary>
         public Transform WornHat => currentHat != null ? currentHat.transform : null;
+
+        /// <summary>Current ear-hide state (the editor fit tuner previews the HideEars flag through this).</summary>
+        public bool EarsHidden => earsHidden;
+
+        /// <summary>Editor fit-tuner override: flip the ear bones live without touching the catalog.</summary>
+        public void SetEarsHiddenLive(bool hide)
+        {
+            SetEarsHidden(hide);
+        }
 
         private void Start()
         {
@@ -40,6 +57,15 @@ namespace RingSport.Player
             // dog, so the alignment (and the worn hat) lands upright.
             if (!anchorAligned && anchor != null)
                 AlignAnchor();
+
+            // Enforced after animation in case any clip writes ear scales
+            if (earsHidden)
+            {
+                if (leftEar != null)
+                    leftEar.localScale = Vector3.zero;
+                if (rightEar != null)
+                    rightEar.localScale = Vector3.zero;
+            }
         }
 
         /// <summary>Sync the worn hat with HatManager.SelectedId (idempotent).</summary>
@@ -69,6 +95,10 @@ namespace RingSport.Player
                 }
             }
 
+            // Enclosing hats collapse the ear bones so the ears don't clip
+            // through the shell; everything else keeps them
+            SetEarsHidden(HatManager.HideEarsFor(currentId));
+
             // No unload sweep here - browsing the selector must stay
             // hitch-free. GameManager sweeps unused assets on the Home/Playing
             // swaps, behind the screen fade's held black.
@@ -81,6 +111,10 @@ namespace RingSport.Player
         /// </summary>
         public void DropHat()
         {
+            // The corpse swap runs next; leave the ears how nature made them
+            // so the next wear cycle starts clean
+            SetEarsHidden(false);
+
             if (currentHat == null)
             {
                 currentId = "";
@@ -179,6 +213,38 @@ namespace RingSport.Player
             // Alignment waits for LateUpdate (see above) so it samples the
             // animated pose, not the bind pose
             return anchor;
+        }
+
+        /// <summary>Scales the ear bones to zero (and back) for hats that fully enclose the skull.</summary>
+        private void SetEarsHidden(bool hide)
+        {
+            if (earsHidden == hide)
+                return;
+
+            if (leftEar == null)
+            {
+                leftEar = FindChildByName(transform, LeftEarBoneName);
+                if (leftEar != null)
+                    leftEarScale = leftEar.localScale;
+            }
+            if (rightEar == null)
+            {
+                rightEar = FindChildByName(transform, RightEarBoneName);
+                if (rightEar != null)
+                    rightEarScale = rightEar.localScale;
+            }
+
+            if (leftEar == null && rightEar == null)
+            {
+                GameLog.Warn("[HatEquipper] No ear bones found - HideEars ignored.");
+                return;
+            }
+
+            if (leftEar != null)
+                leftEar.localScale = hide ? Vector3.zero : leftEarScale;
+            if (rightEar != null)
+                rightEar.localScale = hide ? Vector3.zero : rightEarScale;
+            earsHidden = hide;
         }
 
         /// <summary>

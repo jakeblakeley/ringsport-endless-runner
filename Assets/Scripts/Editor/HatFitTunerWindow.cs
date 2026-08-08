@@ -1,3 +1,4 @@
+using System.IO;
 using RingSport.Core;
 using RingSport.Player;
 using UnityEditor;
@@ -28,13 +29,22 @@ namespace RingSport.Editor
 
         private void OnEnable()
         {
-            // The worn hat moves every frame - keep the fields current
-            EditorApplication.update += Repaint;
+            EditorApplication.update += RepaintWhilePlaying;
         }
 
         private void OnDisable()
         {
-            EditorApplication.update -= Repaint;
+            EditorApplication.update -= RepaintWhilePlaying;
+        }
+
+        // The worn hat moves every frame in play mode - keep the fields
+        // current. Out of play mode the window is a static help box, and an
+        // unconditional every-tick Repaint left the editor repainting at
+        // full tilt whenever the window stayed open.
+        private void RepaintWhilePlaying()
+        {
+            if (EditorApplication.isPlaying)
+                Repaint();
         }
 
         private void OnGUI()
@@ -73,18 +83,94 @@ namespace RingSport.Editor
                 worn.localScale = Vector3.one * Mathf.Max(0.0001f, scale);
             }
 
+            // Live preview of the HideEars flag - the saved value lives on the
+            // hat's catalog row in HatManager.cs
+            EditorGUI.BeginChangeCheck();
+            bool hideEars = EditorGUILayout.Toggle("Hide Ears", equipper.EarsHidden);
+            if (EditorGUI.EndChangeCheck())
+                equipper.SetEarsHiddenLive(hideEars);
+
             EditorGUILayout.Space(8f);
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button($"Save to Prefab ({id})", GUILayout.Height(28f)))
+                {
                     SaveToPrefab(id, worn);
+                    // Overlay makes re-equips honor the choice for the rest of
+                    // this session; the queue lands it in HatManager.cs source
+                    // once play mode ends.
+                    HatManager.SetHideEarsOverride(id, hideEars);
+                    HatHideEarsPersistence.Queue(id, hideEars);
+                }
                 if (GUILayout.Button("Log FitOverrides Row", GUILayout.Height(28f)))
                     Debug.Log($"[HatFitTuner] {FitRowFor(id, worn)}");
             }
 
             EditorGUILayout.HelpBox(
-                "Save to Prefab persists through play-mode exit. Then paste the logged FitOverrides row into " +
-                "HatPrefabBaker - a BakeVersion bump resets prefab roots to that table.", MessageType.None);
+                "Save to Prefab persists the fit AND the Hide Ears choice. The transform writes to the prefab " +
+                "immediately; the ear flag edits the hat's catalog row in HatManager.cs when you exit play mode " +
+                "(writing source mid-play would recompile and wipe the session). Paste the logged FitOverrides " +
+                "row into HatPrefabBaker so BakeVersion bumps keep the fit.", MessageType.None);
+        }
+
+        /// <summary>
+        /// Persists the Hide Ears choice by editing the hat's catalog row in
+        /// HatManager.cs (adds/removes the trailing "hideEars: true" arg).
+        /// Called by HatHideEarsPersistence outside play mode; the flag goes
+        /// live on the recompile the edit triggers.
+        /// </summary>
+        internal static void SaveHideEarsToCatalog(string id, bool hideEars)
+        {
+            const string catalogPath = "Assets/Scripts/Core/HatManager.cs";
+            string fullPath = Path.GetFullPath(catalogPath);
+            if (!File.Exists(fullPath))
+            {
+                Debug.LogError($"[HatFitTuner] Missing {catalogPath} - Hide Ears not saved.");
+                return;
+            }
+
+            string[] lines = File.ReadAllLines(fullPath);
+            string marker = $"new HatDef(\"{id}\",";
+            int lineIndex = -1;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains(marker))
+                {
+                    lineIndex = i;
+                    break;
+                }
+            }
+
+            if (lineIndex < 0)
+            {
+                Debug.LogError($"[HatFitTuner] No catalog row found for '{id}' in {catalogPath}.");
+                return;
+            }
+
+            string line = lines[lineIndex];
+            bool hasFlag = line.Contains("hideEars: true");
+            if (hideEars == hasFlag)
+                return;
+
+            if (hideEars)
+            {
+                int close = line.LastIndexOf(')');
+                if (close < 0)
+                {
+                    Debug.LogError($"[HatFitTuner] Couldn't parse the catalog row for '{id}' - edit HatManager.cs by hand.");
+                    return;
+                }
+                line = line.Substring(0, close) + ", hideEars: true" + line.Substring(close);
+            }
+            else
+            {
+                line = line.Replace(", hideEars: true", "");
+            }
+
+            lines[lineIndex] = line;
+            File.WriteAllLines(fullPath, lines);
+            Debug.Log($"[HatFitTuner] Catalog row updated: '{id}' hideEars -> {(hideEars ? "true" : "false")}. " +
+                      "Takes effect after the next script recompile.");
         }
 
         /// <summary>Writes the live TRS onto the prefab asset's root - the part of play mode that sticks.</summary>
@@ -162,6 +248,68 @@ namespace RingSport.Editor
             euler.y = Mathf.Repeat(euler.y + 180f, 360f) - 180f;
             euler.z = Mathf.Repeat(euler.z + 180f, 360f) - 180f;
             return euler;
+        }
+    }
+
+    /// <summary>
+    /// Carries the tuner's Hide Ears choices from play mode to a moment when
+    /// editing HatManager.cs is safe. Writing source DURING play triggers a
+    /// recompile-and-continue domain reload that wipes the session (and was
+    /// why the old separate save button was a trap - fits saved but ears
+    /// never did). Choices are queued in EditorPrefs by Save to Prefab and
+    /// flushed on play-mode exit; the editor-boot flush covers quitting Unity
+    /// straight from play mode.
+    /// </summary>
+    [InitializeOnLoad]
+    internal static class HatHideEarsPersistence
+    {
+        private const string PendingIdsKey = "RingSport.HatFitTuner.PendingHideEarsIds";
+        private const string PendingPrefix = "RingSport.HatFitTuner.PendingHideEars.";
+
+        static HatHideEarsPersistence()
+        {
+            EditorApplication.playModeStateChanged += change =>
+            {
+                if (change == PlayModeStateChange.EnteredEditMode)
+                    Flush();
+            };
+            EditorApplication.delayCall += () =>
+            {
+                if (!EditorApplication.isPlayingOrWillChangePlaymode)
+                    Flush();
+            };
+        }
+
+        /// <summary>
+        /// Records the desired Hide Ears state for a hat. Always queue the
+        /// current state - a later save overwrites an earlier one, and the
+        /// flush no-ops when the catalog already matches.
+        /// </summary>
+        public static void Queue(string id, bool hideEars)
+        {
+            EditorPrefs.SetBool(PendingPrefix + id, hideEars);
+            string joined = EditorPrefs.GetString(PendingIdsKey, "");
+            var ids = new System.Collections.Generic.List<string>(
+                joined.Split(new[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries));
+            if (!ids.Contains(id))
+                ids.Add(id);
+            EditorPrefs.SetString(PendingIdsKey, string.Join(";", ids));
+            Debug.Log($"[HatFitTuner] Hide Ears for '{id}' -> {hideEars}; live for this session, " +
+                      "catalog row in HatManager.cs updates when play mode ends.");
+        }
+
+        private static void Flush()
+        {
+            string joined = EditorPrefs.GetString(PendingIdsKey, "");
+            if (string.IsNullOrEmpty(joined))
+                return;
+
+            foreach (string id in joined.Split(new[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries))
+            {
+                HatFitTunerWindow.SaveHideEarsToCatalog(id, EditorPrefs.GetBool(PendingPrefix + id, false));
+                EditorPrefs.DeleteKey(PendingPrefix + id);
+            }
+            EditorPrefs.DeleteKey(PendingIdsKey);
         }
     }
 }

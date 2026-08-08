@@ -32,16 +32,23 @@ namespace RingSport.Core
         /// <summary>Easter moves every year - windows flagged with this are computed from Easter Sunday +/-3 days.</summary>
         public readonly bool EasterWindow;
 
+        /// <summary>
+        /// Enclosing hats (helmets, deep caps, wraps) scale the dog's ear
+        /// bones to zero while worn, instead of the ears clipping through.
+        /// </summary>
+        public readonly bool HideEars;
+
         public bool IsSeasonal => HolidayName != null;
 
-        public HatDef(string id, string displayName)
+        public HatDef(string id, string displayName, bool hideEars = false)
         {
             Id = id;
             DisplayName = displayName;
+            HideEars = hideEars;
         }
 
         public HatDef(string id, string displayName, string holidayName, string holidayShort,
-            int startMonth, int startDay, int endMonth, int endDay)
+            int startMonth, int startDay, int endMonth, int endDay, bool hideEars = false)
         {
             Id = id;
             DisplayName = displayName;
@@ -51,15 +58,18 @@ namespace RingSport.Core
             StartDay = startDay;
             EndMonth = endMonth;
             EndDay = endDay;
+            HideEars = hideEars;
         }
 
-        public HatDef(string id, string displayName, string holidayName, string holidayShort, bool easterWindow)
+        public HatDef(string id, string displayName, string holidayName, string holidayShort,
+            bool easterWindow, bool hideEars = false)
         {
             Id = id;
             DisplayName = displayName;
             HolidayName = holidayName;
             HolidayShort = holidayShort;
             EasterWindow = easterWindow;
+            HideEars = hideEars;
         }
     }
 
@@ -105,54 +115,54 @@ namespace RingSport.Core
         // wrapper name). Append-only once shipped.
         public static readonly HatDef[] Defs =
         {
-            new HatDef("KidCap", "Kid Cap"),
-            new HatDef("FrogHat", "Frog Hat"),
-            new HatDef("ChefHat", "Chef Hat"),
-            new HatDef("BlackCowboyHat", "Cowboy Hat"),
+            new HatDef("KidCap", "Kid Cap", hideEars: true),
+            new HatDef("FrogHat", "Frog Hat", hideEars: true),
+            new HatDef("ChefHat", "Chef Hat", hideEars: true),
+            new HatDef("BlackCowboyHat", "Cowboy Hat", hideEars: true),
             new HatDef("CatHeadband", "Cat Ears"),
             new HatDef("Crown", "Crown"),
-            new HatDef("HiphopCap", "Hip Hop Cap"),
-            new HatDef("WizardHat", "Wizard Hat"),
+            new HatDef("HiphopCap", "Hip Hop Cap", hideEars: true),
+            new HatDef("WizardHat", "Wizard Hat", hideEars: true),
             new HatDef("UnicornHeadband", "Unicorn Horn"),
             new HatDef("FedoraHat", "Fedora"),
-            new HatDef("BaseballHelmet", "Baseball Helmet"),
-            new HatDef("DeerStalker", "Deerstalker"),
+            new HatDef("BaseballHelmet", "Baseball Helmet", hideEars: true),
+            new HatDef("DeerStalker", "Deerstalker", hideEars: true),
             new HatDef("AlienHeadband", "Alien Antennae"),
-            new HatDef("MusketeerHat", "Musketeer Hat"),
-            new HatDef("SafetyHelmet", "Safety Helmet"),
+            new HatDef("MusketeerHat", "Musketeer Hat", hideEars: true),
+            new HatDef("SafetyHelmet", "Safety Helmet", hideEars: true),
             new HatDef("WoolBeretHat", "Wool Beret"),
             new HatDef("BandanaHat", "Bandana"),
-            new HatDef("VikingHelmet", "Viking Helmet"),
+            new HatDef("VikingHelmet", "Viking Helmet", hideEars: true),
             new HatDef("LadyHeadband", "Lady Headband"),
-            new HatDef("FBICap", "FBI Cap"),
+            new HatDef("FBICap", "FBI Cap", hideEars: true),
             new HatDef("KungfuHeadband", "Kung Fu Headband"),
             new HatDef("RamHorn", "Ram Horns"),
-            new HatDef("FireFighterHelmet", "Firefighter Helmet"),
+            new HatDef("FireFighterHelmet", "Firefighter Helmet", hideEars: true),
             new HatDef("GoldLaurelCrown", "Gold Laurels"),
             new HatDef("DeerHorn", "Antlers"),
-            new HatDef("MotorcycleHelmet", "Motorcycle Helmet"),
-            new HatDef("BandannaHeaddress", "Bandanna Wrap"),
-            new HatDef("SergeantHat", "Sergeant Hat"),
-            new HatDef("AntelopeHorn", "Antelope Horns"),
-            new HatDef("RomanHelmet", "Roman Helmet"),
-            new HatDef("VintageMotorcycleHelmet", "Vintage Moto Helmet"),
-            new HatDef("SoldierHelmet", "Soldier Helmet"),
+            new HatDef("MotorcycleHelmet", "Motorcycle Helmet", hideEars: true),
+            new HatDef("BandannaHeaddress", "Bandanna Wrap", hideEars: true),
+            new HatDef("SergeantHat", "Sergeant Hat", hideEars: true),
+            new HatDef("AntelopeHorn", "Antelope Horns", hideEars: true),
+            new HatDef("RomanHelmet", "Roman Helmet", hideEars: true),
+            new HatDef("VintageMotorcycleHelmet", "Vintage Moto Helmet", hideEars: true),
+            new HatDef("SoldierHelmet", "Soldier Helmet", hideEars: true),
 
             // Seasonal, in calendar order
             new HatDef("HeartHeadband", "Heart Headband", "Valentine's Day", "Valentine's", 2, 11, 2, 17),
-            new HatDef("JesterHat", "Jester Hat", "April Fools", "April Fools", 3, 29, 4, 4),
+            new HatDef("JesterHat", "Jester Hat", "April Fools", "April Fools", 3, 29, 4, 4, hideEars: true),
             new HatDef("BunnyHeadband", "Bunny Ears", "Easter", "Easter", easterWindow: true),
-            new HatDef("PinkBonnetHat", "Easter Bonnet", "Easter", "Easter", easterWindow: true),
+            new HatDef("PinkBonnetHat", "Easter Bonnet", "Easter", "Easter", easterWindow: true, hideEars: true),
             new HatDef("FlowerHat", "Flower Hat", "Earth Day", "Earth Day", 4, 19, 4, 25),
-            new HatDef("MexicanMusicianHat", "Mariachi Hat", "Cinco de Mayo", "Cinco de Mayo", 5, 2, 5, 8),
-            new HatDef("WatermelonHelmet", "Watermelon Helmet", "the Summer Solstice", "Solstice", 6, 17, 6, 23),
+            new HatDef("MexicanMusicianHat", "Mariachi Hat", "Cinco de Mayo", "Cinco de Mayo", 5, 2, 5, 8, hideEars: true),
+            new HatDef("WatermelonHelmet", "Watermelon Helmet", "the Summer Solstice", "Solstice", 6, 17, 6, 23, hideEars: true),
             new HatDef("Cake", "Pride Cake", "Pride", "Pride", 6, 24, 6, 30),
-            new HatDef("UncleSamHat", "Uncle Sam Hat", "the 4th of July", "July 4th", 7, 1, 7, 7),
+            new HatDef("UncleSamHat", "Uncle Sam Hat", "the 4th of July", "July 4th", 7, 1, 7, 7, hideEars: true),
             new HatDef("PartyHat", "Party Hat", "Caicos's Birthday", "Birthday", 8, 1, 8, 10),
-            new HatDef("PirateHat", "Pirate Hat", "Pirate Day", "Pirate Day", 9, 16, 9, 22),
-            new HatDef("WitchHat", "Witch Hat", "Halloween", "Halloween", 10, 26, 11, 1),
-            new HatDef("SatanHorn2", "Devil Horns", "Halloween", "Halloween", 10, 26, 11, 1),
-            new HatDef("ElfHat", "Elf Hat", "Christmas", "Christmas", 12, 22, 12, 28),
+            new HatDef("PirateHat", "Pirate Hat", "Pirate Day", "Pirate Day", 9, 16, 9, 22, hideEars: true),
+            new HatDef("WitchHat", "Witch Hat", "Halloween", "Halloween", 10, 26, 11, 1, hideEars: true),
+            new HatDef("SatanHorn2", "Devil Horns", "Halloween", "Halloween", 10, 26, 11, 1, hideEars: true),
+            new HatDef("ElfHat", "Elf Hat", "Christmas", "Christmas", 12, 22, 12, 28, hideEars: true),
         };
 
         private const string UnlockedPrefKey = "Hats.Unlocked"; // CSV of hat ids, oldest unlock first
@@ -208,6 +218,37 @@ namespace RingSport.Core
             }
             return null;
         }
+
+        /// <summary>
+        /// Whether wearing this hat should collapse the ear bones. Prefer this
+        /// over reading HatDef.HideEars directly - in the editor, the Hat Fit
+        /// Tuner overlays saved-but-not-yet-compiled choices so re-equips honor
+        /// them for the rest of the play session.
+        /// </summary>
+        public static bool HideEarsFor(string hatId)
+        {
+            HatDef def = GetDef(hatId);
+            bool hide = def != null && def.HideEars;
+#if UNITY_EDITOR
+            if (hatId != null && hideEarsOverrides.TryGetValue(hatId, out bool overridden))
+                hide = overridden;
+#endif
+            return hide;
+        }
+
+#if UNITY_EDITOR
+        // Session-only overlay for the Hat Fit Tuner: its catalog source edit
+        // is deferred to play-mode exit (an immediate edit would recompile and
+        // wipe the session), so saved choices live here until then. Cleared
+        // naturally by the domain reload that applies the real catalog values.
+        private static readonly Dictionary<string, bool> hideEarsOverrides = new Dictionary<string, bool>();
+
+        public static void SetHideEarsOverride(string hatId, bool hide)
+        {
+            if (!string.IsNullOrEmpty(hatId))
+                hideEarsOverrides[hatId] = hide;
+        }
+#endif
 
         // ------------------------------------------------------------------
         // Seasonal calendar

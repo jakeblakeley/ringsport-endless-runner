@@ -1,0 +1,5 @@
+# Ships inside the WebGL template so every build output - and therefore every
+# zip that gets drag-dropped onto Netlify - carries the cloud-save sync
+# function (netlify/functions/sync.mjs, pre-bundled by Tools/netlify-sync).
+[functions]
+  directory = "netlify/functions"

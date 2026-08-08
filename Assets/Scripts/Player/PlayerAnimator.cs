@@ -316,8 +316,19 @@ namespace RingSport.Player
         }
 
         /// <summary>
+        /// The player's rest height is calibrated for the run cycle's deeper
+        /// leg reach (paw strikes -1.24 below the root vs the standing idle's
+        /// -1.10, per DogGroundProbe), so a standing dog hovers off the dirt.
+        /// Applied whenever the home-screen flourish mode is on - the one
+        /// toggle every path to the home screen goes through.
+        /// </summary>
+        private const float HomeStandingDrop = 0.15f;
+
+        /// <summary>
         /// While enabled (home screen), the idle is livened with random one-shot
-        /// flourish states (bark, shake, howl...) on a flourishDelayRange timer.
+        /// flourish states (bark, shake, howl...) on a flourishDelayRange timer,
+        /// and the model drops HomeStandingDrop so the standing paws actually
+        /// meet the ground.
         /// </summary>
         public void SetIdleFlourishes(bool enabled)
         {
@@ -325,6 +336,7 @@ namespace RingSport.Player
                 ScheduleNextFlourish();
 
             flourishesEnabled = enabled;
+            externalModelOffset = enabled ? new Vector3(0f, -HomeStandingDrop, 0f) : Vector3.zero;
         }
 
         private void ScheduleNextFlourish()
@@ -642,7 +654,10 @@ namespace RingSport.Player
             laneYawStrafe = 0f;
             currentLaneYaw = 0f;
             currentJumpPitch = 0f;
-            externalModelOffset = Vector3.zero;
+            // Re-derive rather than blind-zero: PlayerController's init calls
+            // this AFTER GameManager's boot-time home entry (undefined Start
+            // order), and a plain zero wiped the home standing drop each boot
+            externalModelOffset = flourishesEnabled ? new Vector3(0f, -HomeStandingDrop, 0f) : Vector3.zero;
             squashTimer = float.MaxValue;
             if (modelTransform != null)
                 modelTransform.localScale = modelBaseScale;

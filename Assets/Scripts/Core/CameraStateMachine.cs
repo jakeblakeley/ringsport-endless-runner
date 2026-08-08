@@ -97,6 +97,16 @@ namespace RingSport.Core
         // detects external writes, adopts them as the new base, and re-applies
         // its decaying offset - so shakes compose with transitions instead of
         // fighting them.
+        // Home lens: a longer portrait focal length flattens the start-screen
+        // dog; the camera dollies back along its view axis (anchored on the
+        // dog) far enough that she reads HomeDogScale larger than the old wide
+        // framing, and rides HomeHeightDrop lower than the authored height.
+        // Plain constants on purpose - the scene-serialized versions of these
+        // kept getting stomped by play-mode saves mid-tuning.
+        private const float HomeFocalLengthMm = 50f;
+        private const float HomeDogScale = 2f;
+        private const float HomeHeightDrop = 0.15f;
+
         private Camera cameraComponent;
         private float trauma;
         private Vector3 kickOffset;
@@ -109,7 +119,7 @@ namespace RingSport.Core
         private float speedFovCurrent;
         private float speedFovVelocity;
         private float baseFov;
-        private bool fovApplied;
+        private float stateFov; // per-state base lens, blended through transitions
         private float frameOffset;
         private bool frameOffsetApplied;
         private Vector3 impulseBasePos;
@@ -132,6 +142,74 @@ namespace RingSport.Core
             cameraComponent = GetComponent<Camera>();
             if (cameraComponent != null)
                 baseFov = cameraComponent.fieldOfView;
+            stateFov = baseFov;
+        }
+
+        /// <summary>
+        /// Per-state base FOV: Home borrows a longer portrait lens so the idle
+        /// dog reads clearly; every other state keeps the authored wide FOV.
+        /// </summary>
+        private float StateFovFor(CameraStateType stateType)
+        {
+            if (stateType != CameraStateType.Home)
+                return baseFov;
+
+            // Full-frame vertical FOV for the focal length (24mm sensor height)
+            return 2f * Mathf.Atan(12f / HomeFocalLengthMm) * Mathf.Rad2Deg;
+        }
+
+        /// <summary>
+        /// Dolly compensation for the home lens, as a parent-local offset to
+        /// ADD to the state's authored camera position. The camera slides
+        /// straight back along its own view axis - anchored on the dog, so the
+        /// framing centre never moves - far enough that the longer lens leaves
+        /// the dog only homePortraitZoom larger than the old wide shot.
+        /// </summary>
+        private Vector3 HomeLensDollyOffset(CameraStateType stateType, Vector3 localPos)
+        {
+            if (stateType != CameraStateType.Home)
+                return Vector3.zero;
+
+            float wide = Mathf.Tan(baseFov * 0.5f * Mathf.Deg2Rad);
+            float portrait = Mathf.Tan(StateFovFor(CameraStateType.Home) * 0.5f * Mathf.Deg2Rad);
+            if (portrait <= 0f)
+                return Vector3.zero;
+            float factor = wide / (portrait * HomeDogScale);
+
+            CameraStateData home = GetStateData(CameraStateType.Home);
+            Quaternion localRot = Quaternion.Euler(home.cameraLocalRotation);
+
+            // Distance to the dog measured along the settled view axis, in
+            // world space (using the authored parent rotation - at the moment
+            // this runs the rig is usually still turned to the previous state)
+            float focusDistance = 6f;
+            Transform focus = HomeFocus();
+            if (focus != null)
+            {
+                Quaternion parentRotation = transform.parent == null
+                    ? Quaternion.identity
+                    : (cameraRig == transform.parent ? Quaternion.Euler(home.parentRotation) : transform.parent.rotation);
+                Vector3 parentPosition = transform.parent != null ? transform.parent.position : Vector3.zero;
+                Vector3 settledWorldPos = parentPosition + parentRotation * localPos;
+                Vector3 forwardWorld = parentRotation * (localRot * Vector3.forward);
+                focusDistance = Mathf.Max(0.5f, Vector3.Dot(focus.position - settledWorldPos, forwardWorld));
+            }
+
+            return localRot * Vector3.back * ((factor - 1f) * focusDistance)
+                   + Vector3.down * HomeHeightDrop;
+        }
+
+        private Transform homeFocus;
+
+        /// <summary>The home shot's subject - the idle dog.</summary>
+        private Transform HomeFocus()
+        {
+            if (homeFocus == null)
+            {
+                var player = FindAnyObjectByType<RingSport.Player.PlayerController>();
+                homeFocus = player != null ? player.transform : null;
+            }
+            return homeFocus;
         }
 
         private void Start()
@@ -162,7 +240,9 @@ namespace RingSport.Core
             currentDistanceScale = 1f;
             currentHeightOffset = 0f;
             frameOffset = 0f;
-            ApplyStateImmediate(GetStateData(newState));
+            stateFov = StateFovFor(newState);
+            CameraStateData data = GetStateData(newState);
+            ApplyStateImmediate(data, HomeLensDollyOffset(newState, data.cameraLocalPosition));
             poseInitialized = true;
         }
 
@@ -215,6 +295,7 @@ namespace RingSport.Core
             CameraStateData targetState = GetStateData(newState);
 
             Vector3 targetPos = targetState.cameraLocalPosition * distanceScale + Vector3.up * heightOffset;
+            targetPos += HomeLensDollyOffset(newState, targetPos);
             Quaternion targetRot;
             if (lookAtWorldPoint.HasValue)
             {
@@ -233,7 +314,7 @@ namespace RingSport.Core
                 StopCoroutine(transitionCoroutine);
             }
 
-            transitionCoroutine = StartCoroutine(TransitionToState(targetState, targetPos, targetRot));
+            transitionCoroutine = StartCoroutine(TransitionToState(targetState, targetPos, targetRot, StateFovFor(newState)));
         }
 
         /// <summary>
@@ -246,6 +327,7 @@ namespace RingSport.Core
         {
             CameraStateData state = GetStateData(stateType);
             Vector3 local = state.cameraLocalPosition * distanceScale + Vector3.up * heightOffset;
+            local += HomeLensDollyOffset(stateType, local);
 
             if (transform.parent == null)
                 return local;
@@ -454,19 +536,11 @@ namespace RingSport.Core
                 kick = fovKickAmount * (remain * remain);
             }
 
-            float total = speedFovCurrent + kick;
-            if (Mathf.Abs(total) < 0.01f)
-            {
-                if (fovApplied)
-                {
-                    cameraComponent.fieldOfView = baseFov;
-                    fovApplied = false;
-                }
-                return;
-            }
-
-            cameraComponent.fieldOfView = baseFov + total;
-            fovApplied = true;
+            // Effects ride on the state lens, so the home portrait FOV and its
+            // transition blend survive speed/kick writes
+            float target = stateFov + speedFovCurrent + kick;
+            if (!Mathf.Approximately(cameraComponent.fieldOfView, target))
+                cameraComponent.fieldOfView = target;
         }
 
         private CameraStateData GetStateData(CameraStateType stateType)
@@ -482,9 +556,9 @@ namespace RingSport.Core
             };
         }
 
-        private void ApplyStateImmediate(CameraStateData state)
+        private void ApplyStateImmediate(CameraStateData state, Vector3 extraLocalOffset = default)
         {
-            transform.localPosition = state.cameraLocalPosition;
+            transform.localPosition = state.cameraLocalPosition + extraLocalOffset;
             transform.localRotation = Quaternion.Euler(state.cameraLocalRotation);
 
             if (cameraRig != null)
@@ -493,7 +567,7 @@ namespace RingSport.Core
             }
         }
 
-        private IEnumerator TransitionToState(CameraStateData targetState, Vector3 targetPos, Quaternion targetRot)
+        private IEnumerator TransitionToState(CameraStateData targetState, Vector3 targetPos, Quaternion targetRot, float targetFov)
         {
             float elapsed = 0f;
 
@@ -501,6 +575,7 @@ namespace RingSport.Core
             Vector3 startPos = transform.localPosition;
             Quaternion startRot = transform.localRotation;
             Quaternion startParentRot = cameraRig != null ? cameraRig.localRotation : Quaternion.identity;
+            float startFov = stateFov;
 
             Quaternion targetParentRot = Quaternion.Euler(targetState.parentRotation);
 
@@ -512,6 +587,7 @@ namespace RingSport.Core
 
                 transform.localPosition = Vector3.Lerp(startPos, targetPos, t);
                 transform.localRotation = Quaternion.Slerp(startRot, targetRot, t);
+                stateFov = Mathf.Lerp(startFov, targetFov, t);
 
                 if (cameraRig != null)
                 {
@@ -524,6 +600,7 @@ namespace RingSport.Core
             // Snap to final values
             transform.localPosition = targetPos;
             transform.localRotation = targetRot;
+            stateFov = targetFov;
             if (cameraRig != null)
             {
                 cameraRig.localRotation = targetParentRot;

@@ -88,3 +88,6 @@ Assets/PolygonNatureBiomes.meta
 
 # Blender auto-backups — byte-for-byte duplicate of the previous save
 *.blend1
+
+# Netlify sync function build deps
+Tools/netlify-sync/node_modules/
