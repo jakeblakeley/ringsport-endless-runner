@@ -272,23 +272,26 @@ namespace RingSport.Player
             return anchor;
         }
 
-        /// <summary>Scales the ear bones to zero (and back) for hats that fully enclose the skull.</summary>
+        /// <summary>
+        /// Scales the ear bones to zero (and back) for hats that fully enclose
+        /// the skull. Always writes the bones rather than trusting the cached
+        /// flag: a prefab-apply once baked the hidden (zero) ear scales into
+        /// Player.prefab, and a flag-matches early-out left them stuck at zero
+        /// through every wear cycle after a death.
+        /// </summary>
         private void SetEarsHidden(bool hide)
         {
-            if (earsHidden == hide)
-                return;
-
             if (leftEar == null)
             {
                 leftEar = FindChildByName(transform, LeftEarBoneName);
                 if (leftEar != null)
-                    leftEarScale = leftEar.localScale;
+                    leftEarScale = SafeEarScale(leftEar.localScale);
             }
             if (rightEar == null)
             {
                 rightEar = FindChildByName(transform, RightEarBoneName);
                 if (rightEar != null)
-                    rightEarScale = rightEar.localScale;
+                    rightEarScale = SafeEarScale(rightEar.localScale);
             }
 
             if (leftEar == null && rightEar == null)
@@ -302,6 +305,17 @@ namespace RingSport.Player
             if (rightEar != null)
                 rightEar.localScale = hide ? Vector3.zero : rightEarScale;
             earsHidden = hide;
+        }
+
+        /// <summary>
+        /// The restore scale is captured from the bone the first time we touch
+        /// it. If that capture reads (near) zero - the ears were already hidden,
+        /// e.g. baked that way into the prefab - restoring it would be a no-op
+        /// forever, so fall back to the model's natural full size.
+        /// </summary>
+        private static Vector3 SafeEarScale(Vector3 captured)
+        {
+            return captured.sqrMagnitude < 0.0001f ? Vector3.one : captured;
         }
 
         /// <summary>

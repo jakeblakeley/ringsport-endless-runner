@@ -196,6 +196,7 @@ namespace RingSport.Level.Spawning
                         Vector3 finishLinePosition = new Vector3(spawnPosition.x, spawnPosition.y + 0.03f, spawnPosition.z);
                         floorTile = SpawnFloorInstance(finishFloorTag, finishLineFloorPrefab, finishLinePosition, Quaternion.identity);
                         floorTile.transform.localScale = Vector3.one * floorScale;
+                        EnsureFinishSeamLine(floorTile, finishLinePosition);
                         finishLineFloorInstance = floorTile; // Save reference for cleanup
                         hasSpawnedFinishLine = true;
                         GameLog.Info($"Finish line floor spawned at World Z: {spawnZ:F2}, Virtual Z: {nextFloorSpawnZ:F2}");
@@ -265,6 +266,61 @@ namespace RingSport.Level.Spawning
         /// Get the next floor spawn Z position (for debugging)
         /// </summary>
         public float GetNextFloorSpawnZ() => nextFloorSpawnZ;
+
+        // White band material for the finish seam line. ArcEffect so the band
+        // curves down with the world instead of hovering at spawn distance.
+        private static Material seamLineMaterial;
+
+        /// <summary>
+        /// A flat white band across the finish tile's leading edge, straddling
+        /// the joint with the previous regular tile: the finish floor sits
+        /// 0.03 higher (z-fighting) and swaps ground material, and this hides
+        /// that seam while doubling as the finish line marker. The tile is
+        /// pooled, so the band is built once per instance and repositioned on
+        /// every reuse.
+        /// </summary>
+        private void EnsureFinishSeamLine(GameObject finishTile, Vector3 tilePosition)
+        {
+            Transform line = finishTile.transform.Find("FinishSeamLine");
+            if (line == null)
+            {
+                var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                visual.name = "FinishSeamLine";
+                Object.Destroy(visual.GetComponent<Collider>());
+                var renderer = visual.GetComponent<MeshRenderer>();
+                if (renderer != null)
+                    renderer.sharedMaterial = GetSeamLineMaterial();
+                line = visual.transform;
+                line.SetParent(finishTile.transform, false);
+            }
+
+            // Placed in world units (the parent tile carries floorScale, so
+            // the local scale compensates). The band spans the main tile's
+            // width on its near edge. Y clears the raised tile surface (0.03)
+            // by a full 0.04 - anything coplanar z-fights at the ~80m spawn
+            // distance, where mobile depth precision is at its worst.
+            Vector3 parentScale = finishTile.transform.lossyScale;
+            line.position = new Vector3(tilePosition.x, 0.1f, tilePosition.z - floorTileLength / 2f);
+            line.localScale = new Vector3(
+                floorTileLength / parentScale.x,
+                0.06f / parentScale.y,
+                0.45f / parentScale.z);
+        }
+
+        private static Material GetSeamLineMaterial()
+        {
+            if (seamLineMaterial == null)
+            {
+                // Same shader choice as the mini-level props: ArcEffect always
+                // ships and follows the world curvature
+                Shader shader = Shader.Find("Custom/Mobile/ArcEffect");
+                if (shader == null)
+                    shader = Shader.Find("Universal Render Pipeline/Lit"); // editor safety net
+                seamLineMaterial = new Material(shader);
+                seamLineMaterial.SetColor("_BaseColor", Color.white);
+            }
+            return seamLineMaterial;
+        }
 
         /// <summary>
         /// Spawn visual side floors to the left and right of the main floor

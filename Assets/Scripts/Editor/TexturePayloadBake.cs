@@ -455,7 +455,7 @@ namespace RingSport.Editor
         /// embedded textures back into the build. No-op on already-compacted
         /// hierarchies.
         /// </summary>
-        public static int CompactGlbSubtree(GameObject root)
+        public static int CompactGlbSubtree(GameObject root, bool preferArcTwins = false)
         {
             int unpacked = UnpackNestedGlbInstances(root);
             int swapped = 0;
@@ -465,7 +465,7 @@ namespace RingSport.Editor
                 bool dirty = false;
                 for (int i = 0; i < mats.Length; i++)
                 {
-                    Material twin = ToTwinMaterial(mats[i]);
+                    Material twin = ToTwinMaterial(mats[i], preferArcTwins);
                     if (twin != null)
                     {
                         mats[i] = twin;
@@ -488,7 +488,7 @@ namespace RingSport.Editor
         }
 
         /// <summary>Twin for a glb sub-asset material, or null when no swap is needed.</summary>
-        private static Material ToTwinMaterial(Material mat)
+        private static Material ToTwinMaterial(Material mat, bool preferArcTwin = false)
         {
             if (mat == null)
                 return null;
@@ -499,7 +499,25 @@ namespace RingSport.Editor
                 return null;
             }
 
-            string twinPath = $"{MatFolder}/{Path.GetFileNameWithoutExtension(path)}_{Sanitize(mat.name)}_Gltf.mat";
+            string model = Path.GetFileNameWithoutExtension(path);
+
+            // Props seen far from the player want ModelArcMaterialBuilder's
+            // arc twin (world-curvature vertex warp) over the exact-look glTF
+            // twin: on a non-arc shader the decoy hovers above the warped
+            // ground 25m+ out. Both twin flavors sample the same compressed
+            // textures, so the payload win is identical either way.
+            if (preferArcTwin)
+            {
+                Material arc =
+                    AssetDatabase.LoadAssetAtPath<Material>($"{MatFolder}/{model}_{Sanitize(mat.name)}_Arc.mat") ??
+                    AssetDatabase.LoadAssetAtPath<Material>($"{MatFolder}/{model}_Arc.mat");
+                if (arc != null)
+                    return arc;
+                Debug.LogWarning($"[TexturePayloadBake] No arc twin for '{mat.name}' ({path}) - " +
+                                 "run Tools/RingSport/Rebuild Model Arc Materials; falling back to the glTF twin.");
+            }
+
+            string twinPath = $"{MatFolder}/{model}_{Sanitize(mat.name)}_Gltf.mat";
             Material twin = AssetDatabase.LoadAssetAtPath<Material>(twinPath);
             if (twin == null)
             {

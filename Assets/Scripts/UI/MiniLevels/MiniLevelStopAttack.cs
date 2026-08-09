@@ -18,8 +18,8 @@ namespace RingSport.UI
     /// fires, the decoy turns to face the dog, a red line appears across all
     /// three lanes, and the world settles into a near-full-pace charge timed
     /// so the dog reaches the line exactly when the stop window expires.
-    /// Tapping the on-screen whistle inside the window (3s on Ring 2-1, 2s on
-    /// Ring 3-1)
+    /// Tapping the on-screen whistle inside the window (2s on Ring 2-1, 1.5s
+    /// on Ring 3-1)
     /// halts the dog short of the line and completes the level; missing it is
     /// a standard mini-level failure (which retries just this sequence, not
     /// the whole run - see GameManager's in-run MiniLevel-state reroute).
@@ -41,7 +41,7 @@ namespace RingSport.UI
         // ---- Difficulty tables, indexed by stop-attack ordinal across the
         // ---- run (level 4 "Ring 2-1" = 0, level 6 "Ring 3-1" = 1). The
         // ---- approach reuses the flee attack's validated fairness cadences;
-        // ---- the stop window is the real difficulty knob: 2.5s, then 2s.
+        // ---- the stop window is the real difficulty knob: 2s, then 1.5s.
         // ---- (These are TAP reactions to a fully telegraphed cue - the STOP!
         // ---- banner, the decoy's turn and the line all land together - so
         // ---- they sit comfortably outside the ~0.4s mobile input latency the
@@ -49,7 +49,7 @@ namespace RingSport.UI
         private static readonly float[] ChaseDurationSeconds = { 8f, 12f };
         private static readonly float[] ObstacleIntervalSeconds = { 2.1f, 1.6f };
         private static readonly float[] VoluntaryHopIntervalSeconds = { 3.0f, 2.0f };
-        private static readonly float[] StopWindowSeconds = { 2.5f, 2f };
+        private static readonly float[] StopWindowSeconds = { 2f, 1.5f };
 
         // ---- Fairness model: same action model as the flee attack chase
         // (one dodge ~0.9s; barrels are dodge-only; hard 1.1s row floor).
@@ -1189,22 +1189,12 @@ namespace RingSport.UI
 
         private Material GetLineMaterial()
         {
+            // ArcEffect, not Unlit: the line spawns ~25m+ out where the world
+            // curvature is at full strength, and a non-arc shader leaves it
+            // hovering above the warped ground.
             if (lineMaterial == null)
-                lineMaterial = CreateGlowMaterial(stopRed);
+                lineMaterial = CreateLitMaterial(stopRed);
             return lineMaterial;
-        }
-
-        private static Material CreateGlowMaterial(Color color)
-        {
-            // Unlit reads as self-lit, matching the old URP/Lit + emission
-            // look. URP/Lit is stripped from builds; Unlit ships via Always
-            // Included Shaders.
-            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
-            if (shader == null)
-                return CreateLitMaterial(color);
-            var mat = new Material(shader);
-            mat.SetColor("_BaseColor", color);
-            return mat;
         }
 
         private static Material CreateLitMaterial(Color color)

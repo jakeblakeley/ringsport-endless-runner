@@ -36,7 +36,9 @@ namespace RingSport.Editor
     public static class DecoySetup
     {
         // Bump to make the auto-run rebuild after changing this script
-        private const int SetupVersion = 16;
+        // v17: decoy + ragdoll prefabs rebuilt on arc-twin materials (the
+        // glTF twins have no world-curvature warp, so the decoy floated)
+        private const int SetupVersion = 17;
         private const string VersionPrefKey = "RingSport.DecoySetup.Version";
 
         private const string ControllerPath = "Assets/Animations/Decoy/DecoyHuman.controller";
@@ -804,10 +806,12 @@ namespace RingSport.Editor
                 so.FindProperty("ragdollPrefab").objectReferenceValue = ragdollPrefab;
                 so.ApplyModifiedPropertiesWithoutUndo();
 
-                // Perf audit fix #1: unpack the nested glb and use the twin
+                // Perf audit fix #1: unpack the nested glb and use twin
                 // materials so the uncompressed glTF originals stay out of
-                // the build's reference closure.
-                TexturePayloadBake.CompactGlbSubtree(root);
+                // the build's reference closure. Arc twins, not glTF twins:
+                // the decoy leads chases 25-40m out, where a non-arc shader
+                // leaves it hovering above the curved ground.
+                TexturePayloadBake.CompactGlbSubtree(root, preferArcTwins: true);
 
                 EnsureFolder("Assets/Prefabs");
                 var prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath, out bool success);
