@@ -943,10 +943,32 @@ namespace RingSport.Editor
             if (PrefabUtility.IsPartOfPrefabInstance(player))
                 return;
 
+            StripHatAnchor(player.transform);
+
             EnsureFolder("Assets/Prefabs");
             PrefabUtility.SaveAsPrefabAssetAndConnect(player, PlayerPrefabPath, InteractionMode.AutomatedAction, out bool success);
             if (!success)
                 Debug.LogWarning("[DogPlayerSetup] Could not save the Player as a prefab; scene setup is still complete.");
+        }
+
+        /// <summary>
+        /// The hat anchor and anything in it are strictly runtime state -
+        /// HatEquipper rebuilds them every session. One once rode a scene save
+        /// into Player.prefab (with the worn hat inside), which put a
+        /// permanent extra hat on every dog, so any save of a scene player
+        /// strips it first.
+        /// </summary>
+        private static void StripHatAnchor(Transform root)
+        {
+            if (root.name == "HatAnchor")
+            {
+                Debug.LogWarning($"[DogPlayerSetup] Stripping runtime '{root.name}' (and its contents) before the prefab save.");
+                Object.DestroyImmediate(root.gameObject);
+                return;
+            }
+
+            for (int i = root.childCount - 1; i >= 0; i--)
+                StripHatAnchor(root.GetChild(i));
         }
 
         /// <summary>

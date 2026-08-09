@@ -72,12 +72,19 @@ namespace RingSport.Player
         /// <summary>Sync the worn hat with HatManager.SelectedId (idempotent).</summary>
         public void ApplySelected()
         {
+            // Sweep before trusting any cached state: the anchor must hold
+            // exactly the tracked hat, nothing else
+            PurgeStrayHats();
+
             string id = HatManager.SelectedId;
             if (id == currentId && (currentHat != null || id.Length == 0))
                 return;
 
             if (currentHat != null)
             {
+                // Detach before the deferred Destroy so the dying instance
+                // never counts as an anchor child for a same-frame sweep
+                currentHat.transform.SetParent(null);
                 Destroy(currentHat);
                 currentHat = null;
             }
@@ -103,6 +110,39 @@ namespace RingSport.Player
             // No unload sweep here - browsing the selector must stay
             // hitch-free. GameManager sweeps unused assets on the Home/Playing
             // swaps, behind the screen fade's held black.
+        }
+
+        /// <summary>
+        /// Destroys anything under the hat anchor that this component didn't
+        /// put there. Strays are real: an editor prefab-apply once serialized
+        /// a live worn hat (plus the runtime anchor) into Player.prefab, and
+        /// every dog after that wore the baked hat under the equipped one -
+        /// so every wear path sweeps the anchor before trusting it.
+        /// </summary>
+        private void PurgeStrayHats()
+        {
+            if (anchor == null)
+            {
+                // Nothing equipped yet this session, but the prefab itself may
+                // carry a baked anchor with baked contents - adopt it so its
+                // strays get swept (and AlignAnchor later fixes its rotation)
+                Transform head = FindChildByName(transform, HeadBoneName);
+                Transform baked = head != null ? head.Find(AnchorName) : null;
+                if (baked == null)
+                    return;
+                anchor = baked;
+            }
+
+            for (int i = anchor.childCount - 1; i >= 0; i--)
+            {
+                Transform child = anchor.GetChild(i);
+                if (currentHat != null && child == currentHat.transform)
+                    continue;
+
+                GameLog.Warn($"[HatEquipper] Stray '{child.name}' under the hat anchor - removing.");
+                child.SetParent(null);
+                Destroy(child.gameObject);
+            }
         }
 
         /// <summary>

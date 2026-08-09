@@ -95,6 +95,16 @@ namespace RingSport.Core
             collectedThisRun = 0;
         }
 
+        /// <summary>
+        /// Drops the cached unlock list so the next read reloads it from
+        /// PlayerPrefs. SyncManager calls this right after a cloud restore
+        /// rewrites the pref keys (mirrors HatManager.ReloadFromPrefs).
+        /// </summary>
+        public static void ReloadFromPrefs()
+        {
+            unlockedOrder = null;
+        }
+
         public static int TotalCount => Notes.Length;
         public static int UnlockedCount => GetUnlockedOrder().Count;
         public static bool HasLockedNotes => UnlockedCount < TotalCount;

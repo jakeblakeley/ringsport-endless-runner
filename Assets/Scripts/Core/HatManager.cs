@@ -520,6 +520,20 @@ namespace RingSport.Core
             LoadHatPrefab(NextDropId);
         }
 
+        /// <summary>
+        /// Drops the cached unlock list so the next read reloads it from
+        /// PlayerPrefs. SyncManager calls this right after a cloud restore
+        /// rewrites the pref keys - without it this session keeps answering
+        /// (and, on the next save, re-writing) the pre-restore unlocks until
+        /// the page reload lands, and SelectedId's lock check runs against
+        /// the wrong list.
+        /// </summary>
+        public static void ReloadFromPrefs()
+        {
+            unlockedOrder = null;
+            stateVersion++;
+        }
+
         /// <summary>Debug: unlocks everything (seasonal included).</summary>
         public static void UnlockAll()
         {

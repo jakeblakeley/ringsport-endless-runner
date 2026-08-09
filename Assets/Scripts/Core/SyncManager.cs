@@ -258,6 +258,16 @@ namespace RingSport.Core
             PlayerPrefs.SetInt("Hats.SeenCount", d.hatsSeen);
             PlayerPrefs.SetString("LoveNotes.Unlocked", d.notesUnlocked ?? "");
             PlayerPrefs.SetInt("LoveNotes.SeenCount", d.notesSeen);
+
+            // The managers cache these prefs in statics - drop the caches so
+            // the pre-reload beat (and editor runs, which never reload) serve
+            // the restored data instead of re-saving the old state over it
+            HatManager.ReloadFromPrefs();
+            LoveNoteManager.ReloadFromPrefs();
+
+            // Wear whatever the restored save says right away; the restored
+            // selection may be a hat the local save didn't even have
+            UnityEngine.Object.FindAnyObjectByType<RingSport.Player.HatEquipper>()?.ApplySelected();
         }
 
         private static string BaseUrl
