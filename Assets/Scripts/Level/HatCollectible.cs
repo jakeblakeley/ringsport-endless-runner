@@ -36,6 +36,30 @@ namespace RingSport.Level
         }
 
         /// <summary>
+        /// Rebuilds the floating model on every pooled pickup while it sits
+        /// parked (GameManager calls this on the Home/Playing swaps, after the
+        /// fade's unused-asset sweep finishes). A parked instance keeps the
+        /// next hat's assets referenced, so no later sweep can evict them and
+        /// mid-run activation is pure re-use - no load, no instantiate. A
+        /// cached-but-uninstantiated prefab has no such protection: on slow
+        /// iOS devices the mid-run spawn raced the async sweep and could come
+        /// up empty (beacon sparkles with no hat).
+        /// </summary>
+        public static void PrewarmPooled()
+        {
+            var pooler = ObjectPooler.Instance;
+            if (pooler == null)
+                return;
+
+            foreach (GameObject member in pooler.GetPoolMembers(PoolTags.Hat))
+            {
+                var pickup = member.GetComponent<HatCollectible>();
+                if (pickup != null)
+                    pickup.RefreshVisual();
+            }
+        }
+
+        /// <summary>
         /// Keep the floating model in sync with the next hat this pickup would
         /// unlock. Pooled instances are reused across spawns, so the model is
         /// only rebuilt when the target hat actually changed.
@@ -64,7 +88,9 @@ namespace RingSport.Level
             GameObject model = Instantiate(prefab, visualRoot, false);
             model.transform.localPosition = Vector3.zero;
 
-            var renderers = model.GetComponentsInChildren<Renderer>();
+            // includeInactive: the parked prewarm rebuilds while the whole
+            // pooled pickup is inactive, where the default overload finds none
+            var renderers = model.GetComponentsInChildren<Renderer>(true);
             if (renderers.Length > 0)
             {
                 Bounds bounds = renderers[0].bounds;

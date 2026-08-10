@@ -309,8 +309,9 @@ namespace RingSport.Core
 
             // Behind the held-black fade: release whatever the run loaded on
             // demand and no longer references (hat models are the current
-            // case - only the worn hat should stay resident)
-            Resources.UnloadUnusedAssets();
+            // case - only the worn hat and the pickup's next-drop model stay
+            // resident)
+            UnloadUnusedThenWarmHatPickup();
 
             // Stop location audio when returning home
             StopLocationAudio(0.3f);
@@ -334,9 +335,6 @@ namespace RingSport.Core
             LevelScroller.Instance?.Resume();
             LevelScroller.Instance?.ClearSpeedOverride();
 
-            // Load the hat pickup's display prefab behind this fade rather
-            // than on its first mid-run activation (perf audit fix #2).
-            HatManager.WarmNextDrop();
             var player = Object.FindAnyObjectByType<PlayerController>();
             player?.ResetPosition();
             player?.ResumeMovement();
@@ -349,7 +347,7 @@ namespace RingSport.Core
             // Behind the held-black fade: release hats the selector browsed
             // but didn't keep (their thumbnails stay cached - the RTs hold no
             // asset references)
-            Resources.UnloadUnusedAssets();
+            UnloadUnusedThenWarmHatPickup();
 
             // A quick retry beats the dropped hat's own 6s cleanup - don't
             // leave the last death's hat lying on the track
@@ -374,6 +372,25 @@ namespace RingSport.Core
             UIManager.Instance?.StartCountdown(countdownDuration, CountdownStartDelay, OnCountdownComplete, showInstructions);
 
             // Note: Location audio is started by LevelManager.StartLevel() after level is generated
+        }
+
+        /// <summary>
+        /// Sweeps unused assets behind the held-black fade, then re-warms the
+        /// hat pickup once the sweep has finished. The order matters: the
+        /// sweep is async and treats a cached-but-uninstantiated next-drop
+        /// prefab as unused, so a warm issued before it got evicted right
+        /// back out - on slow iOS devices the mid-run spawn then raced the
+        /// sweep and the pickup could come up empty (beacon sparkles with no
+        /// hat). Rebuilding the parked pickups' models afterwards parks a
+        /// real instance in the scene, which every later sweep respects.
+        /// </summary>
+        private static void UnloadUnusedThenWarmHatPickup()
+        {
+            Resources.UnloadUnusedAssets().completed += _ =>
+            {
+                HatManager.WarmNextDrop();
+                HatCollectible.PrewarmPooled();
+            };
         }
 
         /// <summary>

@@ -175,6 +175,19 @@ namespace RingSport.Core
             GameLog.Info($"Created runtime pool '{tag}' with {size} objects");
         }
 
+        /// <summary>Every member of a pool, active and parked. Empty when the pool doesn't exist.</summary>
+        public IEnumerable<GameObject> GetPoolMembers(string tag)
+        {
+            if (poolDictionary == null || !poolDictionary.TryGetValue(tag, out Queue<GameObject> pool))
+                yield break;
+
+            foreach (GameObject obj in pool)
+            {
+                if (obj != null)
+                    yield return obj;
+            }
+        }
+
         /// <summary>
         /// Check if a pool exists
         /// </summary>

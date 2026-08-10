@@ -511,8 +511,10 @@ namespace RingSport.Core
         }
 
         /// <summary>
-        /// Pre-loads the prefab the next hat pickup will display. Called at
-        /// run start (behind the fade) and after each unlock, so the pickup's
+        /// Pre-loads the prefab the next hat pickup will display. Called
+        /// after each unlock and on the Home/Playing swaps - there only AFTER
+        /// the async unused-asset sweep finishes, which would otherwise evict
+        /// the warmed, not-yet-instantiated prefab - so the pickup's
         /// RefreshVisual finds it already cached.
         /// </summary>
         public static void WarmNextDrop()

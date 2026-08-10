@@ -6465,7 +6465,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 984.2178, y: -120}
+  m_AnchoredPosition: {x: 984, y: -120}
   m_SizeDelta: {x: 984, y: 96}
   m_Pivot: {x: 1, y: 0.5}
 --- !u!222 &301572009
@@ -14613,10 +14613,6 @@ MonoBehaviour:
   steakPoolTag: FoodRefusalSteak
   collectiblePoolTag: FoodRefusalCollectible
   laneDistance: 3
-  dogScreenHeight: 0.3
-  dogAimOffset: -0.5
-  cameraDistanceScale: 1.23
-  cameraHeightOffset: -4.2
   megaCollectibleCount: 3
   megaCollectiblePoints: 100
   gamePanel: {fileID: 475346299}
@@ -20282,7 +20278,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 984.2178, y: -28}
+  m_AnchoredPosition: {x: 984, y: -28}
   m_SizeDelta: {x: 984, y: 56}
   m_Pivot: {x: 1, y: 0.5}
 --- !u!1 &1450940601
@@ -20657,7 +20653,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 324.1089, y: -64}
+  m_AnchoredPosition: {x: 324, y: -64}
   m_SizeDelta: {x: 320, y: 128}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1506525536
@@ -28365,7 +28361,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 492.1089, y: -248}
+  m_AnchoredPosition: {x: 492, y: -248}
   m_SizeDelta: {x: 984, y: 128}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1842905595
@@ -29292,7 +29288,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 660.1089, y: -64}
+  m_AnchoredPosition: {x: 660, y: -64}
   m_SizeDelta: {x: 320, y: 128}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1991208902

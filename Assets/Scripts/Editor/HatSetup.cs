@@ -266,7 +266,7 @@ namespace RingSport.Editor
                 var visual = new GameObject("Visual");
                 visual.transform.SetParent(root.transform, false);
                 visual.transform.localPosition = new Vector3(0f, 0.55f, 0f);
-                visual.transform.localScale = Vector3.one * 1.7f;
+                visual.transform.localScale = Vector3.one * 2.55f;
 
                 BuildBeacon(root);
 
