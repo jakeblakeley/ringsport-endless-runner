@@ -14615,6 +14615,8 @@ MonoBehaviour:
   laneDistance: 3
   dogScreenHeight: 0.3
   dogAimOffset: -0.5
+  cameraDistanceScale: 1.23
+  cameraHeightOffset: -4.2
   megaCollectibleCount: 3
   megaCollectiblePoints: 100
   gamePanel: {fileID: 475346299}
@@ -14643,7 +14645,6 @@ MonoBehaviour:
   incorrectFeedbackTime: 1.5
   correctFeedbackTime: 0.3
   roundTransitionTime: 1
-  sequenceLengths: 030000000400000005000000
   poseToneSound: {fileID: 8300000, guid: d62791657137142178b988da9749d29b, type: 3}
   correctSound: {fileID: 8300000, guid: 9ab9d62c298b845a8897ce9e3922af62, type: 3}
   wrongSound: {fileID: 8300000, guid: 8c119be84120b4b66a2bd81fc0df207c, type: 3}

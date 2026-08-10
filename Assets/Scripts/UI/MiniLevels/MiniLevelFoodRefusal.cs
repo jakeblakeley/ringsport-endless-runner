@@ -36,12 +36,23 @@ namespace RingSport.UI
         [Header("Lane Settings")]
         [SerializeField] private float laneDistance = 3f; // -3, 0, +3
 
-        [Header("Camera Framing")]
-        [Tooltip("Where the dog sits in the frame: 0 = bottom edge, 0.5 = dead centre. Lower drops the dog and pulls more of the steaks' fall into view.")]
-        [Range(0.1f, 0.5f)]
-        [SerializeField] private float dogScreenHeight = 0.3f;
-        [Tooltip("Point on the dog the framing is measured against, relative to its transform - which sits at the capsule centre, a metre off the ground.")]
-        [SerializeField] private float dogAimOffset = -0.5f;
+        // Camera framing. Code-owned on purpose (not serialized): the first
+        // pass at these was baked into the scene within a session, silently
+        // pinning the shot against further code tuning - same story as
+        // CameraStateMachine's home lens constants.
+        //
+        // The shot is dead level, aligned with the lane axis: no pitch, no
+        // yaw, no lens shift. Steaks therefore fall in perfectly vertical
+        // screen lines, and the lanes are symmetric about frame centre.
+        //
+        // Scale on the mini-level camera's distance from its rig - ~6.3m in
+        // front of the dog.
+        private const float CameraDistanceScale = 1.05f;
+        // Lowers the camera after scaling, to just above the dog's eye line
+        // (~1.75m). With the shot level, this height is also what places the
+        // dog in the frame: the horizon sits at centre and the dog hangs
+        // below it, around the bottom third, with the drop above in view.
+        private const float CameraHeightOffset = -3.5f;
 
         [Header("Collectible Settings")]
         [SerializeField] private int megaCollectibleCount = 3;
@@ -85,13 +96,25 @@ namespace RingSport.UI
         /// </summary>
         public override void OnPrepareGame()
         {
-            GameLog.Info("[MiniLevelFoodRefusal] Preparing game - setting camera to MiniLevel state");
+            GameLog.Info("[MiniLevelFoodRefusal] Preparing game - setting camera to MiniLevel state (near eye line, slightly angled down)");
             playerController = Object.FindAnyObjectByType<PlayerController>();
 
-            // The state's own straight-on angle, with the image slid down the
-            // frame so the dog sits low and the drop above it stays in view
-            CameraStateMachine.Instance?.SetState(CameraStateType.MiniLevel);
-            CameraStateMachine.Instance?.SetFrameOffset(ComputeFrameOffset());
+            // Dead level, aligned with the lane axis. The look-at point sits
+            // at the camera's own settled height on the LANE MIDLINE (world
+            // x = 0, the centre of the steak lanes): same height = zero
+            // pitch, midline = zero yaw. Aiming at the dog instead used to
+            // tilt the shot down at it and let any lateral hair on its
+            // position yaw the frame sideways, clipping the right lane.
+            var cameraState = CameraStateMachine.Instance;
+            if (cameraState != null)
+            {
+                Vector3 settled = cameraState.GetStateWorldPosition(
+                    CameraStateType.MiniLevel, CameraDistanceScale, CameraHeightOffset);
+                Vector3? focus = playerController != null
+                    ? new Vector3(0f, settled.y, playerController.transform.position.z)
+                    : (Vector3?)null;
+                cameraState.SetState(CameraStateType.MiniLevel, CameraDistanceScale, CameraHeightOffset, focus);
+            }
 
             // Dog turns around to face the straight-on mini-level camera
             playerController?.Animations?.SetFacing(true);
@@ -104,39 +127,6 @@ namespace RingSport.UI
                 Vector3 feet = playerController.transform.position;
                 BlobShadow.Warmup(new Vector3(feet.x, 0.02f, feet.z));
             }
-        }
-
-        /// <summary>
-        /// How far down the frame to slide the image so the dog ends up at
-        /// <see cref="dogScreenHeight"/> instead of near the middle, in half
-        /// screen heights.
-        ///
-        /// Steaks drop in from off the top edge, so the player's only warning is
-        /// however much of the fall is on screen. Dropping the dog buys that
-        /// headroom; doing it with a lens shift rather than by tilting the camera
-        /// keeps the shot as straight-on as the state authored it.
-        ///
-        /// Zero when the geometry can't be worked out - the shot then frames the
-        /// way it always did.
-        /// </summary>
-        private float ComputeFrameOffset()
-        {
-            var cameraState = CameraStateMachine.Instance;
-            if (cameraState == null || playerController == null || cameraState.BaseFieldOfView <= 0f)
-                return 0f;
-
-            Vector3 dog = playerController.transform.position + Vector3.up * dogAimOffset;
-            Vector3 inCamera = Quaternion.Inverse(cameraState.GetStateWorldRotation(CameraStateType.MiniLevel))
-                * (dog - cameraState.GetStateWorldPosition(CameraStateType.MiniLevel));
-            if (inCamera.z < 0.01f)
-                return 0f;
-
-            // Where the dog lands now and where it is wanted, both in half frames
-            float halfFrame = Mathf.Tan(cameraState.BaseFieldOfView * 0.5f * Mathf.Deg2Rad);
-            float current = inCamera.y / (inCamera.z * halfFrame);
-            float wanted = (Mathf.Clamp01(dogScreenHeight) - 0.5f) * 2f;
-
-            return current - wanted;
         }
 
         public override void StartGame()
@@ -174,8 +164,39 @@ namespace RingSport.UI
             ShowPanel();
             UpdateUI();
 
+            LogCameraDiagnostic();
+
             // Start spawning
             gameCoroutine = StartCoroutine(RunGame());
+        }
+
+        /// <summary>
+        /// TEMPORARY framing probe while the mini-level shot is being tuned:
+        /// the settled camera's world pose and where the three lanes land on
+        /// screen. Runs at StartGame - the 3s countdown outlasts the 0.5s
+        /// camera transition, so the shot has settled by now. If the numbers
+        /// here are symmetric while the image is not, the skew is in the
+        /// world, not the camera.
+        /// </summary>
+        private void LogCameraDiagnostic()
+        {
+            var cameraState = CameraStateMachine.Instance;
+            Camera cam = cameraState != null ? cameraState.GetComponent<Camera>() : Camera.main;
+            if (cam == null || playerController == null)
+                return;
+
+            Transform rig = cam.transform.parent;
+            float z = playerController.transform.position.z;
+            Vector3 left = cam.WorldToScreenPoint(new Vector3(-laneDistance, 0.5f, z));
+            Vector3 mid = cam.WorldToScreenPoint(new Vector3(0f, 0.5f, z));
+            Vector3 right = cam.WorldToScreenPoint(new Vector3(laneDistance, 0.5f, z));
+            Vector3 far = cam.WorldToScreenPoint(new Vector3(0f, cam.transform.position.y, z + 60f));
+
+            GameLog.Info(
+                $"[FoodRefusalCam] cam pos {cam.transform.position:F3} euler {cam.transform.eulerAngles:F2} fov {cam.fieldOfView:F1} view {cam.pixelWidth}x{cam.pixelHeight} | " +
+                $"rig '{(rig != null ? rig.name : "none")}' pos {(rig != null ? rig.position : Vector3.zero):F3} euler {(rig != null ? rig.eulerAngles : Vector3.zero):F2} | " +
+                $"player {playerController.transform.position:F3} | " +
+                $"screenX left={left.x:F0} mid={mid.x:F0} right={right.x:F0} far={far.x:F0} centre={cam.pixelWidth * 0.5f:F0}");
         }
 
         public override void StopGame()

@@ -419,6 +419,14 @@ namespace RingSport.Core
             var player = Object.FindAnyObjectByType<PlayerController>();
             player?.ResetPosition();
 
+            // A retry re-enters here after the fail's death drop popped the
+            // hat off - put it back on and clear the popped-off prop, exactly
+            // as HandlePlayingState does for running-section retries. Without
+            // this the dog plays the whole retried mini level bare-headed.
+            var hatEquipper = player?.GetComponent<HatEquipper>();
+            hatEquipper?.ApplySelected();
+            hatEquipper?.ClearDroppedHat();
+
             // On a mini-level retry (coming from game over) the mini-level camera
             // and the dog's camera-facing are already in place - the camera move,
             // turn-around and start panel only appear on the first entry; the

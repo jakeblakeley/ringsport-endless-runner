@@ -299,10 +299,19 @@ namespace RingSport.Core
             Quaternion targetRot;
             if (lookAtWorldPoint.HasValue)
             {
-                Vector3 focusLocal = transform.parent != null
-                    ? transform.parent.InverseTransformPoint(lookAtWorldPoint.Value)
-                    : lookAtWorldPoint.Value;
-                targetRot = Quaternion.LookRotation(focusLocal - targetPos, Vector3.up);
+                // Solve the look-at against the SETTLED frame, not the live
+                // one: the transition slerps the rig onto the state's authored
+                // rotation, so a rotation solved in the rig's current frame
+                // would be applied in a different one, skewing the settled aim
+                // by however far the rig still had to turn when asked.
+                Vector3 settledPos = GetStateWorldPosition(newState, distanceScale, heightOffset);
+                Quaternion settledParentRot = transform.parent == null
+                    ? Quaternion.identity
+                    : (cameraRig == transform.parent
+                        ? Quaternion.Euler(targetState.parentRotation)
+                        : transform.parent.rotation);
+                targetRot = Quaternion.Inverse(settledParentRot) *
+                    Quaternion.LookRotation(lookAtWorldPoint.Value - settledPos, Vector3.up);
             }
             else
             {

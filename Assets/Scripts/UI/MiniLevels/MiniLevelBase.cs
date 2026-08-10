@@ -17,6 +17,17 @@ namespace RingSport.UI
         public abstract MiniLevelType MiniLevelType { get; }
 
         /// <summary>
+        /// Called as soon as the mini level is entered, before the start panel
+        /// (or, on a retry, the countdown) appears. isRetry is true when the
+        /// entry follows a failure - state meant to survive a retry (like a
+        /// resume round) should only be reset when it is false.
+        /// </summary>
+        public virtual void OnMiniLevelEntry(bool isRetry)
+        {
+            // Default: do nothing
+        }
+
+        /// <summary>
         /// Called when user clicks start button, before countdown begins.
         /// Override to set up camera, UI, etc.
         /// </summary>

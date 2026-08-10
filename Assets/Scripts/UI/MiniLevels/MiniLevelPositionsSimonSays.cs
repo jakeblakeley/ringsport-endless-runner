@@ -13,7 +13,8 @@ namespace RingSport.UI
     /// <summary>
     /// Positions Simon Says mini level gameplay.
     /// Shows sequences of positions that player must memorize and repeat.
-    /// 3 rounds: 3 positions, 4 positions, 5 positions.
+    /// 2 rounds: 3 positions, then 4. A failure retries at the round that
+    /// failed (fresh sequence), not from the top.
     /// </summary>
     public class MiniLevelPositionsSimonSays : MiniLevelBase
     {
@@ -35,8 +36,9 @@ namespace RingSport.UI
         [SerializeField] private float correctFeedbackTime = 0.3f;
         [SerializeField] private float roundTransitionTime = 1f;
 
-        [Header("Round Configuration")]
-        [SerializeField] private int[] sequenceLengths = { 3, 4, 5 };
+        // Code-owned on purpose (not serialized): the scene still carries the
+        // old three-round { 3, 4, 5 } and would silently win over this value
+        private readonly int[] sequenceLengths = { 3, 4 };
 
         [Header("Juice (see SOUND_EFFECTS.md)")]
         [Tooltip("Per-pose tone: Sit / Down / Stand each get their own pitch (temporary clip).")]
@@ -59,6 +61,9 @@ namespace RingSport.UI
 
         private GamePhase currentPhase = GamePhase.Idle;
         private int currentRound = 0;
+        // Round a retry re-enters at (survives the retry like the face
+        // attack's resumeEncounter; cleared on a fresh, non-retry entry)
+        private int resumeRound = 0;
         private List<string> currentSequence = new List<string>();
         private int playerInputIndex = 0;
         private Coroutine gameCoroutine;
@@ -157,6 +162,13 @@ namespace RingSport.UI
 
             if (standButton != null)
                 standButton.onClick.AddListener(() => OnPositionButtonClicked("Stand"));
+        }
+
+        public override void OnMiniLevelEntry(bool isRetry)
+        {
+            // A retry resumes at the failed round; anything else starts over
+            if (!isRetry)
+                resumeRound = 0;
         }
 
         public override void OnPrepareGame()
@@ -265,8 +277,10 @@ namespace RingSport.UI
 
         private IEnumerator RunGame()
         {
-            // Run through all rounds
-            for (currentRound = 0; currentRound < sequenceLengths.Length; currentRound++)
+            // Run the remaining rounds - from the top on a fresh entry, from
+            // the failed round on a retry (with a freshly rolled sequence)
+            int startRound = Mathf.Clamp(resumeRound, 0, sequenceLengths.Length - 1);
+            for (currentRound = startRound; currentRound < sequenceLengths.Length; currentRound++)
             {
                 GameLog.Info($"[MiniLevelPositionsSimonSays] Starting round {currentRound + 1}");
 
@@ -299,6 +313,7 @@ namespace RingSport.UI
 
             // All rounds complete - success!
             GameLog.Info("[MiniLevelPositionsSimonSays] All rounds complete!");
+            resumeRound = 0;
             UpdateText("Well Done!");
             SetDogPose("Stand");
             PlayClip(correctSound, 1.15f);
@@ -441,6 +456,9 @@ namespace RingSport.UI
             isProcessingInput = true;
             currentPhase = GamePhase.Idle;
             SetButtonsInteractable(false);
+
+            // The retry re-enters at this round rather than round one
+            resumeRound = currentRound;
 
             // Show incorrect feedback
             UpdateText("Incorrect!");

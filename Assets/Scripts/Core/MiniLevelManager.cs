@@ -100,6 +100,10 @@ namespace RingSport.Core
             // Find the game script for this type
             currentMiniLevelGame = GetMiniLevelGame(type);
 
+            // skipStartPanel doubles as the retry flag - it is only true when
+            // re-entering after a failure
+            currentMiniLevelGame?.OnMiniLevelEntry(skipStartPanel);
+
             GameLog.Info($"[MiniLevelManager] Starting mini level: {type} (skipStartPanel: {skipStartPanel})");
 
             // Ensure game HUD is hidden during mini level
